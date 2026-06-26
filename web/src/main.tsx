@@ -68,6 +68,10 @@ type Overview = {
   recent_audit_logs: AuditLog[];
 };
 
+type Me = {
+  username: string;
+};
+
 type FileEntry = {
   name: string;
   path: string;
@@ -205,6 +209,11 @@ function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 function AppShell() {
   const token = useAuth((s) => s.token);
   const wsStatus = useLive((s) => s.wsStatus);
+  const me = useQuery({
+    queryKey: ['me'],
+    queryFn: () => api<Me>('/api/me'),
+    enabled: Boolean(token),
+  });
   useAdminSocket(token);
 
   if (!token) return <Navigate to="/login" replace />;
@@ -234,14 +243,17 @@ function AppShell() {
             集中式远程管理后台
             <span className="ws-pill">{wsStatus}</span>
           </div>
-          <button
-            className="icon-text"
-            onClick={() => useAuth.getState().setToken(null)}
-            title="退出登录"
-          >
-            <LogOut size={16} />
-            退出
-          </button>
+          <div className="flex items-center gap-3">
+            <div className="user-chip">{me.data?.username || 'admin'}</div>
+            <button
+              className="icon-text"
+              onClick={() => useAuth.getState().setToken(null)}
+              title="退出登录"
+            >
+              <LogOut size={16} />
+              退出
+            </button>
+          </div>
         </header>
         <Routes>
           <Route path="/" element={<DashboardPage />} />

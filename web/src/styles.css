@@ -133,6 +133,10 @@
     @apply border border-line bg-white px-2 py-1 font-mono text-[11px] uppercase text-ink/55;
   }
 
+  .user-chip {
+    @apply border border-line bg-white px-3 py-2 font-mono text-sm text-ink/70;
+  }
+
   .inline-code {
     @apply border border-line bg-panel px-2 py-1 font-mono text-xs text-ink/70;
   }
