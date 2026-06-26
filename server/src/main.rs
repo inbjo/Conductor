@@ -1147,14 +1147,14 @@ async fn handle_admin_message(state: &AppState, text: &str) -> Result<(), ApiErr
                 ServerToAgent::VoiceRequest { session_id }
             })
             .await?;
-            voice_status(state, &session_id, "requesting", None, None);
+            voice_status(state, &session_id, "requesting", None, None).await;
         }
         AdminToServer::VoiceHangup { session_id } => {
             forward_signal_to_agent(state, &session_id, |session_id| {
                 ServerToAgent::VoiceHangup { session_id }
             })
             .await?;
-            voice_status(state, &session_id, "hangup", None, None);
+            voice_status(state, &session_id, "hangup", None, None).await;
         }
         AdminToServer::VoiceMute { session_id, muted } => {
             forward_signal_to_agent(state, &session_id, |session_id| ServerToAgent::VoiceMute {
@@ -1162,7 +1162,7 @@ async fn handle_admin_message(state: &AppState, text: &str) -> Result<(), ApiErr
                 muted,
             })
             .await?;
-            voice_status(state, &session_id, "muted", Some(muted), None);
+            voice_status(state, &session_id, "muted", Some(muted), None).await;
         }
     }
     Ok(())
@@ -1222,6 +1222,14 @@ async fn agent_socket(state: AppState, socket: WebSocket) {
                 if let Err(e) = upsert_device(&state, &reg).await {
                     error!("register device failed: {e}");
                 }
+                audit(
+                    &state,
+                    "system",
+                    "device_online",
+                    &reg.device_id,
+                    &format!("{} {} {}", reg.hostname, reg.os, reg.local_ip),
+                )
+                .await;
                 let _ = state.admin_events.send(AdminEvent::AgentStatusChanged {
                     device_id: reg.device_id,
                     online: true,
@@ -1263,13 +1271,13 @@ async fn agent_socket(state: AppState, socket: WebSocket) {
                 candidate,
             }) => signal(&state, session_id, "ice_candidate", candidate),
             Ok(AgentToServer::VoiceAccept { session_id }) => {
-                voice_status(&state, &session_id, "accepted", None, None);
+                voice_status(&state, &session_id, "accepted", None, None).await;
             }
             Ok(AgentToServer::VoiceReject { session_id, reason }) => {
-                voice_status(&state, &session_id, "rejected", None, Some(reason));
+                voice_status(&state, &session_id, "rejected", None, Some(reason)).await;
             }
             Ok(AgentToServer::VoiceHangup { session_id }) => {
-                voice_status(&state, &session_id, "hangup", None, None);
+                voice_status(&state, &session_id, "hangup", None, None).await;
             }
             Ok(AgentToServer::Error { message }) => warn!("agent error: {message}"),
             Err(e) => warn!("invalid agent message: {e}"),
@@ -1280,6 +1288,7 @@ async fn agent_socket(state: AppState, socket: WebSocket) {
         state.agents.remove(&id);
         let _ = touch_device(&state, &id, false).await;
         close_active_sessions_for_device(&state, &id, "agent_offline").await;
+        audit(&state, "system", "device_offline", &id, "agent websocket disconnected").await;
         let _ = state.admin_events.send(AdminEvent::AgentStatusChanged {
             device_id: id,
             online: false,
@@ -1357,6 +1366,7 @@ async fn update_session_status(state: &AppState, session_id: &str, status: &str)
         .bind(session_id)
         .execute(&state.db)
         .await;
+    audit(state, "system", "session_status", session_id, status).await;
     let _ = state.admin_events.send(AdminEvent::SessionStatus {
         session_id: session_id.into(),
         status: status.into(),
@@ -1395,6 +1405,14 @@ async fn close_active_sessions_for_device(state: &AppState, device_id: &str, sta
             .await
             .is_ok()
         {
+            audit(
+                state,
+                "system",
+                "session_auto_close",
+                &session_id,
+                &format!("device={} reason={}", device_id, status),
+            )
+            .await;
             let _ = state.admin_events.send(AdminEvent::Signal {
                 session_id,
                 kind: "session_closed".into(),
@@ -1412,13 +1430,20 @@ fn signal(state: &AppState, session_id: String, kind: &str, payload: Value) {
     });
 }
 
-fn voice_status(
+async fn voice_status(
     state: &AppState,
     session_id: &str,
     status: &str,
     muted: Option<bool>,
     reason: Option<String>,
 ) {
+    let detail = match (muted, reason.as_deref()) {
+        (Some(muted), Some(reason)) => format!("muted={} reason={}", muted, reason),
+        (Some(muted), None) => format!("muted={}", muted),
+        (None, Some(reason)) => format!("reason={}", reason),
+        (None, None) => status.to_string(),
+    };
+    audit(state, "system", "voice_status", session_id, &detail).await;
     let _ = state.admin_events.send(AdminEvent::VoiceStatus {
         session_id: session_id.into(),
         status: status.into(),
