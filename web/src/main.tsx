@@ -709,6 +709,12 @@ function RemotePage() {
   const { sessionId = '' } = useParams();
   const navigate = useNavigate();
   const session = useQuery({ queryKey: ['session', sessionId], queryFn: () => api<Session>(`/api/sessions/${sessionId}`), refetchInterval: 5000 });
+  const device = useQuery({
+    queryKey: ['session-device', session.data?.device_id],
+    queryFn: () => api<Device>(`/api/devices/${session.data?.device_id}`),
+    enabled: Boolean(session.data?.device_id),
+    refetchInterval: 10000,
+  });
   const close = useMutation({
     mutationFn: () => api<Session>(`/api/sessions/${sessionId}/close`, { method: 'POST' }),
     onSuccess: (s) => navigate(`/devices/${s.device_id}`),
@@ -719,6 +725,7 @@ function RemotePage() {
   const liveLogs = useLive((s) => s.logs[sessionId] || []);
   const voice = useLive((s) => s.voice[sessionId]);
   const closeReason = useLive((s) => s.closedSessions[sessionId]);
+  const wsStatus = useLive((s) => s.wsStatus);
   const send = useLive((s) => s.send);
   const sendControl = (event: Omit<ControlEventPayload, 'type' | 'session_id' | 'created_at'>) => {
     const payload: ControlEventPayload = {
@@ -809,6 +816,14 @@ function RemotePage() {
           )}
         </div>
         <aside className="side-panel">
+          <SessionSummary
+            sessionId={sessionId}
+            sessionStatus={session.data?.status || 'connecting'}
+            device={device.data}
+            frameTime={frame?.captured_at || null}
+            voiceStatus={voice?.status || 'idle'}
+            wsStatus={wsStatus}
+          />
           <SessionTools deviceId={session.data?.device_id || ''} />
           <ChatPanel sessionId={sessionId} deviceId={session.data?.device_id || ''} />
           <VoicePanel sessionId={sessionId} voice={voice} send={send} />
@@ -821,6 +836,36 @@ function RemotePage() {
         </aside>
       </div>
     </section>
+  );
+}
+
+function SessionSummary({
+  sessionId,
+  sessionStatus,
+  device,
+  frameTime,
+  voiceStatus,
+  wsStatus,
+}: {
+  sessionId: string;
+  sessionStatus: string;
+  device?: Device;
+  frameTime: string | null;
+  voiceStatus: string;
+  wsStatus: string;
+}) {
+  return (
+    <div className="tool-panel">
+      <h3><Activity size={16} /> 会话状态</h3>
+      <div className="summary-grid">
+        <Info label="会话" value={sessionId} />
+        <Info label="状态" value={sessionStatus} />
+        <Info label="终端" value={device?.hostname || device?.device_id || '-'} />
+        <Info label="网络" value={wsStatus} />
+        <Info label="语音" value={voiceStatus} />
+        <Info label="最近帧" value={formatTime(frameTime)} />
+      </div>
+    </div>
   );
 }
 
@@ -953,6 +998,11 @@ function FilesPage() {
   const [path, setPath] = useState('.');
   const [mkdirName, setMkdirName] = useState('');
   const qc = useQueryClient();
+  const device = useQuery({
+    queryKey: ['files-device', id],
+    queryFn: () => api<Device>(`/api/devices/${id}`),
+    enabled: Boolean(id),
+  });
   const files = useQuery({
     queryKey: ['files', id, path],
     queryFn: () => api<{ ok: boolean; error?: string; entries?: FileEntry[] }>(`/api/devices/${id}/files?path=${encodeURIComponent(path)}`),
@@ -1006,6 +1056,15 @@ function FilesPage() {
     const parts = path.split('/').filter(Boolean);
     setPath(parts.length <= 1 ? '.' : parts.slice(0, -1).join('/'));
   };
+  const busyLabel = upload.isPending
+    ? '上传中'
+    : download.isPending
+      ? '下载中'
+      : del.isPending
+        ? '删除中'
+        : mkdir.isPending
+          ? '创建目录中'
+          : '';
 
   return (
     <section className="page">
@@ -1013,11 +1072,12 @@ function FilesPage() {
         <div>
           <p className="eyebrow">Files</p>
           <h1>远端文件</h1>
+          <p className="page-meta">{device.data?.hostname || id} / {path}</p>
         </div>
         <button className="icon-text" onClick={refresh}><RefreshCcw size={16} />刷新</button>
       </div>
       <div className="toolbar">
-        <button className="icon-text" onClick={goParent} disabled={path === '.'}>
+        <button className="icon-text" onClick={goParent} disabled={path === '.' || files.isFetching}>
           上级
         </button>
         <div className="crumbs">
@@ -1035,11 +1095,12 @@ function FilesPage() {
         </div>
         <input className="path-input" value={path} onChange={(e) => setPath(e.target.value || '.')} />
         <input className="path-input" placeholder="新目录名称" value={mkdirName} onChange={(e) => setMkdirName(e.target.value)} />
-        <button className="icon-text" onClick={() => mkdir.mutate()} disabled={!mkdirName.trim()}><FolderPlus size={16} />新建</button>
+        <button className="icon-text" onClick={() => mkdir.mutate()} disabled={!mkdirName.trim() || Boolean(busyLabel)}><FolderPlus size={16} />新建</button>
         <label className="icon-text file-pick">
           <Upload size={16} />上传
-          <input type="file" onChange={(e) => e.target.files?.[0] && upload.mutate(e.target.files[0])} />
+          <input type="file" onChange={(e) => e.target.files?.[0] && upload.mutate(e.target.files[0])} disabled={Boolean(busyLabel)} />
         </label>
+        {busyLabel && <span className="busy-pill">{busyLabel}</span>}
       </div>
       <div className="table-wrap">
         <table>

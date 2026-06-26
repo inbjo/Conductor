@@ -32,6 +32,10 @@
     @apply text-3xl font-semibold;
   }
 
+  .page-meta {
+    @apply mt-2 break-all font-mono text-xs text-ink/55;
+  }
+
   .eyebrow {
     @apply mb-1 font-mono text-xs uppercase tracking-widest text-signal;
   }
@@ -266,6 +270,10 @@
     @apply flex flex-wrap gap-2;
   }
 
+  .summary-grid {
+    @apply grid gap-3;
+  }
+
   .voice-panel {
     @apply flex items-center justify-between gap-3;
   }
@@ -321,6 +329,10 @@
 
   .file-pick {
     @apply cursor-pointer;
+  }
+
+  .busy-pill {
+    @apply inline-flex items-center border border-brass/30 bg-brass/10 px-3 py-2 text-sm text-brass;
   }
 
   .crumbs {
