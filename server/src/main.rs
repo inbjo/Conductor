@@ -878,21 +878,23 @@ async fn send_chat(
 }
 
 async fn list_files(
-    _user: AuthUser,
+    user: AuthUser,
     State(state): State<AppState>,
     Path(device_id): Path<String>,
     Query(q): Query<PathQuery>,
 ) -> Result<Json<FileResultPayload>, ApiError> {
-    forward_file_command(
+    let path = q.path.unwrap_or_else(|| ".".into());
+    let result = forward_file_command(
         &state,
         &device_id,
         "list",
-        q.path.unwrap_or_else(|| ".".into()),
+        path.clone(),
         None,
         None,
     )
-    .await
-    .map(Json)
+    .await?;
+    audit(&state, &user.username, "file_list", &device_id, &path).await;
+    Ok(Json(result))
 }
 
 async fn delete_file(
@@ -990,7 +992,7 @@ async fn upload_file(
 }
 
 async fn download_file(
-    _user: AuthUser,
+    user: AuthUser,
     State(state): State<AppState>,
     Path(device_id): Path<String>,
     Query(q): Query<PathQuery>,
@@ -1005,6 +1007,7 @@ async fn download_file(
             result.error.unwrap_or_else(|| "download failed".into()),
         ));
     }
+    audit(&state, &user.username, "file_download", &device_id, &path).await;
     let bytes = B64
         .decode(result.content_base64.unwrap_or_default())
         .map_err(|e| ApiError::Internal(e.to_string()))?;
