@@ -564,6 +564,14 @@ function DeviceDetailPage() {
     mutationFn: () => api<Session>('/api/sessions', { method: 'POST', body: JSON.stringify({ device_id: id }) }),
     onSuccess: (s) => navigate(`/sessions/${s.session_id}`),
   });
+  const openChat = () => {
+    const existing = (sessions.data || []).find((session) => ['pending', 'active'].includes(session.status));
+    if (existing) {
+      navigate(`/sessions/${existing.session_id}`);
+      return;
+    }
+    createSession.mutate();
+  };
 
   if (device.isLoading) return <section className="page">加载中</section>;
   if (!device.data) return <section className="page">设备不存在</section>;
@@ -596,7 +604,7 @@ function DeviceDetailPage() {
           <FileDown size={18} />
           文件管理
         </Link>
-        <button className="button" disabled={!online}>
+        <button className="button" disabled={!online || createSession.isPending} onClick={openChat}>
           <MessageSquare size={18} />
           文字沟通
         </button>
