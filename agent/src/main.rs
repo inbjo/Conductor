@@ -12,6 +12,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sysinfo::System;
+use tokio::process::Command;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{error, info, warn};
 use uuid::Uuid;
@@ -245,7 +246,7 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
             _ = frame_tick.tick() => {
                 for session_id in active_sessions.clone() {
                     frame_no = frame_no.saturating_add(1);
-                    send_json(&mut write, &AgentToServer::ScreenFrame(make_demo_frame(&cfg, &session_id, frame_no))).await?;
+                    send_json(&mut write, &AgentToServer::ScreenFrame(capture_screen_frame(&cfg, &session_id, frame_no).await)).await?;
                 }
             }
             msg = read.next() => {
@@ -279,7 +280,7 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                         info!("remote control requested: {session_id}");
                         active_sessions.insert(session_id.clone());
                         send_json(&mut write, &AgentToServer::SessionAccept { session_id: session_id.clone() }).await?;
-                        send_json(&mut write, &AgentToServer::ScreenFrame(make_demo_frame(&cfg, &session_id, frame_no))).await?;
+                        send_json(&mut write, &AgentToServer::ScreenFrame(capture_screen_frame(&cfg, &session_id, frame_no).await)).await?;
                         send_json(&mut write, &AgentToServer::WebrtcOffer {
                             session_id: session_id.clone(),
                             sdp: "placeholder-offer: screen capture and WebRTC transport are reserved for the next implementation pass".into(),
@@ -317,6 +318,51 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
             }
         }
     }
+}
+
+async fn capture_screen_frame(cfg: &Config, session_id: &str, frame_no: u64) -> ScreenFramePayload {
+    match tokio::time::timeout(Duration::from_secs(3), capture_real_frame(session_id)).await {
+        Ok(Ok(frame)) => frame,
+        Ok(Err(err)) => {
+            warn!("real screen capture failed, using demo frame: {err}");
+            make_demo_frame(cfg, session_id, frame_no)
+        }
+        Err(_) => {
+            warn!("real screen capture timed out, using demo frame");
+            make_demo_frame(cfg, session_id, frame_no)
+        }
+    }
+}
+
+async fn capture_real_frame(session_id: &str) -> anyhow::Result<ScreenFramePayload> {
+    let output = Command::new("grim")
+        .args(["-c", "-t", "png", "-"])
+        .output()
+        .await
+        .context("run grim")?;
+    if !output.status.success() {
+        return Err(anyhow!(
+            "grim failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let (width, height) = parse_png_dimensions(&output.stdout).unwrap_or((1280, 720));
+    Ok(ScreenFramePayload {
+        session_id: session_id.to_string(),
+        width,
+        height,
+        image_data_url: format!("data:image/png;base64,{}", B64.encode(&output.stdout)),
+        captured_at: Utc::now(),
+    })
+}
+
+fn parse_png_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
+    if bytes.len() < 24 || &bytes[0..8] != b"\x89PNG\r\n\x1a\n" {
+        return None;
+    }
+    let width = u32::from_be_bytes(bytes[16..20].try_into().ok()?);
+    let height = u32::from_be_bytes(bytes[20..24].try_into().ok()?);
+    Some((width, height))
 }
 
 fn make_demo_frame(cfg: &Config, session_id: &str, frame_no: u64) -> ScreenFramePayload {
