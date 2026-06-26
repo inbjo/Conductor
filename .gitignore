@@ -1,0 +1,28 @@
+# Rust
+/target/
+
+# Runtime data
+/data/
+/*.sqlite
+/*.sqlite3
+/*.db
+/*.db-shm
+/*.db-wal
+
+# Frontend build tooling
+/web/node_modules/
+/web/.vite/
+/web/tsconfig*.tsbuildinfo
+/web/vite.config.js
+/web/vite.config.d.ts
+
+# Environment and logs
+/.env
+/.env.*
+*.log
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

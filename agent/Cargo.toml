@@ -1,0 +1,23 @@
+[package]
+name = "conductor-agent"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+base64 = "0.22"
+chrono.workspace = true
+directories = "5"
+futures-util.workspace = true
+hostname = "0.4"
+local-ip-address = "0.6"
+serde.workspace = true
+serde_json.workspace = true
+sysinfo = "0.30"
+tokio.workspace = true
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+url = "2"
+uuid.workspace = true
