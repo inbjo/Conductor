@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams } from 'react-router';
+import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router';
 import { create } from 'zustand';
 import {
   Activity,
@@ -564,6 +564,10 @@ function DeviceDetailPage() {
     mutationFn: () => api<Session>('/api/sessions', { method: 'POST', body: JSON.stringify({ device_id: id }) }),
     onSuccess: (s) => navigate(`/sessions/${s.session_id}`),
   });
+  const createVoiceSession = useMutation({
+    mutationFn: () => api<Session>('/api/sessions', { method: 'POST', body: JSON.stringify({ device_id: id }) }),
+    onSuccess: (s) => navigate(`/sessions/${s.session_id}?voice=1`),
+  });
   const openChat = () => {
     const existing = (sessions.data || []).find((session) => ['pending', 'active'].includes(session.status));
     if (existing) {
@@ -571,6 +575,14 @@ function DeviceDetailPage() {
       return;
     }
     createSession.mutate();
+  };
+  const openVoice = () => {
+    const existing = (sessions.data || []).find((session) => ['pending', 'active'].includes(session.status));
+    if (existing) {
+      navigate(`/sessions/${existing.session_id}?voice=1`);
+      return;
+    }
+    createVoiceSession.mutate();
   };
 
   if (device.isLoading) return <section className="page">加载中</section>;
@@ -608,12 +620,12 @@ function DeviceDetailPage() {
           <MessageSquare size={18} />
           文字沟通
         </button>
-        <button className="button" disabled>
+        <button className="button" disabled={!online || createVoiceSession.isPending} onClick={openVoice}>
           <Volume2 size={18} />
-          语音预留
+          语音沟通
         </button>
       </div>
-      {createSession.error && <p className="error-line">{createSession.error.message}</p>}
+      {(createSession.error || createVoiceSession.error) && <p className="error-line">{(createSession.error || createVoiceSession.error)?.message}</p>}
       <section className="subsection">
         <div className="subsection-head">
           <h2>最近会话</h2>
@@ -715,6 +727,7 @@ function AuditPage() {
 
 function RemotePage() {
   const { sessionId = '' } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const session = useQuery({ queryKey: ['session', sessionId], queryFn: () => api<Session>(`/api/sessions/${sessionId}`), refetchInterval: 5000 });
   const device = useQuery({
@@ -834,7 +847,7 @@ function RemotePage() {
           />
           <SessionTools deviceId={session.data?.device_id || ''} />
           <ChatPanel sessionId={sessionId} deviceId={session.data?.device_id || ''} />
-          <VoicePanel sessionId={sessionId} voice={voice} send={send} />
+          <VoicePanel sessionId={sessionId} voice={voice} send={send} autoRequest={new URLSearchParams(location.search).get('voice') === '1'} />
           <div className="event-log">
             <h3>输入与信令</h3>
             {frame && <code>frame {frame.width}x{frame.height} {formatTime(frame.captured_at)}</code>}
@@ -894,15 +907,18 @@ function VoicePanel({
   sessionId,
   voice,
   send,
+  autoRequest,
 }: {
   sessionId: string;
   voice?: { status: string; muted: boolean; reason?: string | null };
   send: ((payload: unknown) => void) | null;
+  autoRequest?: boolean;
 }) {
   const status = voice?.status || 'idle';
   const muted = voice?.muted || false;
   const [localError, setLocalError] = useState('');
   const streamRef = useRef<MediaStream | null>(null);
+  const autoRequested = useRef(false);
   const sendVoice = (payload: unknown) => send?.(payload);
   const requestVoice = async () => {
     setLocalError('');
@@ -922,6 +938,11 @@ function VoicePanel({
     sendVoice({ type: 'voice_hangup', session_id: sessionId });
   };
   useEffect(() => () => streamRef.current?.getTracks().forEach((track) => track.stop()), []);
+  useEffect(() => {
+    if (!autoRequest || autoRequested.current || !send || status !== 'idle') return;
+    autoRequested.current = true;
+    void requestVoice();
+  }, [autoRequest, send, status]);
   return (
     <div className="voice-panel">
       <div>
