@@ -327,6 +327,10 @@
     @apply grid h-10 w-10 place-items-center border border-line bg-white hover:border-signal hover:text-signal;
   }
 
+  .chat-note {
+    @apply mb-3 border border-alert/30 bg-alert/10 px-3 py-2 text-sm text-alert;
+  }
+
   .event-log code {
     @apply mb-2 block border border-line bg-panel px-2 py-1 font-mono text-xs;
   }

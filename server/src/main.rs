@@ -837,6 +837,13 @@ async fn send_chat(
     Path(session_id): Path<String>,
     Json(req): Json<ChatRequest>,
 ) -> Result<Json<ChatPayload>, ApiError> {
+    let session = get_session_by_id(&state.db, &session_id).await?;
+    if !matches!(session.status.as_str(), "pending" | "active") {
+        return Err(ApiError::BadRequest(format!(
+            "session is not available for chat: {}",
+            session.status
+        )));
+    }
     let text = req.text.trim();
     if text.is_empty() {
         return Err(ApiError::BadRequest("message text is required".into()));

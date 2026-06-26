@@ -858,7 +858,12 @@ function RemotePage() {
             wsStatus={wsStatus}
           />
           <SessionTools deviceId={session.data?.device_id || ''} />
-          <ChatPanel sessionId={sessionId} deviceId={session.data?.device_id || ''} />
+          <ChatPanel
+            sessionId={sessionId}
+            deviceId={session.data?.device_id || ''}
+            sessionStatus={session.data?.status || 'connecting'}
+            closeReason={closeReason}
+          />
           <VoicePanel sessionId={sessionId} voice={voice} send={send} autoRequest={new URLSearchParams(location.search).get('voice') === '1'} />
           <div className="event-log">
             <h3>输入与信令</h3>
@@ -991,10 +996,21 @@ function VoicePanel({
   );
 }
 
-function ChatPanel({ sessionId, deviceId }: { sessionId: string; deviceId: string }) {
+function ChatPanel({
+  sessionId,
+  deviceId,
+  sessionStatus,
+  closeReason,
+}: {
+  sessionId: string;
+  deviceId: string;
+  sessionStatus: string;
+  closeReason?: string;
+}) {
   const [text, setText] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
   const qc = useQueryClient();
+  const chatLocked = Boolean(closeReason) || !['pending', 'active'].includes(sessionStatus);
   const messages = useQuery({
     queryKey: ['messages', sessionId],
     queryFn: () => api<ChatMessage[]>(`/api/sessions/${sessionId}/messages`),
@@ -1020,15 +1036,20 @@ function ChatPanel({ sessionId, deviceId }: { sessionId: string; deviceId: strin
         ))}
         <div ref={endRef} />
       </div>
+      {chatLocked && (
+        <div className="chat-note">
+          会话已结束，不能继续发送消息。
+        </div>
+      )}
       <form
         className="chat-send"
         onSubmit={(e) => {
           e.preventDefault();
-          if (text.trim() && deviceId) send.mutate();
+          if (!chatLocked && text.trim() && deviceId) send.mutate();
         }}
       >
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="输入消息" />
-        <button title="发送"><Send size={16} /></button>
+        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="输入消息" disabled={chatLocked || send.isPending} />
+        <button title="发送" disabled={chatLocked || send.isPending}><Send size={16} /></button>
       </form>
     </div>
   );
