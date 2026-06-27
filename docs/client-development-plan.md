@@ -139,4 +139,5 @@ macOS runner 或真机运行：
 ```sh
 ./scripts/build-client.sh
 ./scripts/verify-client-archive.sh macos release/conductor-client-macos.tar.gz
+./scripts/smoke-client-launch.sh macos release/conductor-client-macos.tar.gz
 ```

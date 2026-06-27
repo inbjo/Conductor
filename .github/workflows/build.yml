@@ -187,6 +187,9 @@ jobs:
       - name: Verify macOS client archive
         run: ./scripts/verify-client-archive.sh macos release/conductor-client-macos.tar.gz
 
+      - name: Smoke launch macOS client
+        run: ./scripts/smoke-client-launch.sh macos release/conductor-client-macos.tar.gz
+
       - name: Upload macOS client
         uses: actions/upload-artifact@v4
         with:

@@ -463,9 +463,9 @@ CI 会构建并上传四类 artifact：
 CI 构建流程：
 
 - 服务端：安装 Rust/Node，执行 `scripts/build-release.sh x86_64-unknown-linux-gnu`。
-- Linux 客户端：安装 GTK/clang 依赖，执行 `scripts/build-client.sh`。
+- Linux 客户端：安装 GTK/clang 依赖，执行 `scripts/build-client.sh`，校验归档并做客户端启动/e2e smoke。
 - Windows 客户端：安装 Rust/Flutter，执行 `scripts/build-client.ps1`；脚本会启用 Flutter Windows desktop。
-- macOS 客户端：安装 Rust/Flutter，执行 `scripts/build-client.sh`。
+- macOS 客户端：安装 Rust/Flutter，执行 `scripts/build-client.sh`，校验归档并做 `.app` 启动 smoke。
 
 注意：Windows 和 macOS 任务需要 CI 平台提供对应系统 runner。自建 Gitea/Forgejo Actions 如果没有 `windows-2022` 或 `macos-14` runner，只会创建任务配置，不能真正产出对应平台包。
 

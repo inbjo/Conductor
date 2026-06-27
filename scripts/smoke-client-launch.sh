@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -lt 2 || $# -gt 3 ]]; then
-  echo "Usage: $0 <linux> <archive-path> [seconds]" >&2
+  echo "Usage: $0 <linux|macos> <archive-path> [seconds]" >&2
   exit 2
 fi
 
@@ -28,6 +28,10 @@ case "$platform" in
     client="$tmp_dir/conductor_client"
     agent="$tmp_dir/conductor-agent"
     ;;
+  macos)
+    client="$tmp_dir/conductor_client.app/Contents/MacOS/conductor_client"
+    agent="$tmp_dir/conductor_client.app/Contents/MacOS/conductor-agent"
+    ;;
   *)
     echo "Unsupported platform: $platform" >&2
     exit 2
@@ -44,19 +48,28 @@ if [[ ! -x "$agent" ]]; then
 fi
 
 run_client=("$client")
-if command -v xvfb-run >/dev/null 2>&1 && [[ "${CONDUCTOR_CLIENT_SMOKE_NO_XVFB:-0}" != "1" ]]; then
+if [[ "$platform" == "linux" ]] && command -v xvfb-run >/dev/null 2>&1 && [[ "${CONDUCTOR_CLIENT_SMOKE_NO_XVFB:-0}" != "1" ]]; then
   run_client=(xvfb-run -a "$client")
-elif [[ -z "${DISPLAY:-}" ]]; then
+elif [[ "$platform" == "linux" && -z "${DISPLAY:-}" ]]; then
   echo "DISPLAY is not set and xvfb-run is unavailable." >&2
   exit 1
 fi
 
 set +e
-timeout "${seconds}s" "${run_client[@]}"
-status=$?
+"${run_client[@]}" &
+client_pid="$!"
+sleep "$seconds"
+if kill -0 "$client_pid" 2>/dev/null; then
+  kill "$client_pid" 2>/dev/null || true
+  wait "$client_pid" 2>/dev/null
+  status=0
+else
+  wait "$client_pid"
+  status=$?
+fi
 set -e
 
-if [[ "$status" -eq 124 ]]; then
+if [[ "$status" -eq 0 ]]; then
   echo "Client launch smoke passed after ${seconds}s: $client"
   exit 0
 fi

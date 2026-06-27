@@ -234,3 +234,10 @@ conductor_client.app/Contents/MacOS/conductor-agent
 当前 macOS `.app` 关闭 App Sandbox，用于优先跑通演示流程：启动内置 `conductor-agent`、连接 Server、访问文件根目录并调用屏幕/输入/音频能力。正式签名分发需要后续重新收敛权限模型。
 
 macOS 已纳入 CI 构建目标，真实屏幕、输入、语音能力仍需真机验证。
+
+归档结构和启动 smoke：
+
+```sh
+./scripts/verify-client-archive.sh macos release/conductor-client-macos.tar.gz
+./scripts/smoke-client-launch.sh macos release/conductor-client-macos.tar.gz
+```
