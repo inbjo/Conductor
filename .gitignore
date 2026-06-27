@@ -17,6 +17,8 @@
 /web/coverage/
 /web/tsconfig.tsbuildinfo
 /web/tsconfig.node.tsbuildinfo
+/web/vite.config.js
+/web/vite.config.d.ts
 
 # Environment and logs
 .env

@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     path::{Component, Path, PathBuf},
     time::Duration,
 };
@@ -8,6 +8,9 @@ use anyhow::{anyhow, Context};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use chrono::{DateTime, Utc};
 use directories::{BaseDirs, ProjectDirs};
+use enigo::{
+    Axis, Button, Coordinate, Direction, Enigo, Key, Keyboard, Mouse, Settings,
+};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -236,6 +239,8 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
     let mut heartbeat = tokio::time::interval(Duration::from_secs(10));
     let mut frame_tick = tokio::time::interval(Duration::from_millis(1000));
     let mut active_sessions = HashSet::<String>::new();
+    let mut session_frames = HashMap::<String, (u32, u32)>::new();
+    let mut input = InputController::new();
     let mut frame_no = 0_u64;
 
     loop {
@@ -246,7 +251,9 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
             _ = frame_tick.tick() => {
                 for session_id in active_sessions.clone() {
                     frame_no = frame_no.saturating_add(1);
-                    send_json(&mut write, &AgentToServer::ScreenFrame(capture_screen_frame(&cfg, &session_id, frame_no).await)).await?;
+                    let frame = capture_screen_frame(&cfg, &session_id, frame_no).await;
+                    session_frames.insert(session_id.clone(), (frame.width, frame.height));
+                    send_json(&mut write, &AgentToServer::ScreenFrame(frame)).await?;
                 }
             }
             msg = read.next() => {
@@ -271,16 +278,20 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                         send_json(&mut write, &AgentToServer::ChatMessage(reply)).await?;
                     }
                     Ok(ServerToAgent::ControlEvent(event)) => {
-                        info!(
-                            "control event session={} kind={} x={:?} y={:?} key={:?} button={:?}",
-                            event.session_id, event.kind, event.x, event.y, event.key, event.button
-                        );
+                        if let Err(err) = input.apply(&event, session_frames.get(&event.session_id).copied()) {
+                            warn!(
+                                "control event failed session={} kind={}: {err}",
+                                event.session_id, event.kind
+                            );
+                        }
                     }
                     Ok(ServerToAgent::RemoteControlRequest { session_id }) => {
                         info!("remote control requested: {session_id}");
                         active_sessions.insert(session_id.clone());
                         send_json(&mut write, &AgentToServer::SessionAccept { session_id: session_id.clone() }).await?;
-                        send_json(&mut write, &AgentToServer::ScreenFrame(capture_screen_frame(&cfg, &session_id, frame_no).await)).await?;
+                        let frame = capture_screen_frame(&cfg, &session_id, frame_no).await;
+                        session_frames.insert(session_id.clone(), (frame.width, frame.height));
+                        send_json(&mut write, &AgentToServer::ScreenFrame(frame)).await?;
                         send_json(&mut write, &AgentToServer::WebrtcOffer {
                             session_id: session_id.clone(),
                             sdp: "placeholder-offer: screen capture and WebRTC transport are reserved for the next implementation pass".into(),
@@ -289,6 +300,7 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                     Ok(ServerToAgent::SessionClose { session_id }) => {
                         info!("session closed by server: {session_id}");
                         active_sessions.remove(&session_id);
+                        session_frames.remove(&session_id);
                     }
                     Ok(ServerToAgent::WebrtcOffer { session_id, sdp }) => {
                         info!("received admin offer for session {session_id}: {} bytes", sdp.len());
@@ -563,6 +575,154 @@ fn file_ok() -> FileResultPayload {
         error: None,
         entries: None,
         content_base64: None,
+    }
+}
+
+struct InputController {
+    enigo: Option<Enigo>,
+}
+
+impl InputController {
+    fn new() -> Self {
+        Self { enigo: None }
+    }
+
+    fn apply(
+        &mut self,
+        event: &ControlEventPayload,
+        frame_size: Option<(u32, u32)>,
+    ) -> anyhow::Result<()> {
+        let enigo = self.enigo()?;
+        match event.kind.as_str() {
+            "mouse_move" => {
+                let (x, y) = normalized_position(event, frame_size)?;
+                enigo.move_mouse(x, y, Coordinate::Abs)?;
+            }
+            "mouse_click" => {
+                let (x, y) = normalized_position(event, frame_size)?;
+                enigo.move_mouse(x, y, Coordinate::Abs)?;
+                enigo.button(button_from_event(event.button.as_deref())?, Direction::Click)?;
+            }
+            "mouse_wheel" => {
+                let dy = event.delta_y.unwrap_or_default().round() as i32;
+                let dx = event.delta_x.unwrap_or_default().round() as i32;
+                if dy != 0 {
+                    enigo.scroll(dy, Axis::Vertical)?;
+                }
+                if dx != 0 {
+                    enigo.scroll(dx, Axis::Horizontal)?;
+                }
+            }
+            "key_down" => {
+                if let Some(text) = event.key.as_deref() {
+                    send_key(enigo, text)?;
+                }
+            }
+            other => return Err(anyhow!("unsupported control event: {other}")),
+        }
+        Ok(())
+    }
+
+    fn enigo(&mut self) -> anyhow::Result<&mut Enigo> {
+        if self.enigo.is_none() {
+            self.enigo = Some(Enigo::new(&Settings::default())?);
+        }
+        Ok(self.enigo.as_mut().expect("enigo initialized"))
+    }
+}
+
+fn normalized_position(
+    event: &ControlEventPayload,
+    frame_size: Option<(u32, u32)>,
+) -> anyhow::Result<(i32, i32)> {
+    let (width, height) =
+        frame_size.ok_or_else(|| anyhow!("screen size is not available for session"))?;
+    let x = event.x.ok_or_else(|| anyhow!("mouse x is required"))?;
+    let y = event.y.ok_or_else(|| anyhow!("mouse y is required"))?;
+    let width = width.max(1);
+    let height = height.max(1);
+    let x = (x.clamp(0.0, 1.0) * (width.saturating_sub(1) as f32)).round() as i32;
+    let y = (y.clamp(0.0, 1.0) * (height.saturating_sub(1) as f32)).round() as i32;
+    Ok((x, y))
+}
+
+fn button_from_event(button: Option<&str>) -> anyhow::Result<Button> {
+    match button.unwrap_or("left").to_ascii_lowercase().as_str() {
+        "left" => Ok(Button::Left),
+        "right" => Ok(Button::Right),
+        "middle" => Ok(Button::Middle),
+        other => Err(anyhow!("unsupported mouse button: {other}")),
+    }
+}
+
+fn send_key(enigo: &mut Enigo, key: &str) -> anyhow::Result<()> {
+    if let Some(named) = named_key(key) {
+        enigo.key(named, Direction::Click)?;
+        return Ok(());
+    }
+    let mut chars = key.chars();
+    match (chars.next(), chars.next()) {
+        (Some(ch), None) => {
+            enigo.key(Key::Unicode(ch), Direction::Click)?;
+            Ok(())
+        }
+        _ => Err(anyhow!("unsupported key: {key}")),
+    }
+}
+
+fn named_key(key: &str) -> Option<Key> {
+    match key {
+        "Enter" => Some(Key::Return),
+        "Backspace" => Some(Key::Backspace),
+        "Tab" => Some(Key::Tab),
+        "Escape" => Some(Key::Escape),
+        "Delete" => Some(Key::Delete),
+        "ArrowUp" => Some(Key::UpArrow),
+        "ArrowDown" => Some(Key::DownArrow),
+        "ArrowLeft" => Some(Key::LeftArrow),
+        "ArrowRight" => Some(Key::RightArrow),
+        "Home" => Some(Key::Home),
+        "End" => Some(Key::End),
+        "PageUp" => Some(Key::PageUp),
+        "PageDown" => Some(Key::PageDown),
+        " " => Some(Key::Space),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalized_position_clamps_to_frame_bounds() {
+        let event = ControlEventPayload {
+            session_id: "s".into(),
+            kind: "mouse_move".into(),
+            x: Some(1.4),
+            y: Some(-0.3),
+            button: None,
+            key: None,
+            delta_x: None,
+            delta_y: None,
+            created_at: Utc::now(),
+        };
+        assert_eq!(normalized_position(&event, Some((1920, 1080))).unwrap(), (1919, 0));
+    }
+
+    #[test]
+    fn button_mapping_supports_common_buttons() {
+        assert!(matches!(button_from_event(Some("left")).unwrap(), Button::Left));
+        assert!(matches!(button_from_event(Some("right")).unwrap(), Button::Right));
+        assert!(matches!(button_from_event(Some("middle")).unwrap(), Button::Middle));
+    }
+
+    #[test]
+    fn named_key_maps_navigation_and_editing_keys() {
+        assert!(matches!(named_key("Enter"), Some(Key::Return)));
+        assert!(matches!(named_key("Backspace"), Some(Key::Backspace)));
+        assert!(matches!(named_key("ArrowLeft"), Some(Key::LeftArrow)));
+        assert!(matches!(named_key(" "), Some(Key::Space)));
     }
 }
 
