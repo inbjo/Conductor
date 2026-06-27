@@ -39,6 +39,7 @@ EOF
 
   cat > "$evidence_dir/smoke-${platform,,}-client-flow.log" <<EOF
 $platform client flow smoke passed
+Client server URL input: http://127.0.0.1:18082
 Agent config log observed
 Agent diagnostics observed
 EOF

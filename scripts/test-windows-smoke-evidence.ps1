@@ -65,6 +65,7 @@ result=passed
 "@
     Write-TextFile (Join-Path $EvidenceDir "smoke-windows-client-flow.log") @"
 Windows client flow smoke passed
+Client server URL input: http://127.0.0.1:18081
 Agent config log observed
 Agent diagnostics observed
 "@

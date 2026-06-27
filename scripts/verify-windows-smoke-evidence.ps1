@@ -149,6 +149,9 @@ $LogText = Get-Content $LogPath -Raw
 if ($LogText -notmatch "Windows client flow smoke passed") {
     Write-Error "Windows smoke transcript does not contain the success marker."
 }
+if ($LogText -notmatch "Client server URL input: http://127\.0\.0\.1:") {
+    Write-Error "Windows smoke transcript does not prove HTTP server URL input normalization."
+}
 if ($LogText -notmatch "Agent config log observed") {
     Write-Error "Windows smoke transcript does not prove client-to-agent runtime config propagation."
 }

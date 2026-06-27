@@ -56,6 +56,7 @@ result=passed
 EOF
 cat > "$artifacts/linux-client-smoke-evidence/smoke-linux-client-flow.log" <<'EOF'
 Linux client flow smoke passed
+Client server URL input: http://127.0.0.1:18082
 Agent config log observed
 Agent diagnostics observed
 EOF
@@ -90,6 +91,7 @@ result=passed
 EOF
 cat > "$artifacts/windows-client-smoke-evidence/smoke-windows-client-flow.log" <<'EOF'
 Windows client flow smoke passed
+Client server URL input: http://127.0.0.1:18081
 Agent config log observed
 Agent diagnostics observed
 EOF
@@ -131,6 +133,7 @@ result=passed
 EOF
 cat > "$artifacts/macos-client-smoke-evidence/smoke-macos-client-flow.log" <<'EOF'
 macOS client flow smoke passed
+Client server URL input: http://127.0.0.1:18083
 Agent config log observed
 Agent diagnostics observed
 EOF
