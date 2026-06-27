@@ -25,8 +25,8 @@
 
 - OS：Ubuntu 24.04.2 LTS
 - Flutter：`/home/flex/Code/flutter`，Flutter 3.44.4
-- 最近验证：2026-06-28，commit `a67c190`
-- 最近归档 SHA256：`f89bd5983d2152c47b5e238ca752046f7ae6ce8a739156bd8b723ea1668bd80b`
+- 最近验证：2026-06-28，commit `bcce8e6712f97002a09c0450bc98155ad4612e31`
+- 最近归档 SHA256：`cc3e05f508f3e40cb59d5eaaf6953e5001f45e6e5216ebcf99f049c5972d36ac`
 - 目标：先在 Ubuntu 本机跑通 Flutter 客户端壳、bundle、归档、启动和 Agent 注册流程
 
 已跑通命令：
@@ -34,7 +34,10 @@
 ```sh
 /home/flex/Code/flutter/bin/flutter analyze
 /home/flex/Code/flutter/bin/flutter test
-FLUTTER_BIN=/home/flex/Code/flutter/bin/flutter ./scripts/validate-linux-client.sh
+env -u FLUTTER_BIN ./scripts/validate-linux-client.sh
+./scripts/validate-client-evidence.sh --platform linux --expected-commit bcce8e6712f97002a09c0450bc98155ad4612e31 --evidence-root artifacts
+./scripts/verify-client-archive.sh linux release/conductor-client-linux-x64.tar.gz
+(cd release && sha256sum -c conductor-client-linux-x64.tar.gz.sha256)
 ```
 
 本次 GUI smoke 和 e2e smoke 在非 sandbox 环境执行。受当前 Codex sandbox 的 display 隔离影响，sandbox 内 `xvfb-run` 可启动但 `xdpyinfo` 无法连接 display，GUI smoke 需要在宿主环境或 CI runner 中执行。
