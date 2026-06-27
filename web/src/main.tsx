@@ -875,20 +875,40 @@ function RemotePage() {
             const now = performance.now();
             if (now - lastMove.current < 180) return;
             lastMove.current = now;
-            const rect = e.currentTarget.getBoundingClientRect();
+            const video = remoteVideoRef.current;
+            const [sourceWidth, sourceHeight] = video?.videoWidth && video.videoHeight
+              ? [video.videoWidth, video.videoHeight]
+              : [frame?.width || 16, frame?.height || 9];
+            const position = normalizedMediaPosition(
+              e.clientX,
+              e.clientY,
+              e.currentTarget.getBoundingClientRect(),
+              sourceWidth,
+              sourceHeight,
+            );
             sendControl({
               kind: 'mouse_move',
-              x: Number((e.nativeEvent.offsetX / rect.width).toFixed(4)),
-              y: Number((e.nativeEvent.offsetY / rect.height).toFixed(4)),
+              x: position.x,
+              y: position.y,
             });
           }}
           onClick={(e) => {
             if (!interactiveEnabled) return;
-            const rect = e.currentTarget.getBoundingClientRect();
+            const video = remoteVideoRef.current;
+            const [sourceWidth, sourceHeight] = video?.videoWidth && video.videoHeight
+              ? [video.videoWidth, video.videoHeight]
+              : [frame?.width || 16, frame?.height || 9];
+            const position = normalizedMediaPosition(
+              e.clientX,
+              e.clientY,
+              e.currentTarget.getBoundingClientRect(),
+              sourceWidth,
+              sourceHeight,
+            );
             sendControl({
               kind: 'mouse_click',
-              x: Number((e.nativeEvent.offsetX / rect.width).toFixed(4)),
-              y: Number((e.nativeEvent.offsetY / rect.height).toFixed(4)),
+              x: position.x,
+              y: position.y,
               button: 'left',
             });
           }}
@@ -975,6 +995,33 @@ function RemotePage() {
       </div>
     </section>
   );
+}
+
+function normalizedMediaPosition(
+  clientX: number,
+  clientY: number,
+  bounds: Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>,
+  sourceWidth: number,
+  sourceHeight: number,
+) {
+  const containerWidth = Math.max(bounds.width, 1);
+  const containerHeight = Math.max(bounds.height, 1);
+  const sourceAspect = Math.max(sourceWidth, 1) / Math.max(sourceHeight, 1);
+  const containerAspect = containerWidth / containerHeight;
+  const mediaWidth = containerAspect > sourceAspect
+    ? containerHeight * sourceAspect
+    : containerWidth;
+  const mediaHeight = containerAspect > sourceAspect
+    ? containerHeight
+    : containerWidth / sourceAspect;
+  const mediaLeft = bounds.left + (containerWidth - mediaWidth) / 2;
+  const mediaTop = bounds.top + (containerHeight - mediaHeight) / 2;
+  const x = Math.min(1, Math.max(0, (clientX - mediaLeft) / mediaWidth));
+  const y = Math.min(1, Math.max(0, (clientY - mediaTop) / mediaHeight));
+  return {
+    x: Number(x.toFixed(4)),
+    y: Number(y.toFixed(4)),
+  };
 }
 
 function SessionSummary({
