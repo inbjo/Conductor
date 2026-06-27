@@ -964,7 +964,6 @@ function RemotePage() {
           <SessionTools deviceId={session.data?.device_id || ''} />
           <ChatPanel
             sessionId={sessionId}
-            deviceId={session.data?.device_id || ''}
             sessionStatus={sessionStatus}
             closeReason={closeReason}
           />
@@ -1385,12 +1384,10 @@ function VoicePanel({
 
 function ChatPanel({
   sessionId,
-  deviceId,
   sessionStatus,
   closeReason,
 }: {
   sessionId: string;
-  deviceId: string;
   sessionStatus: string;
   closeReason?: string;
 }) {
@@ -1404,7 +1401,7 @@ function ChatPanel({
     enabled: Boolean(sessionId),
   });
   const send = useMutation({
-    mutationFn: () => api<ChatMessage>(`/api/sessions/${sessionId}/messages`, { method: 'POST', body: JSON.stringify({ device_id: deviceId, text }) }),
+    mutationFn: () => api<ChatMessage>(`/api/sessions/${sessionId}/messages`, { method: 'POST', body: JSON.stringify({ text }) }),
     onSuccess: () => {
       setText('');
       qc.invalidateQueries({ queryKey: ['messages', sessionId] });
@@ -1432,7 +1429,7 @@ function ChatPanel({
         className="chat-send"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!chatLocked && text.trim() && deviceId) send.mutate();
+          if (!chatLocked && text.trim()) send.mutate();
         }}
       >
         <input value={text} onChange={(e) => setText(e.target.value)} placeholder="输入消息" disabled={chatLocked || send.isPending} />

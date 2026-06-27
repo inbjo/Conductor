@@ -436,8 +436,8 @@ struct MkdirRequest {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ChatRequest {
-    device_id: String,
     text: String,
 }
 
@@ -863,8 +863,8 @@ async fn send_chat(
     }
     let msg = ChatPayload {
         message_id: Uuid::new_v4().to_string(),
-        session_id,
-        device_id: req.device_id,
+        session_id: session.session_id,
+        device_id: session.device_id,
         sender: "admin".into(),
         text: text.to_string(),
         created_at: Utc::now(),
@@ -1647,5 +1647,14 @@ mod tests {
         assert!(constant_time_eq(b"agent-secret", b"agent-secret"));
         assert!(!constant_time_eq(b"agent-secret", b"agent-other"));
         assert!(!constant_time_eq(b"agent-secret", b""));
+    }
+
+    #[test]
+    fn chat_request_does_not_accept_client_selected_device() {
+        assert!(serde_json::from_str::<ChatRequest>(r#"{"text":"hello"}"#).is_ok());
+        assert!(serde_json::from_str::<ChatRequest>(
+            r#"{"device_id":"other-device","text":"hello"}"#
+        )
+        .is_err());
     }
 }
