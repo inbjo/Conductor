@@ -11,6 +11,7 @@
 - `docs/plan.md`：任务计划与验收标准。
 - `docs/build.md`：开发环境搭建、Linux/Windows/macOS 构建与验证说明。
 - `docs/client.md`：Flutter 被控客户端运行、配置和平台说明。
+- `docs/client-development-plan.md`：三端被控客户端后续开发和验收路线。
 
 ## 当前实现状态
 
