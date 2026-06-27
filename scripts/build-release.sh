@@ -7,6 +7,11 @@ LABEL="${TARGET:-$(rustc -vV | sed -n 's/^host: //p')}"
 STAGE_DIR="$ROOT_DIR/release/conductor-$LABEL"
 CARGO_ARGS=(--release -p conductor-server -p conductor-agent)
 
+if [[ -n "$(git -C "$ROOT_DIR" status --porcelain --untracked-files=no)" ]]; then
+  echo "Refusing to build a release from a dirty worktree. Commit or stash tracked changes first." >&2
+  exit 1
+fi
+
 if [[ -n "$TARGET" ]]; then
   CARGO_ARGS+=(--target "$TARGET")
   BINARY_DIR="$ROOT_DIR/target/$TARGET/release"
