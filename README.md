@@ -44,6 +44,12 @@
 
 这意味着当前版本已经可以完整演示“后台管理、终端在线、会话、文件、聊天、审计、控制链路”，但还不是最终的真实远控产品。
 
+### 当前验证状态
+
+- Linux `x86_64-unknown-linux-gnu` release 包已完成本机 smoke test，覆盖 Server 启动、Agent 注册、登录、设备列表、远控会话、文件列表、聊天和会话关闭。
+- Windows/macOS 的代码路径已保留截图和输入适配，但当前提交物还没有在对应真实系统上完成 release smoke test。
+- Windows/macOS 构建需要本机安装对应 Rust target、链接器和平台 SDK 后再执行 `./scripts/build-release.sh <target>` 验证。
+
 ## 运行环境
 
 - Rust stable
