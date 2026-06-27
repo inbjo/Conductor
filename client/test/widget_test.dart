@@ -1,6 +1,5 @@
-import 'dart:ui';
-
 import 'package:conductor_client/main.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -41,5 +40,58 @@ void main() {
     expect(find.text('Agent Configuration'), findsOneWidget);
     expect(find.text('Server URL'), findsOneWidget);
     expect(find.text('Agent Token'), findsOneWidget);
+  });
+
+  testWidgets('settings page only applies draft on save', (tester) async {
+    SettingsDraft? saved;
+
+    Widget host() {
+      return MaterialApp(
+        home: Builder(
+          builder: (context) {
+            return TextButton(
+              onPressed: () {
+                Navigator.of(context).push<void>(
+                  MaterialPageRoute(
+                    builder: (context) => SettingsPage(
+                      serverUrl: 'ws://old/ws/agent',
+                      agentToken: 'old-token',
+                      agentName: '',
+                      agentRoot: '',
+                      agentBin: '/tmp/conductor-agent',
+                      audioInput: '',
+                      interactiveApproval: false,
+                      onSave: (settings) async {
+                        saved = settings;
+                      },
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Open'),
+            );
+          },
+        ),
+      );
+    }
+
+    await tester.pumpWidget(host());
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, 'Server URL'), 'new');
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    expect(saved, isNull);
+
+    await tester.pumpWidget(host());
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, 'Server URL'), 'new');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(saved?.serverUrl, 'new');
   });
 }

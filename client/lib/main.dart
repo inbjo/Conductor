@@ -378,17 +378,23 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (context) => SettingsPage(
-          serverUrl: _serverUrl,
-          agentToken: _agentToken,
-          agentName: _agentName,
-          agentRoot: _agentRoot,
-          agentBin: _agentBin,
-          audioInput: _audioInput,
+          serverUrl: _serverUrl.text,
+          agentToken: _agentToken.text,
+          agentName: _agentName.text,
+          agentRoot: _agentRoot.text,
+          agentBin: _agentBin.text,
+          audioInput: _audioInput.text,
           interactiveApproval: _interactiveApproval,
-          onInteractiveApprovalChanged: (value) {
-            setState(() => _interactiveApproval = value);
-          },
-          onSave: () async {
+          onSave: (settings) async {
+            setState(() {
+              _serverUrl.text = settings.serverUrl;
+              _agentToken.text = settings.agentToken;
+              _agentName.text = settings.agentName;
+              _agentRoot.text = settings.agentRoot;
+              _agentBin.text = settings.agentBin;
+              _audioInput.text = settings.audioInput;
+              _interactiveApproval = settings.interactiveApproval;
+            });
             await _saveSettings();
             _appendLog('settings saved');
           },
@@ -504,31 +510,52 @@ class SettingsPage extends StatefulWidget {
     required this.agentBin,
     required this.audioInput,
     required this.interactiveApproval,
-    required this.onInteractiveApprovalChanged,
     required this.onSave,
   });
 
-  final TextEditingController serverUrl;
-  final TextEditingController agentToken;
-  final TextEditingController agentName;
-  final TextEditingController agentRoot;
-  final TextEditingController agentBin;
-  final TextEditingController audioInput;
+  final String serverUrl;
+  final String agentToken;
+  final String agentName;
+  final String agentRoot;
+  final String agentBin;
+  final String audioInput;
   final bool interactiveApproval;
-  final ValueChanged<bool> onInteractiveApprovalChanged;
-  final Future<void> Function() onSave;
+  final Future<void> Function(SettingsDraft settings) onSave;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  late final TextEditingController _serverUrl;
+  late final TextEditingController _agentToken;
+  late final TextEditingController _agentName;
+  late final TextEditingController _agentRoot;
+  late final TextEditingController _agentBin;
+  late final TextEditingController _audioInput;
   late bool _interactiveApproval;
 
   @override
   void initState() {
     super.initState();
+    _serverUrl = TextEditingController(text: widget.serverUrl);
+    _agentToken = TextEditingController(text: widget.agentToken);
+    _agentName = TextEditingController(text: widget.agentName);
+    _agentRoot = TextEditingController(text: widget.agentRoot);
+    _agentBin = TextEditingController(text: widget.agentBin);
+    _audioInput = TextEditingController(text: widget.audioInput);
     _interactiveApproval = widget.interactiveApproval;
+  }
+
+  @override
+  void dispose() {
+    _serverUrl.dispose();
+    _agentToken.dispose();
+    _agentName.dispose();
+    _agentRoot.dispose();
+    _agentBin.dispose();
+    _audioInput.dispose();
+    super.dispose();
   }
 
   @override
@@ -551,25 +578,25 @@ class _SettingsPageState extends State<SettingsPage> {
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 16),
-                    Field(controller: widget.serverUrl, label: 'Server URL'),
+                    Field(controller: _serverUrl, label: 'Server URL'),
                     Field(
-                      controller: widget.agentToken,
+                      controller: _agentToken,
                       label: 'Agent Token',
                       obscureText: true,
                     ),
                     Field(
-                      controller: widget.agentName,
+                      controller: _agentName,
                       label: 'Agent Name',
                       hint: 'optional',
                     ),
                     Field(
-                      controller: widget.agentRoot,
+                      controller: _agentRoot,
                       label: 'File Root',
                       hint: 'optional, defaults to home',
                     ),
-                    Field(controller: widget.agentBin, label: 'Agent Binary'),
+                    Field(controller: _agentBin, label: 'Agent Binary'),
                     Field(
-                      controller: widget.audioInput,
+                      controller: _audioInput,
                       label: 'Audio Input',
                       hint: 'optional',
                     ),
@@ -579,13 +606,22 @@ class _SettingsPageState extends State<SettingsPage> {
                       value: _interactiveApproval,
                       onChanged: (value) {
                         setState(() => _interactiveApproval = value);
-                        widget.onInteractiveApprovalChanged(value);
                       },
                     ),
                     const SizedBox(height: 8),
                     FilledButton.icon(
                       onPressed: () async {
-                        await widget.onSave();
+                        await widget.onSave(
+                          SettingsDraft(
+                            serverUrl: _serverUrl.text,
+                            agentToken: _agentToken.text,
+                            agentName: _agentName.text,
+                            agentRoot: _agentRoot.text,
+                            agentBin: _agentBin.text,
+                            audioInput: _audioInput.text,
+                            interactiveApproval: _interactiveApproval,
+                          ),
+                        );
                         if (context.mounted) Navigator.of(context).pop();
                       },
                       icon: const Icon(Icons.save_outlined),
@@ -600,6 +636,26 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
   }
+}
+
+class SettingsDraft {
+  const SettingsDraft({
+    required this.serverUrl,
+    required this.agentToken,
+    required this.agentName,
+    required this.agentRoot,
+    required this.agentBin,
+    required this.audioInput,
+    required this.interactiveApproval,
+  });
+
+  final String serverUrl;
+  final String agentToken;
+  final String agentName;
+  final String agentRoot;
+  final String agentBin;
+  final String audioInput;
+  final bool interactiveApproval;
 }
 
 class Field extends StatelessWidget {
