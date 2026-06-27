@@ -558,7 +558,7 @@ macOS runner 或真机还应运行：
   --write-summary artifacts/client-smoke-evidence-verified
 ```
 
-三端 smoke evidence 除 `validation-summary.txt` 和 `smoke-*-client-flow.log` 外，还会保留 e2e 原始日志和 `client-settings.json`：Linux/macOS 在 `logs/client-e2e/`，Windows 在 `logs/agent-e2e/` 和 `logs/client-e2e/`。证据校验会要求这些日志存在，并检查 Agent 配置传递日志、`/diagnostics` 输出，以及 Settings 中规范化后的 `serverUrl`、`agentToken`、`agentName`、`agentRoot`、`audioInput` 和 `interactiveApproval=false`。
+三端 smoke evidence 除 `validation-summary.txt` 和 `smoke-*-client-flow.log` 外，还会保留 e2e 原始日志和 `client-settings.json`：Linux/macOS 在 `logs/client-e2e/`，Windows 在 `logs/agent-e2e/` 和 `logs/client-e2e/`。证据校验会要求这些日志存在，并检查归档 SHA256、`.sha256` sidecar、Agent 配置传递日志、`/diagnostics` 输出，以及 Settings 中规范化后的 `serverUrl`、`agentToken`、`agentName`、`agentRoot`、`audioInput` 和 `interactiveApproval=false`。
 
 Release smoke test：
 

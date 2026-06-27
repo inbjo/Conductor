@@ -156,6 +156,15 @@ if [[ -f "$archive_path" ]]; then
     echo "Linux smoke evidence archive hash mismatch. Summary: $archive_sha256 Actual: $actual_sha256" >&2
     exit 1
   fi
+  if [[ ! -f "$archive_path.sha256" ]]; then
+    echo "Linux smoke evidence archive checksum sidecar is missing: $archive_path.sha256" >&2
+    exit 1
+  fi
+  sidecar_sha256="$(awk '{print $1; exit}' "$archive_path.sha256")"
+  if [[ "$sidecar_sha256" != "$archive_sha256" ]]; then
+    echo "Linux smoke evidence archive sidecar hash mismatch. Summary: $archive_sha256 Sidecar: $sidecar_sha256" >&2
+    exit 1
+  fi
 else
   echo "Linux smoke archive is not present for hash recheck: $archive_path"
 fi

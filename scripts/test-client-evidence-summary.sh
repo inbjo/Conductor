@@ -9,11 +9,31 @@ commit="test-client-evidence-commit"
 artifacts="$tmp_dir/artifacts"
 verified="$tmp_dir/verified"
 
+write_sha256() {
+  local archive_path="$1"
+  local archive_dir
+  local archive_name
+  archive_dir="$(dirname "$archive_path")"
+  archive_name="$(basename "$archive_path")"
+  (
+    cd "$archive_dir"
+    if command -v sha256sum >/dev/null 2>&1; then
+      sha256sum "$archive_name"
+    else
+      shasum -a 256 "$archive_name"
+    fi > "$archive_name.sha256"
+  )
+}
+
 mkdir -p \
   "$artifacts/linux-client-smoke-evidence/logs/client-e2e" \
   "$artifacts/windows-client-smoke-evidence/logs/agent-e2e" \
   "$artifacts/windows-client-smoke-evidence/logs/client-e2e" \
   "$artifacts/macos-client-smoke-evidence/logs/client-e2e"
+
+printf 'synthetic windows archive\n' > "$tmp_dir/windows.zip"
+write_sha256 "$tmp_dir/windows.zip"
+windows_archive_sha256="$(awk '{print $1; exit}' "$tmp_dir/windows.zip.sha256")"
 
 cat > "$artifacts/linux-client-smoke-evidence/validation-summary.txt" <<EOF
 timestamp=2026-06-27T00:00:00Z
@@ -52,13 +72,13 @@ EOF
 cat > "$artifacts/windows-client-smoke-evidence/validation-summary.txt" <<EOF
 timestamp=2026-06-27T00:00:00Z
 repository=/tmp
-archive=/tmp/missing-windows.zip
+archive=$tmp_dir/windows.zip
 commit=$commit
 powershell=PowerShell 7
 rustc=rustc 1
 cargo=cargo 1
 flutter=Flutter 3
-archive_sha256=2222222222222222222222222222222222222222222222222222222222222222
+archive_sha256=$windows_archive_sha256
 result=passed
 EOF
 cat > "$artifacts/windows-client-smoke-evidence/smoke-windows-client-flow.log" <<'EOF'
@@ -144,6 +164,7 @@ grep -q "^commit=$commit$" "$verified/aggregate-summary.txt"
 grep -q '^linux_result=passed$' "$verified/aggregate-summary.txt"
 grep -q '^windows_result=passed$' "$verified/aggregate-summary.txt"
 grep -q '^macos_result=passed$' "$verified/aggregate-summary.txt"
+grep -q "^windows_archive_sha256=$windows_archive_sha256$" "$verified/aggregate-summary.txt"
 
 sed -i 's/^commit=.*/commit=other-test-client-evidence-commit/' \
   "$artifacts/windows-client-smoke-evidence/validation-summary.txt"
