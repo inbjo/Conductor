@@ -1,3 +1,27 @@
+<#
+.SYNOPSIS
+Runs the Windows client smoke flow and optionally writes evidence.
+
+.DESCRIPTION
+Builds or reuses the Windows client archive and smoke server, verifies the zip,
+smoke-launches the bundled agent, checks bundled-agent registration, checks
+Flutter-client-started agent registration, and smoke-launches the GUI entry.
+
+.PARAMETER ArchivePath
+Path to the Windows client zip archive.
+
+.PARAMETER SkipClientBuild
+Reuse an existing client archive instead of building it.
+
+.PARAMETER SkipServerBuild
+Reuse an existing target\debug\conductor-server.exe instead of building it.
+
+.PARAMETER EvidenceDir
+Optional directory where validation-summary.txt and smoke-windows-client-flow.log are written.
+
+.EXAMPLE
+powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-client-flow.ps1 -EvidenceDir .\artifacts\windows-client-smoke
+#>
 param(
     [string] $ArchivePath = ".\release\conductor-client-windows-x64.zip",
 

@@ -1,3 +1,24 @@
+<#
+.SYNOPSIS
+Verifies Windows client smoke evidence.
+
+.DESCRIPTION
+Checks validation-summary.txt and smoke-windows-client-flow.log for required
+fields, successful result, expected commit, toolchain records, success marker,
+and archive SHA256 when the archive is still present.
+
+.PARAMETER EvidenceDir
+Directory containing validation-summary.txt and smoke-windows-client-flow.log.
+
+.PARAMETER RequireCiFields
+Require CI-only evidence fields such as runner_os and runner_arch.
+
+.PARAMETER ExpectedCommit
+Require the evidence commit field to match this SHA.
+
+.EXAMPLE
+powershell -ExecutionPolicy Bypass -File .\scripts\verify-windows-smoke-evidence.ps1 -EvidenceDir .\artifacts\windows-client-smoke
+#>
 param(
     [string] $EvidenceDir = ".\artifacts\windows-client-smoke",
 
