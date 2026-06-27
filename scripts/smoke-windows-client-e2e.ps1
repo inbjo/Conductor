@@ -193,6 +193,18 @@ try {
         Write-Error "Windows client did not start and register bundled agent within $TimeoutSeconds seconds."
     }
 
+    $AgentConfigLog = Get-Content $ClientLog -ErrorAction SilentlyContinue |
+        Where-Object { $_ -match "agent config " -and $_ -like "*agent_name=$AgentName*" } |
+        Select-Object -Last 1
+    if ([string]::IsNullOrWhiteSpace($AgentConfigLog)) {
+        if (Test-Path $ClientLog) {
+            Write-Host "Client log:"
+            Get-Content $ClientLog -Tail 80
+        }
+        Write-Error "Client log does not contain expected agent config line for $AgentName."
+    }
+    Write-Host "Agent config log observed: $AgentConfigLog"
+
     $Failed = $false
     Write-Host "Windows client e2e smoke passed. Device: $($device.device_id)"
 } finally {

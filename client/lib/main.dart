@@ -289,10 +289,12 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
   }
 
   void _appendLog(String line) {
+    final timestamp = DateTime.now().toIso8601String().substring(11, 19);
+    final message = '[$timestamp] $line';
+    stdout.writeln(message);
     if (!mounted) return;
     setState(() {
-      final timestamp = DateTime.now().toIso8601String().substring(11, 19);
-      _logs.add('[$timestamp] $line');
+      _logs.add(message);
       if (_logs.length > 500) _logs.removeRange(0, _logs.length - 500);
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {

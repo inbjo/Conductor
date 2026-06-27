@@ -140,4 +140,12 @@ if ! printf '%s' "$devices" | grep -q "\"hostname\":\"$agent_name\""; then
 fi
 printf '%s' "$devices" | grep -q "\"hostname\":\"$agent_name\".*\"online\":1"
 
+agent_config_log="$(grep "agent config .*agent_name=$agent_name" "$client_log" | tail -n 1 || true)"
+if [[ -z "$agent_config_log" ]]; then
+  echo "Client log does not contain expected agent config line for $agent_name." >&2
+  tail -n 80 "$client_log" >&2 2>/dev/null || true
+  exit 1
+fi
+echo "Agent config log observed: $agent_config_log"
+
 echo "macOS client e2e smoke passed. Agent name: $agent_name"
