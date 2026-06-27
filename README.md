@@ -7,7 +7,10 @@
 - `server/`：Axum API、管理员鉴权、SQLite 持久化、WebSocket 实时通道、内嵌前端静态资源。
 - `agent/`：被控端命令行 Agent，负责注册、心跳、文件命令、聊天消息、本地 CLI 回复与审批交互、远控画面采集、WebRTC 屏幕视频与双向语音。
 - `web/`：React + TypeScript + Tailwind CSS + Vite 管理后台。
+- `client/`：Flutter 桌面被控客户端壳，用于配置、启动和监控 `conductor-agent`。
 - `docs/plan.md`：任务计划与验收标准。
+- `docs/build.md`：开发环境搭建、Linux/Windows/macOS 构建与验证说明。
+- `docs/client.md`：Flutter 被控客户端运行、配置和平台说明。
 
 ## 当前实现状态
 
@@ -55,7 +58,10 @@
 - Rust stable
 - Node.js 20+
 - npm 10+
+- Flutter 3.44+（桌面被控客户端，当前 SDK 位于 `/home/flex/Code/flutter`）
 - `ffmpeg`（Agent WebRTC VP8 屏幕视频所需，必须包含 `libvpx` 编码器）和 `ffplay`（Agent 播放远端语音所需）
+
+完整开发环境搭建和三端构建说明见 `docs/build.md`；Flutter 被控客户端专项说明见 `docs/client.md`。
 
 ## 快速运行
 
@@ -93,6 +99,37 @@ CONDUCTOR_SERVER_URL=ws://127.0.0.1:8080/ws/agent cargo run -p conductor-agent
 ```
 
 Agent 首次启动会生成并持久化 `device_id`，之后重启会复用同一个设备标识。
+
+### 4. 构建 Flutter 被控客户端
+
+Linux 本机：
+
+```sh
+./scripts/build-client.sh
+client/build/linux/x64/release/bundle/conductor_client
+```
+
+脚本会同时生成 `release/conductor-client-linux-x64.tar.gz`。
+
+Windows 主机：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-client.ps1
+```
+
+脚本会检查 Windows Flutter/Rust 环境，并生成 `release\conductor-client-windows-x64.zip`。
+
+macOS 主机：
+
+```sh
+./scripts/build-client.sh
+```
+
+脚本会生成 `release/conductor-client-macos.tar.gz`，归档中包含 `conductor_client.app` 和内置的 `conductor-agent`。
+
+客户端会把 `conductor-agent` 或 `conductor-agent.exe` 放在可执行文件同目录，启动后在界面中填写 Server WebSocket 地址和 Agent Token，再点击 `Start Agent`。详细说明见 `docs/client.md`。
+
+GitHub Actions 会构建并上传服务端 Linux release 包，以及 Linux、Windows、macOS 三端 Flutter 被控客户端包。工作流见 `.github/workflows/build.yml`。
 
 ## 构建提交包
 
