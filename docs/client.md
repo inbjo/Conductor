@@ -170,6 +170,14 @@ powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-client-flow.ps1
 
 如果已经构建过包和 `target\debug\conductor-server.exe`，可以加 `-SkipClientBuild -SkipServerBuild` 只重复校验和 smoke。
 
+需要保留验收证据时，可以指定输出目录：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-client-flow.ps1 -EvidenceDir .\artifacts\windows-client-smoke
+```
+
+脚本会写出 `validation-summary.txt` 和 `smoke-windows-client-flow.log`，用于记录 runner/工具链版本和完整 smoke 输出。
+
 分步排错时可分别运行：
 
 ```powershell

@@ -74,6 +74,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-client-flow.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-client-flow.ps1 -SkipClientBuild -SkipServerBuild
 ```
 
+需要保留手工验收证据时，加上 `-EvidenceDir`：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-client-flow.ps1 -EvidenceDir .\artifacts\windows-client-smoke
+```
+
 该命令必须完成以下步骤：
 
 | 步骤 | 证明内容 |

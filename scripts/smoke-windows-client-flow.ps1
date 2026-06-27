@@ -3,7 +3,9 @@ param(
 
     [switch] $SkipClientBuild,
 
-    [switch] $SkipServerBuild
+    [switch] $SkipServerBuild,
+
+    [string] $EvidenceDir = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,6 +16,15 @@ if ([System.IO.Path]::IsPathRooted($ArchivePath)) {
 } else {
     $ArchiveFullPath = Join-Path $RootDir $ArchivePath
 }
+$EvidenceFullPath = $null
+if (![string]::IsNullOrWhiteSpace($EvidenceDir)) {
+    if ([System.IO.Path]::IsPathRooted($EvidenceDir)) {
+        $EvidenceFullPath = $EvidenceDir
+    } else {
+        $EvidenceFullPath = Join-Path $RootDir $EvidenceDir
+    }
+}
+$TranscriptStarted = $false
 
 function Invoke-Step($Name, [scriptblock] $Command) {
     Write-Host ""
@@ -21,13 +32,66 @@ function Invoke-Step($Name, [scriptblock] $Command) {
     & $Command
 }
 
+function Add-SummaryLine($Path, $Line) {
+    $Line | Out-File -Encoding utf8 -Append $Path
+}
+
+function Add-CommandSummary($Path, $Command, $Arguments) {
+    $commandInfo = Get-Command $Command -ErrorAction SilentlyContinue
+    if ($null -eq $commandInfo) {
+        Add-SummaryLine $Path "$Command=not found"
+        return
+    }
+    $output = & $Command @Arguments 2>&1
+    foreach ($line in $output) {
+        Add-SummaryLine $Path "$Command=$line"
+    }
+}
+
+function Add-ExecutableSummary($Path, $Label, $Executable, $Arguments) {
+    if ([string]::IsNullOrWhiteSpace($Executable) -or !(Test-Path $Executable)) {
+        Add-SummaryLine $Path "$Label=not found"
+        return
+    }
+    $output = & $Executable @Arguments 2>&1
+    foreach ($line in $output) {
+        Add-SummaryLine $Path "$Label=$line"
+    }
+}
+
 Push-Location $RootDir
 try {
+    if ($null -ne $EvidenceFullPath) {
+        New-Item -ItemType Directory -Force -Path $EvidenceFullPath | Out-Null
+        $SummaryPath = Join-Path $EvidenceFullPath "validation-summary.txt"
+        "timestamp=$((Get-Date).ToString("o"))" | Out-File -Encoding utf8 $SummaryPath
+        Add-SummaryLine $SummaryPath "repository=$RootDir"
+        Add-SummaryLine $SummaryPath "archive=$ArchiveFullPath"
+        Add-SummaryLine $SummaryPath "skip_client_build=$SkipClientBuild"
+        Add-SummaryLine $SummaryPath "skip_server_build=$SkipServerBuild"
+        Add-SummaryLine $SummaryPath "commit=$env:GITHUB_SHA"
+        Add-SummaryLine $SummaryPath "runner_os=$env:RUNNER_OS"
+        Add-SummaryLine $SummaryPath "runner_arch=$env:RUNNER_ARCH"
+        Add-SummaryLine $SummaryPath "powershell=$($PSVersionTable.PSVersion)"
+        Add-CommandSummary $SummaryPath "rustc" @("--version")
+        Add-CommandSummary $SummaryPath "cargo" @("--version")
+        if (![string]::IsNullOrWhiteSpace($env:FLUTTER_BIN)) {
+            Add-ExecutableSummary $SummaryPath "flutter" $env:FLUTTER_BIN @("--version")
+        } else {
+            Add-CommandSummary $SummaryPath "flutter" @("--version")
+        }
+        Start-Transcript -Path (Join-Path $EvidenceFullPath "smoke-windows-client-flow.log")
+        $TranscriptStarted = $true
+    }
+
     Write-Host "Windows client flow smoke"
     Write-Host "Repository: $RootDir"
     Write-Host "Archive: $ArchiveFullPath"
     Write-Host "SkipClientBuild: $SkipClientBuild"
     Write-Host "SkipServerBuild: $SkipServerBuild"
+    if ($null -ne $EvidenceFullPath) {
+        Write-Host "Evidence: $EvidenceFullPath"
+    }
 
     if (!$SkipClientBuild) {
         Invoke-Step "Build Windows client package" {
@@ -71,5 +135,8 @@ try {
     Write-Host ""
     Write-Host "Windows client flow smoke passed: $ArchiveFullPath"
 } finally {
+    if ($TranscriptStarted) {
+        Stop-Transcript
+    }
     Pop-Location
 }

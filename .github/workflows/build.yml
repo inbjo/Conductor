@@ -138,22 +138,7 @@ jobs:
 
       - name: Smoke Windows client flow
         shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path artifacts\windows-client-smoke | Out-Null
-          $summary = "artifacts\windows-client-smoke\validation-summary.txt"
-          "commit=$env:GITHUB_SHA" | Out-File -Encoding utf8 $summary
-          "runner_os=$env:RUNNER_OS" | Out-File -Encoding utf8 -Append $summary
-          "runner_arch=$env:RUNNER_ARCH" | Out-File -Encoding utf8 -Append $summary
-          "powershell=$($PSVersionTable.PSVersion)" | Out-File -Encoding utf8 -Append $summary
-          rustc --version | Out-File -Encoding utf8 -Append $summary
-          cargo --version | Out-File -Encoding utf8 -Append $summary
-          flutter --version | Out-File -Encoding utf8 -Append $summary
-          Start-Transcript -Path artifacts\windows-client-smoke\smoke-windows-client-flow.log
-          try {
-            .\scripts\smoke-windows-client-flow.ps1 -SkipClientBuild -SkipServerBuild
-          } finally {
-            Stop-Transcript
-          }
+        run: .\scripts\smoke-windows-client-flow.ps1 -SkipClientBuild -SkipServerBuild -EvidenceDir artifacts\windows-client-smoke
 
       - name: Upload Windows smoke evidence
         if: always()
