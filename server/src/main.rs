@@ -1063,9 +1063,7 @@ async fn download_file(
         ));
     }
     audit(&state, &user.username, "file_download", &device_id, &path).await;
-    let bytes = B64
-        .decode(result.content_base64.unwrap_or_default())
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let bytes = decode_download_content(result.content_base64)?;
     let name = path.rsplit('/').next().unwrap_or("download.bin");
     let mut headers = HeaderMap::new();
     headers.insert(
@@ -1081,6 +1079,13 @@ async fn download_file(
         .unwrap(),
     );
     Ok((headers, Body::from(bytes)).into_response())
+}
+
+fn decode_download_content(content_base64: Option<String>) -> Result<Vec<u8>, ApiError> {
+    let content_base64 = content_base64
+        .ok_or_else(|| ApiError::BadRequest("download did not return file content".into()))?;
+    B64.decode(content_base64)
+        .map_err(|e| ApiError::Internal(e.to_string()))
 }
 
 async fn forward_file_command(
@@ -2006,6 +2011,16 @@ mod tests {
         };
         let err = ensure_file_ok(&failed).unwrap_err().to_string();
         assert!(err.contains("permission denied"));
+    }
+
+    #[test]
+    fn download_requires_file_content() {
+        assert_eq!(
+            decode_download_content(Some(B64.encode(b"hello"))).unwrap(),
+            b"hello"
+        );
+        let err = decode_download_content(None).unwrap_err().to_string();
+        assert!(err.contains("download did not return file content"));
     }
 
     #[tokio::test]
