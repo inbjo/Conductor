@@ -110,7 +110,11 @@
   }
 
   tbody tr {
-    @apply cursor-pointer hover:bg-[#f3f5f1];
+    @apply hover:bg-[#f3f5f1];
+  }
+
+  tbody tr.clickable-row {
+    @apply cursor-pointer;
   }
 
   .empty {

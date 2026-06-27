@@ -565,7 +565,7 @@ function DevicesPage() {
           </thead>
           <tbody>
             {filtered.map((device) => (
-              <tr key={device.device_id} onClick={() => navigate(`/devices/${device.device_id}`)}>
+              <tr className="clickable-row" key={device.device_id} onClick={() => navigate(`/devices/${device.device_id}`)}>
                 <td><Status online={device.online === 1} /></td>
                 <td className="font-medium">{device.hostname || '-'}</td>
                 <td>{device.os} / {device.arch}</td>
