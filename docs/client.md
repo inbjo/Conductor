@@ -110,13 +110,10 @@ Linux 已验证命令：
 ```sh
 /home/flex/Code/flutter/bin/flutter analyze
 /home/flex/Code/flutter/bin/flutter test
-./scripts/build-client.sh
-./scripts/verify-client-archive.sh linux release/conductor-client-linux-x64.tar.gz
-./scripts/smoke-client-launch.sh linux release/conductor-client-linux-x64.tar.gz
-./scripts/smoke-linux-client-e2e.sh release/conductor-client-linux-x64.tar.gz
+FLUTTER_BIN=/home/flex/Code/flutter/bin/flutter ./scripts/validate-linux-client.sh
 ```
 
-启动 smoke 会解包 release tar.gz，启动 `conductor_client`，等待数秒确认 GUI 入口没有立刻退出，然后通过 `timeout` 主动结束进程。E2E smoke 会启动本地 Server，再启动 Flutter 客户端并通过 `CONDUCTOR_CLIENT_AUTOSTART=1` 自动拉起包内 Agent，最后确认设备上线。无图形会话时需要安装 `xvfb`，脚本会自动使用 `xvfb-run`。
+`validate-linux-client.sh` 会构建客户端包、构建 Web 静态资源和 smoke server、校验 release tar.gz、启动 `conductor_client` GUI 入口 smoke，再启动 Flutter 客户端并通过 `CONDUCTOR_CLIENT_AUTOSTART=1` 自动拉起包内 Agent，最后确认设备上线。无图形会话时需要安装 `xvfb`，脚本会自动使用 `xvfb-run`。脚本会写出 `artifacts/linux-client-smoke/validation-summary.txt` 和 `smoke-linux-client-flow.log`，CI 会上传为 `linux-client-smoke-evidence`。
 
 ## Windows 构建
 

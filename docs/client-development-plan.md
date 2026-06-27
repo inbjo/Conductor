@@ -119,10 +119,7 @@ Ubuntu 本机每次客户端改动后至少运行：
 cargo test
 /home/flex/Code/flutter/bin/flutter analyze
 /home/flex/Code/flutter/bin/flutter test
-./scripts/build-client.sh
-./scripts/verify-client-archive.sh linux release/conductor-client-linux-x64.tar.gz
-./scripts/smoke-client-launch.sh linux release/conductor-client-linux-x64.tar.gz
-./scripts/smoke-linux-client-e2e.sh release/conductor-client-linux-x64.tar.gz
+FLUTTER_BIN=/home/flex/Code/flutter/bin/flutter ./scripts/validate-linux-client.sh
 ```
 
 Windows runner 或真机运行：

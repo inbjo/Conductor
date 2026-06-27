@@ -83,14 +83,16 @@ jobs:
           npm --prefix web run build
           cargo build -p conductor-server
 
-      - name: Verify Linux client archive
-        run: ./scripts/verify-client-archive.sh linux release/conductor-client-linux-x64.tar.gz
+      - name: Validate Linux client flow
+        run: ./scripts/validate-linux-client.sh --skip-client-build --skip-server-build --evidence-dir artifacts/linux-client-smoke --require-ci-fields --expected-commit "$GITHUB_SHA"
 
-      - name: Smoke launch Linux client
-        run: ./scripts/smoke-client-launch.sh linux release/conductor-client-linux-x64.tar.gz
-
-      - name: Smoke register via Linux client
-        run: ./scripts/smoke-linux-client-e2e.sh release/conductor-client-linux-x64.tar.gz
+      - name: Upload Linux smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-client-smoke-evidence
+          path: artifacts/linux-client-smoke
+          if-no-files-found: ignore
 
       - name: Upload Linux client
         uses: actions/upload-artifact@v4

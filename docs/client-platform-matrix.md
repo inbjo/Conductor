@@ -33,17 +33,12 @@
 ```sh
 /home/flex/Code/flutter/bin/flutter analyze
 /home/flex/Code/flutter/bin/flutter test
-FLUTTER_BIN=/home/flex/Code/flutter/bin/flutter ./scripts/build-client.sh \
-  --server-url ws://127.0.0.1:8080/ws/agent \
-  --agent-token dev-agent-token-change-me \
-  --agent-name linux-current-head \
-  --interactive-approval false
-./scripts/verify-client-archive.sh linux release/conductor-client-linux-x64.tar.gz
-./scripts/smoke-client-launch.sh linux release/conductor-client-linux-x64.tar.gz
-./scripts/smoke-linux-client-e2e.sh release/conductor-client-linux-x64.tar.gz
+FLUTTER_BIN=/home/flex/Code/flutter/bin/flutter ./scripts/validate-linux-client.sh
 ```
 
 本次 GUI smoke 和 e2e smoke 在非 sandbox 环境执行。受当前 Codex sandbox 的 display 隔离影响，sandbox 内 `xvfb-run` 可启动但 `xdpyinfo` 无法连接 display，GUI smoke 需要在宿主环境或 CI runner 中执行。
+
+`validate-linux-client.sh` 会写出 `artifacts/linux-client-smoke/validation-summary.txt` 和 `smoke-linux-client-flow.log`。CI 中的 `client-linux` job 会上传 `linux-client-smoke-evidence` artifact。
 
 覆盖能力：
 
@@ -223,7 +218,7 @@ CI job 覆盖：
 | Job | Runner | 覆盖 |
 | --- | --- | --- |
 | `server-release` | `ubuntu-24.04` | Rust test、Web build、Linux server release 包。 |
-| `client-linux` | `ubuntu-24.04` | Flutter analyze/test、Linux client build、归档校验、GUI smoke、client e2e 注册。 |
+| `client-linux` | `ubuntu-24.04` | Flutter analyze/test、Linux client build、归档校验、GUI smoke、client e2e 注册和 smoke evidence。 |
 | `client-windows` | `windows-2022` | Windows client build、归档校验、Agent smoke、Agent e2e、Client e2e、GUI smoke。 |
 | `client-macos` | `macos-14` | macOS client build、归档校验、`.app` GUI smoke、Client e2e 注册和 smoke evidence。 |
 
