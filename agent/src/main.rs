@@ -13,6 +13,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sysinfo::System;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{error, info, warn};
@@ -239,7 +240,12 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
     let mut active_sessions = HashSet::<String>::new();
     let mut session_frames = HashMap::<String, (u32, u32)>::new();
     let mut input = InputController::new();
+    let mut chat = ChatConsole::new(cfg.device_id.clone());
+    let mut stdin_lines = BufReader::new(tokio::io::stdin()).lines();
+    let mut stdin_open = true;
     let mut frame_no = 0_u64;
+
+    chat.print_banner();
 
     loop {
         tokio::select! {
@@ -254,6 +260,23 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                     send_json(&mut write, &AgentToServer::ScreenFrame(frame)).await?;
                 }
             }
+            line = stdin_lines.next_line(), if stdin_open => {
+                match line {
+                    Ok(Some(line)) => {
+                        if let Some(outgoing) = chat.handle_stdin(&line) {
+                            send_json(&mut write, &AgentToServer::ChatMessage(outgoing)).await?;
+                        }
+                    }
+                    Ok(None) => {
+                        stdin_open = false;
+                        info!("agent stdin closed; local chat input disabled");
+                    }
+                    Err(err) => {
+                        stdin_open = false;
+                        warn!("read local stdin failed: {err}");
+                    }
+                }
+            }
             msg = read.next() => {
                 let Some(msg) = msg else { return Err(anyhow!("server closed websocket")); };
                 let msg = msg?;
@@ -264,16 +287,7 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                         send_json(&mut write, &AgentToServer::FileResult(result)).await?;
                     }
                     Ok(ServerToAgent::ChatMessage(msg)) => {
-                        println!("[chat][{}][admin] {}", msg.session_id, msg.text);
-                        let reply = ChatPayload {
-                            message_id: Uuid::new_v4().to_string(),
-                            session_id: msg.session_id,
-                            device_id: cfg.device_id.clone(),
-                            sender: "agent".into(),
-                            text: "Agent received: message shown in console".into(),
-                            created_at: Utc::now(),
-                        };
-                        send_json(&mut write, &AgentToServer::ChatMessage(reply)).await?;
+                        chat.receive(msg);
                     }
                     Ok(ServerToAgent::ControlEvent(event)) => {
                         if let Err(err) = input.apply(&event, session_frames.get(&event.session_id).copied()) {
@@ -286,6 +300,7 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                     Ok(ServerToAgent::RemoteControlRequest { session_id }) => {
                         info!("remote control requested: {session_id}");
                         active_sessions.insert(session_id.clone());
+                        chat.track_session(&session_id);
                         send_json(&mut write, &AgentToServer::SessionAccept { session_id: session_id.clone() }).await?;
                         let frame = capture_screen_frame(&cfg, &session_id, frame_no).await;
                         session_frames.insert(session_id.clone(), (frame.width, frame.height));
@@ -299,6 +314,7 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                         info!("session closed by server: {session_id}");
                         active_sessions.remove(&session_id);
                         session_frames.remove(&session_id);
+                        chat.close_session(&session_id);
                     }
                     Ok(ServerToAgent::WebrtcOffer { session_id, sdp }) => {
                         info!("received admin offer for session {session_id}: {} bytes", sdp.len());
@@ -328,6 +344,164 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
             }
         }
     }
+}
+
+struct ChatConsole {
+    device_id: String,
+    current_session: Option<String>,
+    known_sessions: Vec<String>,
+}
+
+impl ChatConsole {
+    fn new(device_id: String) -> Self {
+        Self {
+            device_id,
+            current_session: None,
+            known_sessions: Vec::new(),
+        }
+    }
+
+    fn print_banner(&self) {
+        println!("Agent chat ready.");
+        println!("  /help                   查看聊天命令");
+        println!("  /sessions               查看可回复的会话");
+        println!("  /use <session_id>       切换当前会话");
+        println!("  /reply <id> <text>      向指定会话发送回复");
+        println!("  直接输入文本            发送到当前会话");
+    }
+
+    fn receive(&mut self, msg: ChatPayload) {
+        self.track_session(&msg.session_id);
+        self.current_session = Some(msg.session_id.clone());
+        println!();
+        println!("[chat][{}][admin] {}", msg.session_id, msg.text);
+        println!("当前会话 -> {}", msg.session_id);
+        println!("输入回复内容发送，或使用 /reply <id> <text>");
+    }
+
+    fn track_session(&mut self, session_id: &str) {
+        if self.known_sessions.iter().any(|id| id == session_id) {
+            return;
+        }
+        self.known_sessions.push(session_id.to_string());
+    }
+
+    fn close_session(&mut self, session_id: &str) {
+        self.known_sessions.retain(|id| id != session_id);
+        if self.current_session.as_deref() == Some(session_id) {
+            self.current_session = self.known_sessions.last().cloned();
+        }
+        println!("[chat] session closed: {session_id}");
+    }
+
+    fn handle_stdin(&mut self, line: &str) -> Option<ChatPayload> {
+        let line = line.trim();
+        if line.is_empty() {
+            return None;
+        }
+        match parse_local_chat_command(line, self.current_session.as_deref()) {
+            LocalChatCommand::Help => {
+                self.print_banner();
+                None
+            }
+            LocalChatCommand::Sessions => {
+                self.print_sessions();
+                None
+            }
+            LocalChatCommand::Use { session_id } => {
+                if self.known_sessions.iter().any(|id| id == &session_id) {
+                    self.current_session = Some(session_id.clone());
+                    println!("[chat] current session -> {session_id}");
+                } else {
+                    println!("[chat] unknown session: {session_id}");
+                }
+                None
+            }
+            LocalChatCommand::Send { session_id, text } => {
+                self.track_session(&session_id);
+                self.current_session = Some(session_id.clone());
+                println!("[chat][{}][agent] {}", session_id, text);
+                Some(ChatPayload {
+                    message_id: Uuid::new_v4().to_string(),
+                    session_id,
+                    device_id: self.device_id.clone(),
+                    sender: "agent".into(),
+                    text,
+                    created_at: Utc::now(),
+                })
+            }
+            LocalChatCommand::Error(message) => {
+                println!("[chat] {message}");
+                None
+            }
+        }
+    }
+
+    fn print_sessions(&self) {
+        if self.known_sessions.is_empty() {
+            println!("[chat] no active sessions");
+            return;
+        }
+        println!("[chat] sessions:");
+        for session_id in &self.known_sessions {
+            let marker = if self.current_session.as_deref() == Some(session_id.as_str()) {
+                "*"
+            } else {
+                " "
+            };
+            println!("{} {}", marker, session_id);
+        }
+    }
+}
+
+enum LocalChatCommand {
+    Help,
+    Sessions,
+    Use { session_id: String },
+    Send { session_id: String, text: String },
+    Error(String),
+}
+
+fn parse_local_chat_command(line: &str, current_session: Option<&str>) -> LocalChatCommand {
+    let trimmed = line.trim();
+    if trimmed.eq_ignore_ascii_case("/help") {
+        return LocalChatCommand::Help;
+    }
+    if trimmed.eq_ignore_ascii_case("/sessions") {
+        return LocalChatCommand::Sessions;
+    }
+    if let Some(rest) = trimmed.strip_prefix("/use ") {
+        let session_id = rest.trim();
+        return if session_id.is_empty() {
+            LocalChatCommand::Error("usage: /use <session_id>".into())
+        } else {
+            LocalChatCommand::Use {
+                session_id: session_id.to_string(),
+            }
+        };
+    }
+    if let Some(rest) = trimmed.strip_prefix("/reply ") {
+        let mut parts = rest.trim().splitn(2, char::is_whitespace);
+        let session_id = parts.next().unwrap_or("").trim();
+        let text = parts.next().unwrap_or("").trim();
+        return if session_id.is_empty() || text.is_empty() {
+            LocalChatCommand::Error("usage: /reply <session_id> <text>".into())
+        } else {
+            LocalChatCommand::Send {
+                session_id: session_id.to_string(),
+                text: text.to_string(),
+            }
+        };
+    }
+    if let Some(session_id) = current_session.filter(|id| !id.trim().is_empty()) {
+        return LocalChatCommand::Send {
+            session_id: session_id.to_string(),
+            text: trimmed.to_string(),
+        };
+    }
+    LocalChatCommand::Error(
+        "no current session; use /sessions or /reply <session_id> <text>".into(),
+    )
 }
 
 async fn capture_screen_frame(cfg: &Config, session_id: &str, frame_no: u64) -> ScreenFramePayload {
@@ -918,6 +1092,38 @@ mod tests {
         assert!(matches!(named_key("Backspace"), Some(Key::Backspace)));
         assert!(matches!(named_key("ArrowLeft"), Some(Key::LeftArrow)));
         assert!(matches!(named_key(" "), Some(Key::Space)));
+    }
+
+    #[test]
+    fn local_chat_command_uses_current_session_for_plain_text() {
+        match parse_local_chat_command("hello operator", Some("session-1")) {
+            LocalChatCommand::Send { session_id, text } => {
+                assert_eq!(session_id, "session-1");
+                assert_eq!(text, "hello operator");
+            }
+            _ => panic!("expected send command"),
+        }
+    }
+
+    #[test]
+    fn local_chat_command_parses_reply_with_explicit_session() {
+        match parse_local_chat_command("/reply session-2  confirm reboot", None) {
+            LocalChatCommand::Send { session_id, text } => {
+                assert_eq!(session_id, "session-2");
+                assert_eq!(text, "confirm reboot");
+            }
+            _ => panic!("expected explicit send command"),
+        }
+    }
+
+    #[test]
+    fn local_chat_command_requires_session_when_plain_text_used() {
+        match parse_local_chat_command("hello", None) {
+            LocalChatCommand::Error(message) => {
+                assert!(message.contains("no current session"));
+            }
+            _ => panic!("expected error"),
+        }
     }
 }
 

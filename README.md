@@ -5,7 +5,7 @@
 ## 项目结构
 
 - `server/`：Axum API、管理员鉴权、SQLite 持久化、WebSocket 实时通道、内嵌前端静态资源。
-- `agent/`：被控端命令行 Agent，负责注册、心跳、文件命令、聊天消息、远控画面采集与语音占位消息。
+- `agent/`：被控端命令行 Agent，负责注册、心跳、文件命令、聊天消息、本地 CLI 回复交互、远控画面采集与语音占位消息。
 - `web/`：React + TypeScript + Tailwind CSS + Vite 管理后台。
 - `docs/plan.md`：任务计划与验收标准。
 
@@ -21,6 +21,7 @@
 - 鼠标/键盘控制事件从 Web 转发到 Agent 并执行真实输入注入
 - 文件浏览、上传、下载、删除、新建目录
 - 会话内双向文字沟通
+- Agent 本地 CLI 聊天回复：支持 `/sessions`、`/use <session_id>`、`/reply <session_id> <text>`
 - 语音沟通控制面板与占位协议
 - 审计日志记录与查询
 
@@ -75,6 +76,14 @@ CONDUCTOR_SERVER_URL=ws://127.0.0.1:8080/ws/agent cargo run -p conductor-agent
 ```
 
 Agent 首次启动会生成并持久化 `device_id`，之后重启会复用同一个设备标识。
+
+Agent 控制台聊天命令：
+
+- `/help`
+- `/sessions`
+- `/use <session_id>`
+- `/reply <session_id> <text>`
+- 直接输入文本：发送到当前会话
 
 ## 演示流程
 
