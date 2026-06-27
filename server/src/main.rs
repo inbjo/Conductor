@@ -19,7 +19,7 @@ use axum::{
     body::Body,
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        FromRequestParts, Multipart, Path, Query, State,
+        DefaultBodyLimit, FromRequestParts, Multipart, Path, Query, State,
     },
     http::{header, request::Parts, HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
@@ -39,6 +39,9 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 use tower_http::{compression::CompressionLayer, cors::CorsLayer, trace::TraceLayer};
 use tracing::{error, info, warn};
 use uuid::Uuid;
+
+const MAX_UPLOAD_BYTES: usize = 32 * 1024 * 1024;
+const MAX_UPLOAD_BODY_BYTES: usize = MAX_UPLOAD_BYTES + 1024 * 1024;
 
 #[derive(RustEmbed)]
 #[folder = "../web/dist"]
@@ -496,7 +499,10 @@ async fn main() -> anyhow::Result<()> {
             "/api/devices/:id/files",
             get(list_files).delete(delete_file),
         )
-        .route("/api/devices/:id/files/upload", post(upload_file))
+        .route(
+            "/api/devices/:id/files/upload",
+            post(upload_file).layer(DefaultBodyLimit::max(MAX_UPLOAD_BODY_BYTES)),
+        )
         .route("/api/devices/:id/files/download", get(download_file))
         .route("/api/devices/:id/files/mkdir", post(mkdir))
         .route("/ws/admin", get(ws_admin))
@@ -986,6 +992,11 @@ async fn upload_file(
                     .bytes()
                     .await
                     .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+                if bytes.len() > MAX_UPLOAD_BYTES {
+                    return Err(ApiError::BadRequest(
+                        "file exceeds the 32 MiB upload limit".into(),
+                    ));
+                }
                 content = Some(B64.encode(bytes));
             }
             _ => {}

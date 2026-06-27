@@ -27,6 +27,8 @@ import {
 } from 'lucide-react';
 import './styles.css';
 
+const MAX_UPLOAD_BYTES = 32 * 1024 * 1024;
+
 type Device = {
   device_id: string;
   hostname: string;
@@ -1464,6 +1466,9 @@ function FilesPage() {
   });
   const upload = useMutation({
     mutationFn: (file: File) => {
+      if (file.size > MAX_UPLOAD_BYTES) {
+        throw new Error('文件超过 32 MB 上传上限');
+      }
       const existing = (files.data?.entries || []).find((entry) => !entry.is_dir && entry.name === file.name);
       if (existing && !confirm(`目录中已存在 ${file.name}，是否覆盖?`)) {
         throw new Error('已取消上传');

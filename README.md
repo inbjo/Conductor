@@ -205,6 +205,7 @@ WebSocket：
 
 - 只支持单管理员模型
 - Agent 当前默认把文件访问根目录限制在用户 Home
+- 单个上传文件限制为 32 MiB，文件内容由 Server 中转
 - WebRTC 屏幕视频当前为 1 FPS，且依赖系统截图工具和带 `libvpx` 的 `ffmpeg`
 - 真实输入和双向语音依赖图形/音频会话、设备和系统权限
 - 未提供 Windows/macOS/Linux 安装包与系统服务包装
