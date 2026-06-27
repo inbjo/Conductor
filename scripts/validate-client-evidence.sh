@@ -83,7 +83,7 @@ verify_text_evidence() {
     exit 1
   fi
 
-  for key in timestamp repository archive archive_sha256 result; do
+  for key in timestamp repository archive commit archive_sha256 result; do
     require_summary_field "$label" "$summary_path" "$key"
   done
   for key in "${required_tools[@]}"; do
@@ -91,7 +91,7 @@ verify_text_evidence() {
   done
 
   if [[ "$require_ci_fields" -eq 1 ]]; then
-    for key in commit runner_os runner_arch; do
+    for key in runner_os runner_arch; do
       require_summary_field "$label" "$summary_path" "$key"
     done
   fi

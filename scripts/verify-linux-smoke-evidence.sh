@@ -62,6 +62,7 @@ for key in \
   timestamp \
   repository \
   archive \
+  commit \
   uname \
   rustc \
   cargo \
@@ -72,7 +73,7 @@ for key in \
 done
 
 if [[ "$require_ci_fields" -eq 1 ]]; then
-  for key in commit runner_os runner_arch; do
+  for key in runner_os runner_arch; do
     require_field "$key"
   done
 fi

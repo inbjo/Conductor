@@ -41,6 +41,7 @@ $RequiredKeys = @(
     "timestamp",
     "repository",
     "archive",
+    "commit",
     "powershell",
     "rustc",
     "cargo",
@@ -56,7 +57,7 @@ foreach ($key in $RequiredKeys) {
 }
 
 if ($RequireCiFields) {
-    foreach ($key in @("commit", "runner_os", "runner_arch")) {
+    foreach ($key in @("runner_os", "runner_arch")) {
         if (!$Summary.ContainsKey($key) -or [string]::IsNullOrWhiteSpace($Summary[$key])) {
             Write-Error "Missing Windows CI smoke evidence field: $key"
         }
