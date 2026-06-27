@@ -40,6 +40,26 @@ env:
   CONDUCTOR_DEFAULT_INTERACTIVE_APPROVAL: ${{ github.event.inputs.client_interactive_approval }}
 
 jobs:
+  static-checks:
+    name: Static checks
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check mirrored workflows
+        run: cmp -s .github/workflows/build.yml .gitea/workflows/build.yml
+
+      - name: Check shell scripts parse
+        run: bash -n scripts/*.sh
+
+      - name: Check client helper usage
+        run: |
+          ./scripts/build-client.sh --help
+          ./scripts/validate-client-evidence.sh --help
+          ./scripts/verify-linux-smoke-evidence.sh --help
+          ./scripts/verify-macos-smoke-evidence.sh --help
+
   server-release:
     name: Server release package
     runs-on: ubuntu-24.04
