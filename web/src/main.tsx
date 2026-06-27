@@ -646,10 +646,17 @@ function DeviceDetailPage() {
           <MonitorDot size={18} />
           远程控制
         </button>
-        <Link className={`button ${online ? '' : 'disabled'}`} to={`/devices/${id}/files`}>
-          <FileDown size={18} />
-          文件管理
-        </Link>
+        {online ? (
+          <Link className="button" to={`/devices/${id}/files`}>
+            <FileDown size={18} />
+            文件管理
+          </Link>
+        ) : (
+          <button className="button" disabled>
+            <FileDown size={18} />
+            文件管理
+          </button>
+        )}
         <button className="button" disabled={!online || createSession.isPending} onClick={openChat}>
           <MessageSquare size={18} />
           文字沟通
