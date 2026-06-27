@@ -20,7 +20,11 @@ try {
         "conductor-agent.exe",
         "flutter_windows.dll",
         "data\icudtl.dat",
-        "data\flutter_assets"
+        "data\flutter_assets",
+        "data\flutter_assets\AssetManifest.bin",
+        "data\flutter_assets\FontManifest.json",
+        "data\flutter_assets\NativeAssetsManifest.json",
+        "data\flutter_assets\version.json"
     )
 
     foreach ($Item in $Required) {

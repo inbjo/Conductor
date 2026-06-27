@@ -203,7 +203,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\verify-windows-smoke-evidence
 ```
 
 校验脚本会确认工具链字段不是 `not found`、`result=passed`、日志包含成功标记和 `Agent config log observed` 配置传递标记，并在归档仍存在时复算 `archive_sha256`。
-Linux/Windows 归档校验会确认 Flutter runtime 数据文件 `data/icudtl.dat` 存在。Linux/macOS 归档校验还会确认客户端主程序和包内 `conductor-agent` 保留可执行位；macOS 归档还会确认 `.app` 的 `Info.plist` 包含麦克风权限说明。
+Linux/Windows 归档校验会确认 Flutter runtime 数据文件 `data/icudtl.dat` 和 `data/flutter_assets` 下的关键 manifest 存在。Linux/macOS 归档校验还会确认客户端主程序和包内 `conductor-agent` 保留可执行位；macOS 归档还会确认 `.app` 的 `Info.plist` 包含麦克风权限说明。
 所有 Windows smoke evidence 都必须记录 commit。CI 中会额外传入 `-RequireCiFields -ExpectedCommit $env:GITHUB_SHA`，要求 evidence 中存在 runner OS 和 runner arch，并确认 evidence 的 commit 与当前 workflow commit 一致；手工真机验收会用 `git rev-parse HEAD` 记录 commit，但默认不要求 runner OS/arch 这些 CI 专属字段。
 
 分步排错时可分别运行：

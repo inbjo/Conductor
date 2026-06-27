@@ -59,6 +59,10 @@ case "$platform" in
     require_executable_entry '(^|^\./)conductor-agent$'
     require_entry '(^|^\./)data/icudtl\.dat$'
     require_entry '(^|^\./)data/flutter_assets/'
+    require_entry '(^|^\./)data/flutter_assets/AssetManifest\.bin$'
+    require_entry '(^|^\./)data/flutter_assets/FontManifest\.json$'
+    require_entry '(^|^\./)data/flutter_assets/NativeAssetsManifest\.json$'
+    require_entry '(^|^\./)data/flutter_assets/version\.json$'
     require_entry '(^|^\./)lib/libflutter_linux_gtk\.so$'
     ;;
   macos)
