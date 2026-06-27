@@ -5,9 +5,32 @@ evidence_dir="artifacts/linux-client-smoke"
 require_ci_fields=0
 expected_commit=""
 
+usage() {
+  cat >&2 <<'EOF'
+Usage: verify-linux-smoke-evidence.sh [options]
+
+Options:
+  --evidence-dir <path>      Directory containing validation-summary.txt and smoke-linux-client-flow.log.
+  --require-ci-fields        Require runner_os and runner_arch in evidence.
+  --expected-commit <sha>    Require evidence commit to match this SHA.
+  -h, --help                 Show this help.
+EOF
+}
+
+require_value() {
+  local option="$1"
+  local value="${2:-}"
+  if [[ -z "$value" || "$value" == --* ]]; then
+    echo "Missing value for $option" >&2
+    usage
+    exit 2
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --evidence-dir)
+      require_value "$1" "${2:-}"
       evidence_dir="${2:-}"
       shift 2
       ;;
@@ -16,11 +39,17 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --expected-commit)
+      require_value "$1" "${2:-}"
       expected_commit="${2:-}"
       shift 2
       ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
     *)
       echo "Unknown option: $1" >&2
+      usage
       exit 2
       ;;
   esac

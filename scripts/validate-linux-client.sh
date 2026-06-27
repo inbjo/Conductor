@@ -8,13 +8,40 @@ skip_server_build=0
 require_ci_fields=0
 expected_commit=""
 
+usage() {
+  cat >&2 <<'EOF'
+Usage: validate-linux-client.sh [options]
+
+Options:
+  --archive-path <path>      Linux client archive to validate.
+  --evidence-dir <path>      Directory for validation-summary.txt and transcript.
+  --skip-client-build        Reuse an existing client archive.
+  --skip-server-build        Reuse an existing target/debug/conductor-server.
+  --require-ci-fields        Require runner_os and runner_arch in evidence.
+  --expected-commit <sha>    Require evidence commit to match this SHA.
+  -h, --help                 Show this help.
+EOF
+}
+
+require_value() {
+  local option="$1"
+  local value="${2:-}"
+  if [[ -z "$value" || "$value" == --* ]]; then
+    echo "Missing value for $option" >&2
+    usage
+    exit 2
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --archive-path)
+      require_value "$1" "${2:-}"
       archive_path="${2:-}"
       shift 2
       ;;
     --evidence-dir)
+      require_value "$1" "${2:-}"
       evidence_dir="${2:-}"
       shift 2
       ;;
@@ -31,11 +58,17 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --expected-commit)
+      require_value "$1" "${2:-}"
       expected_commit="${2:-}"
       shift 2
       ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
     *)
       echo "Unknown option: $1" >&2
+      usage
       exit 2
       ;;
   esac
