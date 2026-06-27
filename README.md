@@ -129,7 +129,7 @@ macOS 主机：
 
 脚本会生成 `release/conductor-client-macos.tar.gz`，归档中包含 `conductor_client.app` 和内置的 `conductor-agent`。
 
-客户端会把 `conductor-agent` 或 `conductor-agent.exe` 放在可执行文件同目录，启动后在界面中填写 Server WebSocket 地址和 Agent Token，再点击 `Start Agent`。详细说明见 `docs/client.md`。
+客户端会把 `conductor-agent` 或 `conductor-agent.exe` 放在可执行文件同目录。启动后主界面只显示状态、启动/停止和日志，Server URL、Agent Token、Agent Name、文件根目录、音频输入和本地审批开关在 Settings 页配置；也可以通过构建脚本参数写入默认值。详细说明见 `docs/client.md`。
 
 GitHub Actions 会构建并上传服务端 Linux release 包，以及 Linux、Windows、macOS 三端 Flutter 被控客户端包。工作流见 `.github/workflows/build.yml`。
 

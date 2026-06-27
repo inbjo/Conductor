@@ -21,11 +21,11 @@
 - Linux/macOS：`~/.conductor-client/settings.json`
 - Windows：`%USERPROFILE%\.conductor-client\settings.json`
 
-客户端界面字段对应 Agent 环境变量：
+Settings 页字段对应 Agent 环境变量：
 
-| 界面字段 | Agent 环境变量 | 说明 |
+| Settings 字段 | Agent 环境变量 | 说明 |
 | --- | --- | --- |
-| `Server WebSocket URL` | `CONDUCTOR_SERVER_URL` | Server 地址，客户端会自动补全为 Agent WebSocket 地址 |
+| `Server URL` | `CONDUCTOR_SERVER_URL` | Server 地址，客户端会自动补全为 Agent WebSocket 地址 |
 | `Agent Token` | `CONDUCTOR_AGENT_TOKEN` | 必须与 Server 一致 |
 | `Agent Name` | `CONDUCTOR_AGENT_NAME` | 可选，后台展示用 |
 | `File Root` | `CONDUCTOR_AGENT_ROOT` | 可选，限制文件管理根目录 |
