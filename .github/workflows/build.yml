@@ -136,25 +136,9 @@ jobs:
           $env:FLUTTER_BIN = (Get-Command flutter).Source
           & .\scripts\build-client.ps1
 
-      - name: Verify Windows client archive
+      - name: Smoke Windows client flow
         shell: pwsh
-        run: .\scripts\verify-client-archive.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
-
-      - name: Smoke launch bundled Windows agent
-        shell: pwsh
-        run: .\scripts\smoke-agent-launch.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
-
-      - name: Smoke register bundled Windows agent
-        shell: pwsh
-        run: .\scripts\smoke-windows-agent-e2e.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
-
-      - name: Smoke register via Windows client
-        shell: pwsh
-        run: .\scripts\smoke-windows-client-e2e.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
-
-      - name: Smoke launch Windows client
-        shell: pwsh
-        run: .\scripts\smoke-client-launch.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
+        run: .\scripts\smoke-windows-client-flow.ps1 -SkipClientBuild -SkipServerBuild
 
       - name: Upload Windows client
         uses: actions/upload-artifact@v4
