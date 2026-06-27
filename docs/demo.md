@@ -8,6 +8,14 @@
 
 ## Release 包检查
 
+解包前可先校验归档：
+
+```sh
+cd release
+sha256sum -c conductor-<target>.tar.gz.sha256
+cd ..
+```
+
 解包 `release/conductor-<target>.tar.gz` 后应至少包含：
 
 - `bin/conductor-server`

@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TARGET="${1:-}"
 LABEL="${TARGET:-$(rustc -vV | sed -n 's/^host: //p')}"
 STAGE_DIR="$ROOT_DIR/release/conductor-$LABEL"
+ARCHIVE_PATH="$ROOT_DIR/release/conductor-$LABEL.tar.gz"
 CARGO_ARGS=(--release -p conductor-server -p conductor-agent)
 GIT_COMMIT="$(git -C "$ROOT_DIR" rev-parse HEAD)"
 
@@ -75,5 +76,10 @@ EOF
 )
 
 echo "[4/4] Creating archive"
-tar -czf "$ROOT_DIR/release/conductor-$LABEL.tar.gz" -C "$ROOT_DIR/release" "conductor-$LABEL"
-echo "Release ready: $ROOT_DIR/release/conductor-$LABEL.tar.gz"
+tar -czf "$ARCHIVE_PATH" -C "$ROOT_DIR/release" "conductor-$LABEL"
+(
+  cd "$ROOT_DIR/release"
+  sha256sum "conductor-$LABEL.tar.gz" > "conductor-$LABEL.tar.gz.sha256"
+)
+echo "Release ready: $ARCHIVE_PATH"
+echo "Archive checksum: $ARCHIVE_PATH.sha256"
