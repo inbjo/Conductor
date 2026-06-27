@@ -177,6 +177,8 @@ macOS 真实远控还需要用户授权：
 - Accessibility
 - Microphone
 
+当前 macOS Flutter 客户端按演示工具形态构建，`Runner` entitlements 关闭 App Sandbox，以便启动内置 `conductor-agent`、建立网络连接并访问本机文件/音频能力。后续如需 App Store 或企业签名分发，需要重新设计 helper、entitlements 和权限申请流程。
+
 macOS 当前已纳入构建流程；屏幕、输入、语音真实能力仍需要真机权限验证。
 
 ## 6. 获取依赖
@@ -394,6 +396,8 @@ release/conductor-client-macos.tar.gz
 - Screen Recording
 - Accessibility
 - Microphone
+
+当前 `.app` 是非沙箱演示包，目的是优先跑通被控端流程。
 
 首次跑通优先确认：
 
