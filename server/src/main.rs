@@ -1738,18 +1738,35 @@ async fn mark_session_closed(
     session_id: &str,
     status: &str,
 ) -> Result<(), ApiError> {
-    sqlx::query("UPDATE sessions SET status = ?, closed_at = ? WHERE session_id = ?")
-        .bind(status)
-        .bind(Utc::now().to_rfc3339())
-        .bind(session_id)
-        .execute(&state.db)
-        .await
-        .map_err(db_err)?;
-    let _ = state.admin_events.send(AdminEvent::SessionStatus {
-        session_id: session_id.into(),
-        status: status.into(),
-    });
+    if close_open_session(&state.db, session_id, status, &Utc::now().to_rfc3339()).await? {
+        let _ = state.admin_events.send(AdminEvent::SessionStatus {
+            session_id: session_id.into(),
+            status: status.into(),
+        });
+    }
     Ok(())
+}
+
+async fn close_open_session(
+    db: &SqlitePool,
+    session_id: &str,
+    status: &str,
+    closed_at: &str,
+) -> Result<bool, ApiError> {
+    let result = sqlx::query(
+        "UPDATE sessions
+         SET status = ?, closed_at = ?
+         WHERE session_id = ?
+           AND status IN ('pending', 'active')
+           AND closed_at IS NULL",
+    )
+    .bind(status)
+    .bind(closed_at)
+    .bind(session_id)
+    .execute(db)
+    .await
+    .map_err(db_err)?;
+    Ok(result.rows_affected() == 1)
 }
 
 async fn close_active_sessions_for_device(state: &AppState, device_id: &str, status: &str) {
@@ -1974,6 +1991,46 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(status, "closed");
+    }
+
+    #[tokio::test]
+    async fn closing_session_is_idempotent() {
+        let db = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        sqlx::query(
+            "INSERT INTO devices (device_id, hostname, os, arch, username, agent_version, local_ip, online, created_at, updated_at) VALUES ('device-1', 'host', 'test', 'test', 'user', 'test', '127.0.0.1', 1, 'now', 'now')",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO sessions (session_id, device_id, status, created_at) VALUES ('session-1', 'device-1', 'active', 'now')",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+
+        assert!(
+            close_open_session(&db, "session-1", "closed", "first-close")
+                .await
+                .unwrap()
+        );
+        assert!(
+            !close_open_session(&db, "session-1", "agent_offline", "second-close")
+                .await
+                .unwrap()
+        );
+        let (status, closed_at): (String, Option<String>) =
+            sqlx::query_as("SELECT status, closed_at FROM sessions WHERE session_id = 'session-1'")
+                .fetch_one(&db)
+                .await
+                .unwrap();
+        assert_eq!(status, "closed");
+        assert_eq!(closed_at.as_deref(), Some("first-close"));
     }
 
     #[tokio::test]
