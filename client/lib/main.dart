@@ -139,10 +139,12 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
       _lastExitCode = null;
     });
 
+    final serverUrl = normalizeAgentServerUrl(_serverUrl.text);
+    _serverUrl.text = serverUrl;
     await _saveSettings();
 
     final env = Map<String, String>.from(Platform.environment)
-      ..['CONDUCTOR_SERVER_URL'] = _serverUrl.text.trim()
+      ..['CONDUCTOR_SERVER_URL'] = serverUrl
       ..['CONDUCTOR_AGENT_TOKEN'] = _agentToken.text
       ..['CONDUCTOR_INTERACTIVE_APPROVAL'] = _interactiveApproval ? '1' : '0';
 
@@ -682,6 +684,22 @@ String defaultAgentBinary() {
     (candidate) => File(candidate).existsSync(),
     orElse: () => candidates.first,
   );
+}
+
+String normalizeAgentServerUrl(String value) {
+  var text = value.trim();
+  if (text.isEmpty) return text;
+  if (!text.contains('://')) text = 'ws://$text';
+  if (text.startsWith('http://')) text = text.replaceFirst('http://', 'ws://');
+  if (text.startsWith('https://')) {
+    text = text.replaceFirst('https://', 'wss://');
+  }
+
+  final uri = Uri.parse(text);
+  if (uri.path.isEmpty || uri.path == '/') {
+    return uri.replace(path: '/ws/agent').toString();
+  }
+  return uri.toString();
 }
 
 File settingsFile() {

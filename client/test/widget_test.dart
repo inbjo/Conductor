@@ -4,6 +4,25 @@ import 'package:conductor_client/main.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('normalizes common server URL inputs', () {
+    expect(
+      normalizeAgentServerUrl('127.0.0.1:8080'),
+      'ws://127.0.0.1:8080/ws/agent',
+    );
+    expect(
+      normalizeAgentServerUrl('http://example.test:8080'),
+      'ws://example.test:8080/ws/agent',
+    );
+    expect(
+      normalizeAgentServerUrl('https://example.test'),
+      'wss://example.test/ws/agent',
+    );
+    expect(
+      normalizeAgentServerUrl('wss://example.test/custom'),
+      'wss://example.test/custom',
+    );
+  });
+
   testWidgets('shows the agent launcher', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1200, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));

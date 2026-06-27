@@ -249,7 +249,7 @@ cd client
 
 在界面里填写：
 
-- `Server WebSocket URL`：`ws://127.0.0.1:8080/ws/agent`
+- `Server WebSocket URL`：`ws://127.0.0.1:8080/ws/agent`，也可填写 `http://127.0.0.1:8080` 或 `127.0.0.1:8080`，客户端会自动规范化。
 - `Agent Token`：`dev-agent-token-change-me`
 - `Agent Name`：例如 `linux-client-agent`
 - `File Root`：可留空，默认用户 home
@@ -578,7 +578,7 @@ $env:CONDUCTOR_CLIENT_AGENT_BIN = "C:\path\to\conductor-agent.exe"
 检查：
 
 - Server 是否启动。
-- Client 中的 `Server WebSocket URL` 是否是 `/ws/agent`。
+- Client 中的 `Server WebSocket URL` 是否指向正确 Server。客户端会自动把 `http://host:port` 或 `host:port` 转成 `ws://host:port/ws/agent`。
 - Client 中的 Agent Token 是否等于 Server 的 `CONDUCTOR_AGENT_TOKEN`。
 - Agent 日志是否出现连接失败或鉴权失败。
 

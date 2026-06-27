@@ -25,7 +25,7 @@
 
 | 界面字段 | Agent 环境变量 | 说明 |
 | --- | --- | --- |
-| `Server WebSocket URL` | `CONDUCTOR_SERVER_URL` | 必须指向 Server 的 `/ws/agent` |
+| `Server WebSocket URL` | `CONDUCTOR_SERVER_URL` | Server 地址，客户端会自动补全为 Agent WebSocket 地址 |
 | `Agent Token` | `CONDUCTOR_AGENT_TOKEN` | 必须与 Server 一致 |
 | `Agent Name` | `CONDUCTOR_AGENT_NAME` | 可选，后台展示用 |
 | `File Root` | `CONDUCTOR_AGENT_ROOT` | 可选，限制文件管理根目录 |
@@ -92,7 +92,7 @@ client/build/linux/x64/release/bundle/conductor_client
 
 在界面中确认：
 
-- `Server WebSocket URL`：例如 `ws://127.0.0.1:8080/ws/agent`
+- `Server WebSocket URL`：例如 `ws://127.0.0.1:8080/ws/agent`，也可以填写 `http://127.0.0.1:8080` 或 `127.0.0.1:8080`，客户端会自动规范化。
 - `Agent Token`：必须与 Server 的 `CONDUCTOR_AGENT_TOKEN` 一致
 - `Agent Name`：可选，便于后台识别
 - `File Root`：可选，限制文件管理根目录
@@ -163,7 +163,7 @@ release\conductor-client-windows-x64.zip
 Windows 首次跑通建议：
 
 1. 在 Server 机器启动 `conductor-server`，确认 Windows 能访问 `http://<server-ip>:8080`。
-2. Windows 客户端填写 `ws://<server-ip>:8080/ws/agent`。
+2. Windows 客户端填写 `ws://<server-ip>:8080/ws/agent`；也可以填写 `http://<server-ip>:8080` 或 `<server-ip>:8080`，客户端会自动转换。
 3. Token 与 Server 的 `CONDUCTOR_AGENT_TOKEN` 保持一致。
 4. `Agent Name` 填写容易识别的名称，例如 `win-client-01`。
 5. 点击 `Start Agent`，确认日志没有鉴权失败或连接失败。
@@ -173,7 +173,7 @@ Windows 首次跑通建议：
 Windows 常见失败点：
 
 - Flutter doctor 的 Windows toolchain 未通过：安装 Visual Studio 2022 C++ workload。
-- Server 地址写成 `http://`：Agent WebSocket 必须使用 `ws://` 或 `wss://`。
+- Server 地址无法连接：先确认浏览器能访问 `http://<server-ip>:8080`，客户端会自动把 HTTP/裸地址转换成 `/ws/agent` WebSocket 地址。
 - Windows 防火墙拦截 Server 端口：先用浏览器访问后台确认连通性。
 - bundle 中没有 `conductor-agent.exe`：重新执行 `scripts/build-client.ps1`，或手动复制到 `conductor_client.exe` 同目录。
 
