@@ -28,7 +28,20 @@ void main() {
       normalizeAgentServerUrl('http://example.test/?debug=1'),
       'ws://example.test/ws/agent?debug=1',
     );
+    expect(
+      () => normalizeAgentServerUrl('file:///tmp/conductor'),
+      throwsFormatException,
+    );
     expect(normalizeAgentServerUrl(''), '');
+  });
+
+  test('safely rejects invalid server URL inputs before starting', () {
+    expect(
+      tryNormalizeAgentServerUrl('http://example.test:8080'),
+      'ws://example.test:8080/ws/agent',
+    );
+    expect(tryNormalizeAgentServerUrl('file:///tmp/conductor'), isNull);
+    expect(tryNormalizeAgentServerUrl('http://[::1'), isNull);
   });
 
   test('parses boolean flag values used by build defaults and smoke env', () {

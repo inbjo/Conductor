@@ -203,12 +203,17 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
       return;
     }
 
+    final serverUrl = tryNormalizeAgentServerUrl(_serverUrl.text);
+    if (serverUrl == null) {
+      _appendLog('server url is invalid: ${_serverUrl.text.trim()}');
+      return;
+    }
+
     setState(() {
       _starting = true;
       _lastExitCode = null;
     });
 
-    final serverUrl = normalizeAgentServerUrl(_serverUrl.text);
     _serverUrl.text = serverUrl;
     await _saveSettings();
 
@@ -947,10 +952,24 @@ String normalizeAgentServerUrl(String value) {
   }
 
   final uri = Uri.parse(text);
+  if (uri.scheme != 'ws' && uri.scheme != 'wss') {
+    throw FormatException('Server URL must use ws, wss, http, or https', value);
+  }
+  if (uri.host.isEmpty) {
+    throw FormatException('Server URL host is required', value);
+  }
   if (uri.path.isEmpty || uri.path == '/') {
     return uri.replace(path: '/ws/agent').toString();
   }
   return uri.toString();
+}
+
+String? tryNormalizeAgentServerUrl(String value) {
+  try {
+    return normalizeAgentServerUrl(value);
+  } on FormatException {
+    return null;
+  }
 }
 
 File settingsFile([Map<String, String>? environment]) {
