@@ -628,9 +628,20 @@ class _SettingsPageState extends State<SettingsPage> {
                     const SizedBox(height: 8),
                     FilledButton.icon(
                       onPressed: () async {
+                        final serverUrl = normalizedSettingsServerUrl(
+                          _serverUrl.text,
+                        );
+                        if (serverUrl == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Server URL is invalid'),
+                            ),
+                          );
+                          return;
+                        }
                         await widget.onSave(
                           SettingsDraft(
-                            serverUrl: _serverUrl.text,
+                            serverUrl: serverUrl,
                             agentToken: _agentToken.text,
                             agentName: _agentName.text,
                             agentRoot: _agentRoot.text,
@@ -980,6 +991,12 @@ String? tryNormalizeAgentServerUrl(String value) {
   } on FormatException {
     return null;
   }
+}
+
+String? normalizedSettingsServerUrl(String value) {
+  final text = value.trim();
+  if (text.isEmpty) return '';
+  return tryNormalizeAgentServerUrl(text);
 }
 
 File settingsFile([Map<String, String>? environment]) {

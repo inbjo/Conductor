@@ -44,6 +44,16 @@ void main() {
     expect(tryNormalizeAgentServerUrl('http://[::1'), isNull);
   });
 
+  test('settings server URL normalization keeps empty values optional', () {
+    expect(normalizedSettingsServerUrl(''), '');
+    expect(normalizedSettingsServerUrl('   '), '');
+    expect(
+      normalizedSettingsServerUrl('http://example.test:8080'),
+      'ws://example.test:8080/ws/agent',
+    );
+    expect(normalizedSettingsServerUrl('file:///tmp/conductor'), isNull);
+  });
+
   test('parses boolean flag values used by build defaults and smoke env', () {
     for (final value in ['1', 'true', 'TRUE', ' yes ', 'on']) {
       expect(flagValue(value), isTrue, reason: value);
@@ -138,7 +148,10 @@ void main() {
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.widgetWithText(TextField, 'Server URL'), 'new');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Server URL'),
+      'http://new.example:8080',
+    );
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
     expect(saved, isNull);
@@ -147,7 +160,10 @@ void main() {
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.widgetWithText(TextField, 'Server URL'), 'new');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Server URL'),
+      'http://new.example:8080',
+    );
     await tester.enterText(
       find.widgetWithText(TextField, 'Agent Token'),
       'new-token',
@@ -165,11 +181,45 @@ void main() {
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
-    expect(saved?.serverUrl, 'new');
+    expect(saved?.serverUrl, 'ws://new.example:8080/ws/agent');
     expect(saved?.agentToken, 'new-token');
     expect(saved?.agentName, 'new-agent');
     expect(saved?.agentRoot, '/tmp');
     expect(saved?.audioInput, 'default');
     expect(saved?.interactiveApproval, isTrue);
+  });
+
+  testWidgets('settings page rejects invalid server url on save', (
+    tester,
+  ) async {
+    SettingsDraft? saved;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPage(
+          serverUrl: 'ws://old/ws/agent',
+          agentToken: 'old-token',
+          agentName: '',
+          agentRoot: '',
+          agentBin: '/tmp/conductor-agent',
+          audioInput: '',
+          interactiveApproval: false,
+          onSave: (settings) async {
+            saved = settings;
+          },
+        ),
+      ),
+    );
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Server URL'),
+      'file:///tmp/conductor',
+    );
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+
+    expect(saved, isNull);
+    expect(find.text('Settings'), findsOneWidget);
+    expect(find.text('Server URL is invalid'), findsOneWidget);
   });
 }

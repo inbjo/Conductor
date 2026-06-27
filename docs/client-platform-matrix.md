@@ -129,7 +129,7 @@ Visual Studio / MSVC 版本：
 
 1. 启动 Server，并设置非默认 `CONDUCTOR_AGENT_TOKEN`。
 2. 运行 `release\conductor-client-windows-x64.zip` 解包后的 `conductor_client.exe`。
-3. 打开 Settings 页，填写 `http://<server-ip>:8080` 或 `<server-ip>:8080`，确认客户端转换为 `ws://<server-ip>:8080/ws/agent`。
+3. 打开 Settings 页，填写 `http://<server-ip>:8080` 或 `<server-ip>:8080`，保存后确认客户端转换为 `ws://<server-ip>:8080/ws/agent`；非法 URL 应停留在 Settings 页并提示错误。
 4. 在 Settings 页填写正确 Token 和容易识别的 Agent Name。
 5. 点击 `Start Agent`，后台设备列表应出现该 Windows 终端。
 6. 验证文件列表、聊天、远控会话创建、屏幕画面和鼠标键盘输入。

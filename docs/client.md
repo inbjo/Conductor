@@ -233,7 +233,7 @@ Agent smoke 会解压 zip，从解包目录启动 `conductor-agent.exe`，确认
 Windows 首次跑通建议：
 
 1. 在 Server 机器启动 `conductor-server`，确认 Windows 能访问 `http://<server-ip>:8080`。
-2. Windows 客户端在 Settings 页填写 `ws://<server-ip>:8080/ws/agent`；也可以填写 `http://<server-ip>:8080` 或 `<server-ip>:8080`，客户端会自动转换。
+2. Windows 客户端在 Settings 页填写 `ws://<server-ip>:8080/ws/agent`；也可以填写 `http://<server-ip>:8080` 或 `<server-ip>:8080`，保存时客户端会自动转换，非法 URL 会停留在 Settings 页并提示错误。
 3. Settings 页中的 Token 与 Server 的 `CONDUCTOR_AGENT_TOKEN` 保持一致。
 4. Settings 页中的 `Agent Name` 填写容易识别的名称，例如 `win-client-01`。
 5. 点击 `Start Agent`，确认日志没有鉴权失败或连接失败。
