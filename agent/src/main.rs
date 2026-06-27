@@ -227,10 +227,17 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let cfg = Config::load().await?;
+    let agent_name = non_empty_env("CONDUCTOR_AGENT_NAME").unwrap_or_else(|| "<hostname>".into());
+    let audio_input = non_empty_env("CONDUCTOR_AUDIO_INPUT").unwrap_or_else(|| "default".into());
     info!(
-        "agent device_id={} root={}",
+        "agent config device_id={} server_url={} root={} agent_name={} audio_input={} interactive_approval={} token_present={}",
         cfg.device_id,
-        cfg.root_dir.display()
+        cfg.server_url,
+        cfg.root_dir.display(),
+        agent_name,
+        audio_input,
+        cfg.interactive_approval,
+        !cfg.agent_token.is_empty()
     );
     loop {
         if let Err(err) = run_agent(cfg.clone()).await {
@@ -256,10 +263,7 @@ impl Config {
                 id
             }
         };
-        let root_dir = std::env::var("CONDUCTOR_AGENT_ROOT")
-            .ok()
-            .filter(|value| !value.trim().is_empty())
-            .map(PathBuf::from)
+        let root_dir = configured_root_dir(std::env::var("CONDUCTOR_AGENT_ROOT").ok().as_deref())
             .or_else(|| BaseDirs::new().map(|d| d.home_dir().to_path_buf()))
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
         Ok(Self {
@@ -1411,10 +1415,28 @@ fn parse_request_command(rest: &str, kind: &str) -> ConsoleCommand {
 }
 
 fn env_flag(name: &str) -> bool {
+    flag_value(std::env::var(name).ok().as_deref())
+}
+
+fn flag_value(value: Option<&str>) -> bool {
     matches!(
-        std::env::var(name).ok().as_deref(),
+        value.map(str::trim),
         Some("1" | "true" | "TRUE" | "yes" | "YES" | "on" | "ON")
     )
+}
+
+fn non_empty_env(name: &str) -> Option<String> {
+    std::env::var(name)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn configured_root_dir(value: Option<&str>) -> Option<PathBuf> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
 }
 
 async fn capture_screen_frame(cfg: &Config, session_id: &str, frame_no: u64) -> ScreenFramePayload {
@@ -2141,6 +2163,39 @@ mod tests {
         assert_eq!(
             query.get("token").map(|value| value.as_ref()),
             Some("new token")
+        );
+    }
+
+    #[test]
+    fn flag_value_accepts_enabled_spellings_only() {
+        for value in [
+            Some("1"),
+            Some("true"),
+            Some("TRUE"),
+            Some(" yes "),
+            Some("ON"),
+        ] {
+            assert!(flag_value(value), "{value:?}");
+        }
+        for value in [
+            None,
+            Some(""),
+            Some("0"),
+            Some("false"),
+            Some("no"),
+            Some("random"),
+        ] {
+            assert!(!flag_value(value), "{value:?}");
+        }
+    }
+
+    #[test]
+    fn configured_root_dir_trims_blank_values() {
+        assert_eq!(configured_root_dir(None), None);
+        assert_eq!(configured_root_dir(Some("   ")), None);
+        assert_eq!(
+            configured_root_dir(Some("  /tmp/conductor-root  ")),
+            Some(PathBuf::from("/tmp/conductor-root"))
         );
     }
 }
