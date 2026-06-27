@@ -25,7 +25,7 @@
 
 - OS：Ubuntu 24.04.2 LTS
 - Flutter：`/home/flex/Code/flutter`，Flutter 3.44.4
-- 最近验证：2026-06-28，commit `0d48fca`
+- 最近验证：2026-06-28，commit `049071b`
 - 目标：先在 Ubuntu 本机跑通 Flutter 客户端壳、bundle、归档、启动和 Agent 注册流程
 
 已跑通命令：
@@ -33,7 +33,11 @@
 ```sh
 /home/flex/Code/flutter/bin/flutter analyze
 /home/flex/Code/flutter/bin/flutter test
-./scripts/build-client.sh
+FLUTTER_BIN=/home/flex/Code/flutter/bin/flutter ./scripts/build-client.sh \
+  --server-url ws://127.0.0.1:8080/ws/agent \
+  --agent-token dev-agent-token-change-me \
+  --agent-name linux-settings-draft \
+  --interactive-approval false
 ./scripts/verify-client-archive.sh linux release/conductor-client-linux-x64.tar.gz
 ./scripts/smoke-client-launch.sh linux release/conductor-client-linux-x64.tar.gz
 ./scripts/smoke-linux-client-e2e.sh release/conductor-client-linux-x64.tar.gz
