@@ -135,10 +135,12 @@ Agent 控制台聊天命令：
 - `CONDUCTOR_JWT_SECRET`：JWT 密钥
 - `CONDUCTOR_ADMIN_USERNAME`：管理员账号，默认 `admin`
 - `CONDUCTOR_ADMIN_PASSWORD`：管理员密码，默认 `admin123`
+- `CONDUCTOR_AGENT_TOKEN`：Agent WebSocket 共享接入令牌，生产环境必须修改默认值
 
 ### Agent
 
 - `CONDUCTOR_SERVER_URL`：Agent WebSocket 地址，默认 `ws://127.0.0.1:8080/ws/agent`
+- `CONDUCTOR_AGENT_TOKEN`：必须与 Server 的共享接入令牌一致，默认 `dev-agent-token-change-me`
 - `CONDUCTOR_AGENT_NAME`：覆盖 Agent 上报主机名
 - `CONDUCTOR_INTERACTIVE_APPROVAL`：设为 `1`/`true` 后，Agent 本地 CLI 需要显式接受或拒绝远控/语音请求
 - `CONDUCTOR_AUDIO_INPUT`：覆盖 Agent 的 `ffmpeg` 音频输入设备；Linux 默认 `default`，macOS 默认 `:0`，Windows 默认 `default`

@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
+use std::{collections::HashMap, net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use argon2::{
@@ -42,6 +42,7 @@ struct Config {
     jwt_secret: String,
     admin_username: String,
     admin_password: String,
+    agent_token: String,
 }
 
 impl Config {
@@ -60,6 +61,8 @@ impl Config {
                 .unwrap_or_else(|_| "admin".to_string()),
             admin_password: std::env::var("CONDUCTOR_ADMIN_PASSWORD")
                 .unwrap_or_else(|_| "admin123".to_string()),
+            agent_token: std::env::var("CONDUCTOR_AGENT_TOKEN")
+                .unwrap_or_else(|_| "dev-agent-token-change-me".to_string()),
         })
     }
 }
@@ -1228,8 +1231,26 @@ where
     Ok(())
 }
 
-async fn ws_agent(ws: WebSocketUpgrade, State(state): State<AppState>) -> Response {
-    ws.on_upgrade(move |socket| agent_socket(state, socket))
+async fn ws_agent(
+    ws: WebSocketUpgrade,
+    State(state): State<AppState>,
+    Query(q): Query<HashMap<String, String>>,
+) -> Result<Response, ApiError> {
+    let token = q.get("token").ok_or(ApiError::Unauthorized)?;
+    if !constant_time_eq(token.as_bytes(), state.cfg.agent_token.as_bytes()) {
+        return Err(ApiError::Unauthorized);
+    }
+    Ok(ws.on_upgrade(move |socket| agent_socket(state, socket)))
+}
+
+fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
+    let mut difference = left.len() ^ right.len();
+    let length = left.len().max(right.len());
+    for index in 0..length {
+        difference |= left.get(index).copied().unwrap_or(0) as usize
+            ^ right.get(index).copied().unwrap_or(0) as usize;
+    }
+    difference == 0
 }
 
 async fn agent_socket(state: AppState, socket: WebSocket) {
@@ -1619,5 +1640,12 @@ mod tests {
             &agents, "device-1", &new_tx
         ));
         assert!(!agents.contains_key("device-1"));
+    }
+
+    #[test]
+    fn agent_token_comparison_rejects_missing_and_different_values() {
+        assert!(constant_time_eq(b"agent-secret", b"agent-secret"));
+        assert!(!constant_time_eq(b"agent-secret", b"agent-other"));
+        assert!(!constant_time_eq(b"agent-secret", b""));
     }
 }

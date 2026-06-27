@@ -44,6 +44,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 #[derive(Debug, Clone)]
 struct Config {
     server_url: String,
+    agent_token: String,
     device_id: String,
     root_dir: PathBuf,
     interactive_approval: bool,
@@ -260,6 +261,8 @@ impl Config {
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
         Ok(Self {
             server_url,
+            agent_token: std::env::var("CONDUCTOR_AGENT_TOKEN")
+                .unwrap_or_else(|_| "dev-agent-token-change-me".to_string()),
             device_id,
             root_dir,
             interactive_approval: env_flag("CONDUCTOR_INTERACTIVE_APPROVAL"),
@@ -268,7 +271,8 @@ impl Config {
 }
 
 async fn run_agent(cfg: Config) -> anyhow::Result<()> {
-    let (ws, _) = connect_async(&cfg.server_url)
+    let connection_url = authenticated_server_url(&cfg.server_url, &cfg.agent_token)?;
+    let (ws, _) = connect_async(&connection_url)
         .await
         .with_context(|| format!("connect {}", cfg.server_url))?;
     let (mut write, mut read) = ws.split();
@@ -492,6 +496,24 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
             }
         }
     }
+}
+
+fn authenticated_server_url(server_url: &str, agent_token: &str) -> anyhow::Result<String> {
+    let mut url = url::Url::parse(server_url).context("invalid agent server URL")?;
+    let existing = url
+        .query_pairs()
+        .filter(|(key, _)| key != "token")
+        .map(|(key, value)| (key.into_owned(), value.into_owned()))
+        .collect::<Vec<_>>();
+    url.set_query(None);
+    {
+        let mut query = url.query_pairs_mut();
+        for (key, value) in existing {
+            query.append_pair(&key, &value);
+        }
+        query.append_pair("token", agent_token);
+    }
+    Ok(url.into())
 }
 
 fn build_webrtc_api() -> anyhow::Result<webrtc::api::API> {
@@ -2101,6 +2123,22 @@ mod tests {
             .unwrap()
             .starts_with(b"OpusTags"));
         assert!(reader.next_packet().await.unwrap().is_none());
+    }
+
+    #[test]
+    fn authenticated_url_preserves_options_and_replaces_token() {
+        let url = authenticated_server_url(
+            "ws://localhost:8080/ws/agent?mode=test&token=old",
+            "new token",
+        )
+        .unwrap();
+        let parsed = url::Url::parse(&url).unwrap();
+        let query = parsed.query_pairs().collect::<HashMap<_, _>>();
+        assert_eq!(query.get("mode").map(|value| value.as_ref()), Some("test"));
+        assert_eq!(
+            query.get("token").map(|value| value.as_ref()),
+            Some("new token")
+        );
     }
 }
 
