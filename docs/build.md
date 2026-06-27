@@ -467,6 +467,17 @@ release/conductor-<target>.tar.gz.sha256
 - pull request
 - 手动 `workflow_dispatch`
 
+手动 `workflow_dispatch` 可以填写以下输入，三端客户端构建都会通过 `CONDUCTOR_DEFAULT_*` 环境变量把它们写入默认配置；留空时仍使用客户端内置默认值，运行后也可以在 Settings 页修改。
+
+| 输入 | 写入的默认配置 |
+| --- | --- |
+| `client_server_url` | `Server URL` |
+| `client_agent_token` | `Agent Token` |
+| `client_agent_name` | `Agent Name` |
+| `client_agent_root` | `File Root` |
+| `client_audio_input` | `Audio Input` |
+| `client_interactive_approval` | `Require local approval`，取值 `1/0`、`true/false`、`yes/no` 或 `on/off` |
+
 CI 会构建并上传四类 artifact：
 
 | Job | Runner | 产物 |

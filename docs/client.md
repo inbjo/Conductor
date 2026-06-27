@@ -105,6 +105,8 @@ client/build/linux/x64/release/bundle/conductor_client
 ./scripts/build-client.sh --server-url ws://server:8080/ws/agent --agent-token token
 ```
 
+手动触发 GitHub/Gitea Actions 的 `workflow_dispatch` 时，也可以填写 `client_server_url`、`client_agent_token`、`client_agent_name`、`client_agent_root`、`client_audio_input` 和 `client_interactive_approval`，CI 会把这些值作为三端客户端的构建默认配置。
+
 Linux 已验证命令：
 
 ```sh
