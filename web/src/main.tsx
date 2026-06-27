@@ -516,6 +516,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 function DevicesPage() {
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [onlineOnly, setOnlineOnly] = useState(false);
   const devices = useQuery({ queryKey: ['devices'], queryFn: () => api<Device[]>('/api/devices'), refetchInterval: 15000 });
@@ -564,7 +565,7 @@ function DevicesPage() {
           </thead>
           <tbody>
             {filtered.map((device) => (
-              <tr key={device.device_id} onClick={() => (location.href = `/devices/${device.device_id}`)}>
+              <tr key={device.device_id} onClick={() => navigate(`/devices/${device.device_id}`)}>
                 <td><Status online={device.online === 1} /></td>
                 <td className="font-medium">{device.hostname || '-'}</td>
                 <td>{device.os} / {device.arch}</td>
