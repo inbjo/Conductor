@@ -24,6 +24,9 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
+      - name: Run Rust tests
+        run: cargo test
+
       - name: Build server release package
         run: ./scripts/build-release.sh x86_64-unknown-linux-gnu
 
@@ -56,6 +59,12 @@ jobs:
         with:
           channel: stable
           cache: true
+
+      - name: Check Flutter client
+        working-directory: client
+        run: |
+          flutter analyze
+          flutter test
 
       - name: Build Linux client
         run: FLUTTER_BIN="$(command -v flutter)" ./scripts/build-client.sh
