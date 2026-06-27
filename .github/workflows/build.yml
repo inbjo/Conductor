@@ -63,6 +63,7 @@ jobs:
       - name: Check Flutter client
         working-directory: client
         run: |
+          flutter config --enable-linux-desktop
           flutter analyze
           flutter test
 
@@ -98,12 +99,13 @@ jobs:
       - name: Build Windows client
         shell: pwsh
         run: |
+          flutter config --enable-windows-desktop
           $env:FLUTTER_BIN = (Get-Command flutter).Source
-          powershell -ExecutionPolicy Bypass -File .\scripts\build-client.ps1
+          & .\scripts\build-client.ps1
 
       - name: Verify Windows client archive
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File .\scripts\verify-client-archive.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
+        run: .\scripts\verify-client-archive.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
 
       - name: Upload Windows client
         uses: actions/upload-artifact@v4
@@ -129,7 +131,9 @@ jobs:
           cache: true
 
       - name: Build macOS client
-        run: FLUTTER_BIN="$(command -v flutter)" ./scripts/build-client.sh
+        run: |
+          flutter config --enable-macos-desktop
+          FLUTTER_BIN="$(command -v flutter)" ./scripts/build-client.sh
 
       - name: Verify macOS client archive
         run: ./scripts/verify-client-archive.sh macos release/conductor-client-macos.tar.gz
