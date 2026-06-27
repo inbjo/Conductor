@@ -230,10 +230,16 @@ CI job 覆盖：
 ./scripts/validate-client-evidence.sh --require-ci-fields --expected-commit <commit-sha>
 ```
 
-默认读取：
+默认优先读取 CI 内部路径名：
 
 - `artifacts/linux-client-smoke`
 - `artifacts/windows-client-smoke`
 - `artifacts/macos-client-smoke`
+
+如果下载 artifact 后目录名是 artifact 名，也会自动识别：
+
+- `artifacts/linux-client-smoke-evidence`
+- `artifacts/windows-client-smoke-evidence`
+- `artifacts/macos-client-smoke-evidence`
 
 也可以用 `--platform linux|windows|macos` 只校验单个平台。

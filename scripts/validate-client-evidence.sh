@@ -63,6 +63,23 @@ sha256_file() {
   fi
 }
 
+platform_evidence_dir() {
+  local platform_name="$1"
+  local path_dir="$evidence_root/$platform_name-client-smoke"
+  local artifact_dir="$evidence_root/$platform_name-client-smoke-evidence"
+
+  if [[ -d "$path_dir" ]]; then
+    printf '%s\n' "$path_dir"
+    return
+  fi
+  if [[ -d "$artifact_dir" ]]; then
+    printf '%s\n' "$artifact_dir"
+    return
+  fi
+
+  printf '%s\n' "$path_dir"
+}
+
 verify_text_evidence() {
   local label="$1"
   local evidence_dir="$2"
@@ -148,7 +165,9 @@ verify_text_evidence() {
 }
 
 verify_linux() {
-  local args=(--evidence-dir "$evidence_root/linux-client-smoke")
+  local evidence_dir
+  evidence_dir="$(platform_evidence_dir linux)"
+  local args=(--evidence-dir "$evidence_dir")
   if [[ "$require_ci_fields" -eq 1 ]]; then
     args+=(--require-ci-fields)
   fi
@@ -160,7 +179,9 @@ verify_linux() {
 }
 
 verify_macos() {
-  local args=(--evidence-dir "$evidence_root/macos-client-smoke")
+  local evidence_dir
+  evidence_dir="$(platform_evidence_dir macos)"
+  local args=(--evidence-dir "$evidence_dir")
   if [[ "$require_ci_fields" -eq 1 ]]; then
     args+=(--require-ci-fields)
   fi
@@ -172,9 +193,11 @@ verify_macos() {
 }
 
 verify_windows() {
+  local evidence_dir
+  evidence_dir="$(platform_evidence_dir windows)"
   verify_text_evidence \
     "Windows" \
-    "$evidence_root/windows-client-smoke" \
+    "$evidence_dir" \
     "smoke-windows-client-flow.log" \
     "Windows client flow smoke passed" \
     powershell \
