@@ -2141,6 +2141,70 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn chat_messages_are_validated_and_saved() {
+        let state = test_state().await;
+        sqlx::query(
+            "INSERT INTO devices (device_id, hostname, os, arch, username, agent_version, local_ip, online, created_at, updated_at) VALUES ('device-1', 'host', 'test', 'test', 'user', 'test', '127.0.0.1', 1, 'now', 'now')",
+        )
+        .execute(&state.db)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO sessions (session_id, device_id, status, created_at) VALUES ('session-1', 'device-1', 'active', 'now')",
+        )
+        .execute(&state.db)
+        .await
+        .unwrap();
+
+        let empty = send_chat(
+            AuthUser {
+                username: "admin".into(),
+            },
+            State(state.clone()),
+            Path("session-1".into()),
+            Json(ChatRequest { text: "   ".into() }),
+        )
+        .await;
+        assert!(matches!(empty, Err(ApiError::BadRequest(_))));
+
+        let too_long = send_chat(
+            AuthUser {
+                username: "admin".into(),
+            },
+            State(state.clone()),
+            Path("session-1".into()),
+            Json(ChatRequest {
+                text: "x".repeat(2001),
+            }),
+        )
+        .await;
+        assert!(matches!(too_long, Err(ApiError::BadRequest(_))));
+
+        let saved = send_chat(
+            AuthUser {
+                username: "admin".into(),
+            },
+            State(state.clone()),
+            Path("session-1".into()),
+            Json(ChatRequest {
+                text: "  hello  ".into(),
+            }),
+        )
+        .await
+        .unwrap()
+        .0;
+        assert_eq!(saved.text, "hello");
+
+        let (count, text): (i64, String) =
+            sqlx::query_as("SELECT COUNT(*), MAX(text) FROM chat_messages")
+                .fetch_one(&state.db)
+                .await
+                .unwrap();
+        assert_eq!(count, 1);
+        assert_eq!(text, "hello");
+    }
+
+    #[tokio::test]
     async fn closed_session_cannot_be_reactivated_by_late_accept() {
         let db = SqlitePoolOptions::new()
             .max_connections(1)
