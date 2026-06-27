@@ -20,6 +20,24 @@ void main() {
       normalizeAgentServerUrl('wss://example.test/custom'),
       'wss://example.test/custom',
     );
+    expect(
+      normalizeAgentServerUrl('  example.test:8080  '),
+      'ws://example.test:8080/ws/agent',
+    );
+    expect(
+      normalizeAgentServerUrl('http://example.test/?debug=1'),
+      'ws://example.test/ws/agent?debug=1',
+    );
+    expect(normalizeAgentServerUrl(''), '');
+  });
+
+  test('parses boolean flag values used by build defaults and smoke env', () {
+    for (final value in ['1', 'true', 'TRUE', ' yes ', 'on']) {
+      expect(flagValue(value), isTrue, reason: value);
+    }
+    for (final value in [null, '', '0', 'false', 'no', 'off', 'random']) {
+      expect(flagValue(value), isFalse, reason: '$value');
+    }
   });
 
   test('settings file can be isolated by environment override', () {
