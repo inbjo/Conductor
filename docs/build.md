@@ -574,6 +574,8 @@ export FLUTTER_BIN="$HOME/Code/flutter/bin/flutter"
 
 Windows：
 
+Windows 构建脚本同样优先使用 `FLUTTER_BIN`，未设置时查找 `PATH` 中的 `flutter`，最后回退到 `%USERPROFILE%\Code\flutter\bin\flutter.bat`。
+
 ```powershell
 $env:FLUTTER_BIN = "$env:USERPROFILE\Code\flutter\bin\flutter.bat"
 powershell -ExecutionPolicy Bypass -File .\scripts\validate-windows-client.ps1

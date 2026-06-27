@@ -53,7 +53,12 @@ $RootDir = Resolve-Path (Join-Path $PSScriptRoot "..")
 $ReleaseDir = Join-Path $RootDir "release"
 $FlutterBin = $env:FLUTTER_BIN
 if ([string]::IsNullOrWhiteSpace($FlutterBin)) {
-    $FlutterBin = Join-Path $env:USERPROFILE "Code\flutter\bin\flutter.bat"
+    $FlutterCommand = Get-Command "flutter" -ErrorAction SilentlyContinue
+    if ($null -ne $FlutterCommand) {
+        $FlutterBin = $FlutterCommand.Source
+    } else {
+        $FlutterBin = Join-Path $env:USERPROFILE "Code\flutter\bin\flutter.bat"
+    }
 }
 
 function Require-Command($Name, $InstallHint) {

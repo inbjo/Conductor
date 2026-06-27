@@ -152,7 +152,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-client.ps1 `
   -InteractiveApproval "false"
 ```
 
-如果 Flutter 不在默认位置，指定：
+Windows 构建脚本会优先使用 `FLUTTER_BIN`，未设置时查找 `PATH` 中的 `flutter`，最后回退到 `%USERPROFILE%\Code\flutter\bin\flutter.bat`。如果 Flutter 不在这些位置，指定：
 
 ```powershell
 $env:FLUTTER_BIN = "D:\tools\flutter\bin\flutter.bat"
