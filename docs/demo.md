@@ -6,6 +6,47 @@
 - Agent 主机已安装带 `libvpx`、`libopus` 的 `ffmpeg` 和 `ffplay`。
 - Agent 主机允许屏幕采集、辅助控制、麦克风和扬声器访问。
 
+## Release 包检查
+
+解包 `release/conductor-<target>.tar.gz` 后应至少包含：
+
+- `bin/conductor-server`
+- `bin/conductor-agent`
+- `README.md`
+- `docs/demo.md`
+- `docs/plan.md`
+- `source/`
+
+正式演示前建议先在本机做一次 smoke test：
+
+```sh
+export CONDUCTOR_BIND='127.0.0.1:18080'
+export CONDUCTOR_DB='/tmp/conductor-demo.sqlite3'
+export CONDUCTOR_ADMIN_PASSWORD='admin123'
+export CONDUCTOR_JWT_SECRET='demo-secret'
+export CONDUCTOR_AGENT_TOKEN='demo-agent-token'
+./bin/conductor-server
+```
+
+另开终端启动 Agent：
+
+```sh
+export CONDUCTOR_SERVER_URL='ws://127.0.0.1:18080/ws/agent'
+export CONDUCTOR_AGENT_TOKEN='demo-agent-token'
+export CONDUCTOR_AGENT_NAME='demo-agent'
+./bin/conductor-agent
+```
+
+检查项：
+
+- `GET /health` 返回 `{"ok":true}`。
+- 浏览器打开 `/` 和 `/devices` 都能显示后台页面。
+- 登录后设备列表出现 `demo-agent` 且状态为在线。
+- 发起远控后会话从 `pending` 进入 `active`。
+- 文件管理可以列出 Agent 用户目录。
+- 聊天面板发送消息后 Agent CLI 能收到。
+- 关闭会话后状态变为 `closed`。
+
 ## 启动
 
 Server 主机：
