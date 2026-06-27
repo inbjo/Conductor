@@ -25,7 +25,7 @@
 
 - OS：Ubuntu 24.04.2 LTS
 - Flutter：`/home/flex/Code/flutter`，Flutter 3.44.4
-- 最近验证：2026-06-28，commit `049071b`
+- 最近验证：2026-06-28，commit `7dad5db`
 - 目标：先在 Ubuntu 本机跑通 Flutter 客户端壳、bundle、归档、启动和 Agent 注册流程
 
 已跑通命令：
@@ -36,12 +36,14 @@
 FLUTTER_BIN=/home/flex/Code/flutter/bin/flutter ./scripts/build-client.sh \
   --server-url ws://127.0.0.1:8080/ws/agent \
   --agent-token dev-agent-token-change-me \
-  --agent-name linux-settings-draft \
+  --agent-name linux-current-head \
   --interactive-approval false
 ./scripts/verify-client-archive.sh linux release/conductor-client-linux-x64.tar.gz
 ./scripts/smoke-client-launch.sh linux release/conductor-client-linux-x64.tar.gz
 ./scripts/smoke-linux-client-e2e.sh release/conductor-client-linux-x64.tar.gz
 ```
+
+本次 GUI smoke 和 e2e smoke 在非 sandbox 环境执行。受当前 Codex sandbox 的 display 隔离影响，sandbox 内 `xvfb-run` 可启动但 `xdpyinfo` 无法连接 display，GUI smoke 需要在宿主环境或 CI runner 中执行。
 
 覆盖能力：
 
