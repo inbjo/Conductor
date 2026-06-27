@@ -1182,7 +1182,14 @@ async fn admin_socket(state: AppState, mut socket: WebSocket) {
                     Some(Ok(Message::Close(_))) | None => break,
                     Some(Ok(Message::Text(text))) => {
                         if let Err(err) = handle_admin_message(&state, &text).await {
-                            let payload = json!({ "type": "error", "message": err.to_string() });
+                            let session_id = serde_json::from_str::<Value>(&text)
+                                .ok()
+                                .and_then(|value| value.get("session_id").and_then(Value::as_str).map(str::to_string));
+                            let payload = if let Some(session_id) = session_id {
+                                json!({ "type": "error", "session_id": session_id, "message": err.to_string() })
+                            } else {
+                                json!({ "type": "error", "message": err.to_string() })
+                            };
                             let _ = socket.send(Message::Text(payload.to_string())).await;
                         }
                     }
@@ -1796,7 +1803,10 @@ async fn close_active_sessions_for_device(state: &AppState, device_id: &str, sta
     .await
     .unwrap_or_default();
     for (session_id,) in rows {
-        if matches!(mark_session_closed(state, &session_id, status).await, Ok(true)) {
+        if matches!(
+            mark_session_closed(state, &session_id, status).await,
+            Ok(true)
+        ) {
             audit(
                 state,
                 "system",

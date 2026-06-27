@@ -119,7 +119,8 @@ type AdminEvent =
   | { type: 'signal'; session_id: string; kind: string; payload: unknown }
   | ({ type: 'screen_frame' } & ScreenFrame)
   | ({ type: 'control_ack' } & Omit<ControlEventPayload, 'type'>)
-  | { type: 'voice_status'; session_id: string; status: string; muted: boolean | null; reason: string | null };
+  | { type: 'voice_status'; session_id: string; status: string; muted: boolean | null; reason: string | null }
+  | { type: 'error'; session_id?: string; message: string };
 
 type AuthStore = {
   token: string | null;
@@ -345,6 +346,9 @@ function useAdminSocket(token: string | null) {
         if (payload.type === 'voice_status') {
           setVoice(payload.session_id, payload.status, payload.muted, payload.reason);
           addLog(payload.session_id, `voice ${payload.status}${payload.muted === null ? '' : ` muted=${payload.muted}`}`);
+        }
+        if (payload.type === 'error') {
+          addLog(payload.session_id || 'global', `error ${payload.message}`);
         }
       };
       socket.onclose = () => {
