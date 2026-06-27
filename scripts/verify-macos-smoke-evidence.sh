@@ -177,6 +177,10 @@ if ! grep -q "agent config " "$e2e_client_log"; then
   echo "macOS client e2e client log does not contain the agent config line." >&2
   exit 1
 fi
+if ! grep -q "agent config .*root=.*agent-root .*audio_input=smoke-audio-input" "$e2e_client_log"; then
+  echo "macOS client e2e client log does not prove file root and audio input propagation." >&2
+  exit 1
+fi
 if ! grep -q "\[diagnostics\] conductor-agent" "$e2e_client_log"; then
   echo "macOS client e2e client log does not contain diagnostics output." >&2
   exit 1
@@ -187,6 +191,14 @@ if ! grep -q '"serverUrl": "ws://127\.0\.0\.1:.*\/ws\/agent"' "$e2e_settings_fil
 fi
 if ! grep -q '"agentName": "macos-client-e2e-agent-' "$e2e_settings_file"; then
   echo "macOS client e2e settings file does not contain the expected agentName." >&2
+  exit 1
+fi
+if ! grep -q '"agentRoot": ".*/agent-root"' "$e2e_settings_file"; then
+  echo "macOS client e2e settings file does not contain the expected agentRoot." >&2
+  exit 1
+fi
+if ! grep -q '"audioInput": "smoke-audio-input"' "$e2e_settings_file"; then
+  echo "macOS client e2e settings file does not contain the expected audioInput." >&2
   exit 1
 fi
 if ! grep -q '"interactiveApproval": false' "$e2e_settings_file"; then

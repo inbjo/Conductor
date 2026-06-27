@@ -28,6 +28,7 @@ $ClientLog = Join-Path $TempDir "client.log"
 $ClientSettings = Join-Path $TempDir "client-settings.json"
 $BaseUrl = "http://127.0.0.1:$Port"
 $AgentName = "windows-client-e2e-" + [System.Guid]::NewGuid().ToString("N").Substring(0, 8)
+$AudioInput = "smoke-audio-input"
 $AdminPassword = "admin123"
 $JwtSecret = "windows-client-e2e-secret"
 $AgentToken = "windows-client-e2e-token"
@@ -183,6 +184,7 @@ try {
             CONDUCTOR_AGENT_TOKEN = $AgentToken
             CONDUCTOR_AGENT_NAME = $AgentName
             CONDUCTOR_AGENT_ROOT = $AgentRoot
+            CONDUCTOR_AUDIO_INPUT = $AudioInput
             CONDUCTOR_INTERACTIVE_APPROVAL = "0"
         }
 
@@ -214,14 +216,19 @@ try {
     }
 
     $AgentConfigLog = Get-Content $ClientLog -ErrorAction SilentlyContinue |
-        Where-Object { $_ -match "agent config " -and $_ -like "*agent_name=$AgentName*" } |
+        Where-Object {
+            $_ -match "agent config " `
+                -and $_ -like "*root=$AgentRoot*" `
+                -and $_ -like "*agent_name=$AgentName*" `
+                -and $_ -like "*audio_input=$AudioInput*"
+        } |
         Select-Object -Last 1
     if ([string]::IsNullOrWhiteSpace($AgentConfigLog)) {
         if (Test-Path $ClientLog) {
             Write-Host "Client log:"
             Get-Content $ClientLog -Tail 80
         }
-        Write-Error "Client log does not contain expected agent config line for $AgentName."
+        Write-Error "Client log does not contain expected agent config line for $AgentName, $AgentRoot, and $AudioInput."
     }
     Write-Host "Agent config log observed: $AgentConfigLog"
 
@@ -258,6 +265,12 @@ try {
     }
     if ($Settings.agentName -ne $AgentName) {
         Write-Error "Client settings agentName mismatch: $($Settings.agentName)"
+    }
+    if ($Settings.agentRoot -ne $AgentRoot) {
+        Write-Error "Client settings agentRoot mismatch: $($Settings.agentRoot)"
+    }
+    if ($Settings.audioInput -ne $AudioInput) {
+        Write-Error "Client settings audioInput mismatch: $($Settings.audioInput)"
     }
     if ($Settings.interactiveApproval -ne $false) {
         Write-Error "Client settings interactiveApproval mismatch: $($Settings.interactiveApproval)"

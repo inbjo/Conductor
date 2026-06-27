@@ -147,6 +147,9 @@ $ClientLogText = Get-Content $ClientE2eClientLog -Raw
 if ($ClientLogText -notmatch "agent config ") {
     Write-Error "Windows client e2e log does not contain the agent config line."
 }
+if ($ClientLogText -notmatch "agent config .*root=.*agent-root .*audio_input=smoke-audio-input") {
+    Write-Error "Windows client e2e log does not prove file root and audio input propagation."
+}
 if ($ClientLogText -notmatch "\[diagnostics\] conductor-agent") {
     Write-Error "Windows client e2e log does not contain diagnostics output."
 }
@@ -157,6 +160,12 @@ if ($ClientSettings.serverUrl -notmatch "^ws://127\.0\.0\.1:\d+/ws/agent$") {
 }
 if ($ClientSettings.agentName -notmatch "^windows-client-e2e-") {
     Write-Error "Windows client e2e settings file does not contain the expected agentName: $($ClientSettings.agentName)"
+}
+if ($ClientSettings.agentRoot -notmatch "[/\\]agent-root$") {
+    Write-Error "Windows client e2e settings file does not contain the expected agentRoot: $($ClientSettings.agentRoot)"
+}
+if ($ClientSettings.audioInput -ne "smoke-audio-input") {
+    Write-Error "Windows client e2e settings file does not contain the expected audioInput: $($ClientSettings.audioInput)"
 }
 if ($ClientSettings.interactiveApproval -ne $false) {
     Write-Error "Windows client e2e settings file does not contain interactiveApproval=false."

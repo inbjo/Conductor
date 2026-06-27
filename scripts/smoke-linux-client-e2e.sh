@@ -14,6 +14,7 @@ admin_password="${CONDUCTOR_SMOKE_ADMIN_PASSWORD:-admin123}"
 jwt_secret="${CONDUCTOR_SMOKE_JWT_SECRET:-linux-client-e2e-secret}"
 agent_token="${CONDUCTOR_SMOKE_AGENT_TOKEN:-linux-client-e2e-token}"
 agent_name="${CONDUCTOR_SMOKE_AGENT_NAME:-linux-client-e2e-agent-$$}"
+audio_input="${CONDUCTOR_SMOKE_AUDIO_INPUT:-smoke-audio-input}"
 evidence_log_dir="${CONDUCTOR_CLIENT_E2E_EVIDENCE_DIR:-}"
 
 if [[ ! -f "$archive" ]]; then
@@ -133,6 +134,7 @@ CONDUCTOR_SERVER_URL="ws://127.0.0.1:$port/ws/agent" \
 CONDUCTOR_AGENT_TOKEN="$agent_token" \
 CONDUCTOR_AGENT_NAME="$agent_name" \
 CONDUCTOR_AGENT_ROOT="$agent_root" \
+CONDUCTOR_AUDIO_INPUT="$audio_input" \
 CONDUCTOR_INTERACTIVE_APPROVAL=0 \
 "${run_client[@]}" >"$client_log" 2>&1 &
 client_pid="$!"
@@ -167,9 +169,9 @@ if ! printf '%s' "$devices" | grep -q "\"hostname\":\"$agent_name\""; then
 fi
 printf '%s' "$devices" | grep -q "\"hostname\":\"$agent_name\".*\"online\":1"
 
-agent_config_log="$(grep "agent config .*agent_name=$agent_name" "$client_log" | tail -n 1 || true)"
+agent_config_log="$(grep "agent config .*root=$agent_root .*agent_name=$agent_name .*audio_input=$audio_input" "$client_log" | tail -n 1 || true)"
 if [[ -z "$agent_config_log" ]]; then
-  echo "Client log does not contain expected agent config line for $agent_name." >&2
+  echo "Client log does not contain expected agent config line for $agent_name, $agent_root, and $audio_input." >&2
   tail -n 80 "$client_log" >&2 2>/dev/null || true
   exit 1
 fi
@@ -197,6 +199,8 @@ fi
 grep -q "\"serverUrl\": \"ws://127.0.0.1:$port/ws/agent\"" "$client_settings"
 grep -q "\"agentToken\": \"$agent_token\"" "$client_settings"
 grep -q "\"agentName\": \"$agent_name\"" "$client_settings"
+grep -q "\"agentRoot\": \"$agent_root\"" "$client_settings"
+grep -q "\"audioInput\": \"$audio_input\"" "$client_settings"
 grep -q "\"interactiveApproval\": false" "$client_settings"
 echo "Client settings file observed: $client_settings"
 

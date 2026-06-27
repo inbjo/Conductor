@@ -275,9 +275,12 @@ verify_windows() {
   require_file "Windows client e2e settings file" "$client_e2e_settings_file"
   require_grep "Windows agent e2e agent log" "agent config " "$agent_e2e_agent_log"
   require_grep "Windows client e2e client log" "agent config " "$client_e2e_client_log"
+  require_grep "Windows client e2e client log" "agent config .*root=.*agent-root .*audio_input=smoke-audio-input" "$client_e2e_client_log"
   require_grep "Windows client e2e client log" "\[diagnostics\] conductor-agent" "$client_e2e_client_log"
   require_grep "Windows client e2e settings file" '"serverUrl": "ws://127\.0\.0\.1:.*\/ws\/agent"' "$client_e2e_settings_file"
   require_grep "Windows client e2e settings file" '"agentName": "windows-client-e2e-' "$client_e2e_settings_file"
+  require_grep "Windows client e2e settings file" '"agentRoot": ".*[/\\]agent-root"' "$client_e2e_settings_file"
+  require_grep "Windows client e2e settings file" '"audioInput": "smoke-audio-input"' "$client_e2e_settings_file"
   require_grep "Windows client e2e settings file" '"interactiveApproval": false' "$client_e2e_settings_file"
 
   echo "Windows smoke evidence verified: $evidence_dir"
