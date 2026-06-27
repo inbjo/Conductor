@@ -11,35 +11,77 @@ DEFAULT_AGENT_ROOT="${CONDUCTOR_DEFAULT_AGENT_ROOT:-}"
 DEFAULT_AUDIO_INPUT="${CONDUCTOR_DEFAULT_AUDIO_INPUT:-}"
 DEFAULT_INTERACTIVE_APPROVAL="${CONDUCTOR_DEFAULT_INTERACTIVE_APPROVAL:-}"
 
+usage() {
+  cat >&2 <<'EOF'
+Usage: build-client.sh [options]
+
+Builds the controlled desktop client for the current host platform.
+
+Options:
+  --server-url <url>             Default Server URL baked into the client.
+  --agent-token <token>          Default Agent Token baked into the client.
+  --agent-name <name>            Default Agent Name baked into the client.
+  --agent-root <path>            Default file root baked into the client.
+  --audio-input <input>          Default audio input baked into the client.
+  --interactive-approval <bool>  Default local approval setting.
+  -h, --help                     Show this help.
+
+Environment:
+  FLUTTER_BIN                    Flutter executable path.
+  CONDUCTOR_DEFAULT_*            Build default values used when options are omitted.
+EOF
+}
+
+require_value() {
+  local option="$1"
+  local value="${2:-}"
+  if [[ -z "$value" || "$value" == --* ]]; then
+    echo "Missing value for $option" >&2
+    usage
+    exit 2
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --server-url)
+      require_value "$1" "${2:-}"
       DEFAULT_SERVER_URL="${2:-}"
       shift 2
       ;;
     --agent-token)
+      require_value "$1" "${2:-}"
       DEFAULT_AGENT_TOKEN="${2:-}"
       shift 2
       ;;
     --agent-name)
+      require_value "$1" "${2:-}"
       DEFAULT_AGENT_NAME="${2:-}"
       shift 2
       ;;
     --agent-root)
+      require_value "$1" "${2:-}"
       DEFAULT_AGENT_ROOT="${2:-}"
       shift 2
       ;;
     --audio-input)
+      require_value "$1" "${2:-}"
       DEFAULT_AUDIO_INPUT="${2:-}"
       shift 2
       ;;
     --interactive-approval)
+      require_value "$1" "${2:-}"
       DEFAULT_INTERACTIVE_APPROVAL="${2:-}"
       shift 2
       ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
     *)
       echo "Unknown option: $1" >&2
-      exit 1
+      usage
+      exit 2
       ;;
   esac
 done

@@ -1,3 +1,37 @@
+<#
+.SYNOPSIS
+Builds the Windows controlled desktop client package.
+
+.DESCRIPTION
+Builds the Rust conductor-agent.exe and Flutter Windows client, copies the agent
+into the Flutter bundle, and creates release\conductor-client-windows-x64.zip.
+Default client settings can be baked in through parameters or
+CONDUCTOR_DEFAULT_* environment variables.
+
+.PARAMETER ServerUrl
+Default Server URL baked into the client.
+
+.PARAMETER AgentToken
+Default Agent Token baked into the client.
+
+.PARAMETER AgentName
+Default Agent Name baked into the client.
+
+.PARAMETER AgentRoot
+Default file root baked into the client.
+
+.PARAMETER AudioInput
+Default audio input baked into the client.
+
+.PARAMETER InteractiveApproval
+Default local approval setting baked into the client.
+
+.EXAMPLE
+powershell -ExecutionPolicy Bypass -File .\scripts\build-client.ps1
+
+.EXAMPLE
+powershell -ExecutionPolicy Bypass -File .\scripts\build-client.ps1 -ServerUrl "ws://server:8080/ws/agent" -AgentToken "token" -AgentName "windows-client-01"
+#>
 param(
     [string] $ServerUrl = $env:CONDUCTOR_DEFAULT_SERVER_URL,
 
