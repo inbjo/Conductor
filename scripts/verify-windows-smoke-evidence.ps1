@@ -38,12 +38,21 @@ if ([System.IO.Path]::IsPathRooted($EvidenceDir)) {
 
 $SummaryPath = Join-Path $EvidenceFullPath "validation-summary.txt"
 $LogPath = Join-Path $EvidenceFullPath "smoke-windows-client-flow.log"
+$AgentE2eServerLog = Join-Path $EvidenceFullPath "logs\agent-e2e\server.log"
+$AgentE2eAgentLog = Join-Path $EvidenceFullPath "logs\agent-e2e\agent.log"
+$ClientE2eServerLog = Join-Path $EvidenceFullPath "logs\client-e2e\server.log"
+$ClientE2eClientLog = Join-Path $EvidenceFullPath "logs\client-e2e\client.log"
 
 if (!(Test-Path $SummaryPath)) {
     Write-Error "Missing Windows smoke evidence summary: $SummaryPath"
 }
 if (!(Test-Path $LogPath)) {
     Write-Error "Missing Windows smoke transcript: $LogPath"
+}
+foreach ($path in @($AgentE2eServerLog, $AgentE2eAgentLog, $ClientE2eServerLog, $ClientE2eClientLog)) {
+    if (!(Test-Path $path)) {
+        Write-Error "Missing Windows e2e raw log: $path"
+    }
 }
 
 $SummaryLines = Get-Content $SummaryPath
@@ -124,6 +133,15 @@ if ($LogText -notmatch "Windows client flow smoke passed") {
 }
 if ($LogText -notmatch "Agent config log observed") {
     Write-Error "Windows smoke transcript does not prove client-to-agent runtime config propagation."
+}
+
+$AgentLogText = Get-Content $AgentE2eAgentLog -Raw
+if ($AgentLogText -notmatch "agent config ") {
+    Write-Error "Windows bundled agent e2e log does not contain the agent config line."
+}
+$ClientLogText = Get-Content $ClientE2eClientLog -Raw
+if ($ClientLogText -notmatch "agent config ") {
+    Write-Error "Windows client e2e log does not contain the agent config line."
 }
 
 Write-Host "Windows smoke evidence verified: $EvidenceFullPath"

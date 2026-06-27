@@ -14,6 +14,7 @@ admin_password="${CONDUCTOR_SMOKE_ADMIN_PASSWORD:-admin123}"
 jwt_secret="${CONDUCTOR_SMOKE_JWT_SECRET:-macos-client-e2e-secret}"
 agent_token="${CONDUCTOR_SMOKE_AGENT_TOKEN:-macos-client-e2e-token}"
 agent_name="${CONDUCTOR_SMOKE_AGENT_NAME:-macos-client-e2e-agent-$$}"
+evidence_log_dir="${CONDUCTOR_CLIENT_E2E_EVIDENCE_DIR:-}"
 
 if [[ ! -f "$archive" ]]; then
   echo "Archive not found: $archive" >&2
@@ -34,6 +35,19 @@ server_pid=""
 client_pid=""
 agent_bin=""
 
+export_evidence_logs() {
+  if [[ -z "$evidence_log_dir" ]]; then
+    return
+  fi
+  mkdir -p "$evidence_log_dir"
+  if [[ -f "$server_log" ]]; then
+    cp "$server_log" "$evidence_log_dir/server.log"
+  fi
+  if [[ -f "$client_log" ]]; then
+    cp "$client_log" "$evidence_log_dir/client.log"
+  fi
+}
+
 cleanup() {
   local status=$?
   if [[ -n "$client_pid" ]] && kill -0 "$client_pid" 2>/dev/null; then
@@ -53,6 +67,7 @@ cleanup() {
     echo "macOS client e2e smoke failed. Client log: $client_log" >&2
     tail -n 80 "$client_log" >&2 2>/dev/null || true
   fi
+  export_evidence_logs
   rm -rf "$tmp_dir"
   exit "$status"
 }

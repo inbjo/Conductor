@@ -50,6 +50,7 @@ if (![string]::IsNullOrWhiteSpace($EvidenceDir)) {
 }
 $TranscriptStarted = $false
 $SummaryPath = $null
+$EvidenceLogsPath = $null
 
 function Invoke-Step($Name, [scriptblock] $Command) {
     Write-Host ""
@@ -121,6 +122,7 @@ try {
         }
         Start-Transcript -Path (Join-Path $EvidenceFullPath "smoke-windows-client-flow.log") -Force
         $TranscriptStarted = $true
+        $EvidenceLogsPath = Join-Path $EvidenceFullPath "logs"
     }
 
     Write-Host "Windows client flow smoke"
@@ -166,10 +168,18 @@ try {
         & .\scripts\smoke-agent-launch.ps1 -ArchivePath $ArchiveFullPath
     }
     Invoke-Step "Smoke register bundled Windows agent" {
-        & .\scripts\smoke-windows-agent-e2e.ps1 -ArchivePath $ArchiveFullPath
+        $agentEvidenceDir = $null
+        if ($null -ne $EvidenceLogsPath) {
+            $agentEvidenceDir = Join-Path $EvidenceLogsPath "agent-e2e"
+        }
+        & .\scripts\smoke-windows-agent-e2e.ps1 -ArchivePath $ArchiveFullPath -EvidenceDir $agentEvidenceDir
     }
     Invoke-Step "Smoke register through Windows client" {
-        & .\scripts\smoke-windows-client-e2e.ps1 -ArchivePath $ArchiveFullPath
+        $clientEvidenceDir = $null
+        if ($null -ne $EvidenceLogsPath) {
+            $clientEvidenceDir = Join-Path $EvidenceLogsPath "client-e2e"
+        }
+        & .\scripts\smoke-windows-client-e2e.ps1 -ArchivePath $ArchiveFullPath -EvidenceDir $clientEvidenceDir
     }
     Invoke-Step "Smoke launch Windows client" {
         & .\scripts\smoke-client-launch.ps1 -ArchivePath $ArchiveFullPath

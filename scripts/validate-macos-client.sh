@@ -84,6 +84,7 @@ fi
 
 summary_path="$evidence_dir/validation-summary.txt"
 log_path="$evidence_dir/smoke-macos-client-flow.log"
+e2e_log_dir="$evidence_dir/logs/client-e2e"
 result_written=0
 
 append_summary() {
@@ -210,7 +211,7 @@ echo "==> Smoke launch macOS client"
 
 echo ""
 echo "==> Smoke register through macOS client"
-./scripts/smoke-macos-client-e2e.sh "$archive_path"
+CONDUCTOR_CLIENT_E2E_EVIDENCE_DIR="$e2e_log_dir" ./scripts/smoke-macos-client-e2e.sh "$archive_path"
 
 echo ""
 echo "macOS client flow smoke passed: $archive_path"

@@ -62,6 +62,8 @@ fi
 
 summary_path="$evidence_dir/validation-summary.txt"
 log_path="$evidence_dir/smoke-linux-client-flow.log"
+e2e_server_log="$evidence_dir/logs/client-e2e/server.log"
+e2e_client_log="$evidence_dir/logs/client-e2e/client.log"
 
 if [[ ! -f "$summary_path" ]]; then
   echo "Missing Linux smoke evidence summary: $summary_path" >&2
@@ -69,6 +71,14 @@ if [[ ! -f "$summary_path" ]]; then
 fi
 if [[ ! -f "$log_path" ]]; then
   echo "Missing Linux smoke transcript: $log_path" >&2
+  exit 1
+fi
+if [[ ! -f "$e2e_server_log" ]]; then
+  echo "Missing Linux client e2e server log: $e2e_server_log" >&2
+  exit 1
+fi
+if [[ ! -f "$e2e_client_log" ]]; then
+  echo "Missing Linux client e2e client log: $e2e_client_log" >&2
   exit 1
 fi
 
@@ -151,6 +161,10 @@ if ! grep -q "Linux client flow smoke passed" "$log_path"; then
 fi
 if ! grep -q "Agent config log observed" "$log_path"; then
   echo "Linux smoke transcript does not prove client-to-agent runtime config propagation." >&2
+  exit 1
+fi
+if ! grep -q "agent config " "$e2e_client_log"; then
+  echo "Linux client e2e client log does not contain the agent config line." >&2
   exit 1
 fi
 

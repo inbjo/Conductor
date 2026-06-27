@@ -6,7 +6,9 @@ param(
 
     [int] $Port = 18080,
 
-    [int] $TimeoutSeconds = 20
+    [int] $TimeoutSeconds = 20,
+
+    [string] $EvidenceDir = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -31,6 +33,15 @@ $AgentToken = "windows-e2e-token"
 $ServerProcess = $null
 $AgentProcess = $null
 $Failed = $true
+$EvidenceFullPath = $null
+
+if (![string]::IsNullOrWhiteSpace($EvidenceDir)) {
+    if ([System.IO.Path]::IsPathRooted($EvidenceDir)) {
+        $EvidenceFullPath = $EvidenceDir
+    } else {
+        $EvidenceFullPath = Join-Path (Resolve-Path ".") $EvidenceDir
+    }
+}
 
 function Start-ConductorProcess($FileName, $WorkingDirectory, $Environment, $LogPath) {
     $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
@@ -83,6 +94,14 @@ function Stop-ConductorProcess($handle) {
     }
     $handle["Stdout"].Close()
     $handle["Stderr"].Close()
+}
+
+function Export-EvidenceLog($Source, $Name) {
+    if ($null -eq $EvidenceFullPath -or !(Test-Path $Source)) {
+        return
+    }
+    New-Item -ItemType Directory -Force -Path $EvidenceFullPath | Out-Null
+    Copy-Item -Force -Path $Source -Destination (Join-Path $EvidenceFullPath $Name)
 }
 
 try {
@@ -208,5 +227,9 @@ try {
             Get-Content "$AgentLog.err" -Tail 80
         }
     }
+    Export-EvidenceLog $ServerLog "server.log"
+    Export-EvidenceLog "$ServerLog.err" "server.err.log"
+    Export-EvidenceLog $AgentLog "agent.log"
+    Export-EvidenceLog "$AgentLog.err" "agent.err.log"
     Remove-Item -Recurse -Force $TempDir -ErrorAction SilentlyContinue
 }
