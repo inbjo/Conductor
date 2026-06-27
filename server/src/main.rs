@@ -68,9 +68,15 @@ impl Config {
 struct AppState {
     cfg: Config,
     db: SqlitePool,
-    agents: Arc<DashMap<String, mpsc::UnboundedSender<ServerToAgent>>>,
+    agents: Arc<DashMap<String, AgentConnection>>,
     pending_files: Arc<DashMap<String, oneshot::Sender<FileResultPayload>>>,
     admin_events: broadcast::Sender<AdminEvent>,
+}
+
+#[derive(Clone)]
+struct AgentConnection {
+    tx: mpsc::UnboundedSender<ServerToAgent>,
+    replacement: mpsc::UnboundedSender<()>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -686,6 +692,7 @@ async fn create_session(
         .agents
         .get(&req.device_id)
         .ok_or(ApiError::DeviceOffline)?
+        .tx
         .clone();
     if active_session_for_device(&state.db, &req.device_id)
         .await?
@@ -762,7 +769,7 @@ async fn close_session(
     let session = get_session_by_id(&state.db, &id).await?;
     mark_session_closed(&state, &id, "closed").await?;
     if let Some(tx) = state.agents.get(&session.device_id) {
-        let _ = tx.send(ServerToAgent::SessionClose {
+        let _ = tx.tx.send(ServerToAgent::SessionClose {
             session_id: id.clone(),
         });
     }
@@ -861,7 +868,7 @@ async fn send_chat(
     };
     save_chat(&state, &msg).await?;
     if let Some(tx) = state.agents.get(&msg.device_id) {
-        let _ = tx.send(ServerToAgent::ChatMessage(msg.clone()));
+        let _ = tx.tx.send(ServerToAgent::ChatMessage(msg.clone()));
     }
     audit(
         &state,
@@ -1043,6 +1050,7 @@ async fn forward_file_command(
         .agents
         .get(device_id)
         .ok_or(ApiError::DeviceOffline)?
+        .tx
         .clone();
     let request_id = Uuid::new_v4().to_string();
     let (reply_tx, reply_rx) = oneshot::channel();
@@ -1123,6 +1131,7 @@ async fn handle_admin_message(state: &AppState, text: &str) -> Result<(), ApiErr
                 .agents
                 .get(&session.device_id)
                 .ok_or(ApiError::DeviceOffline)?
+                .tx
                 .clone();
             tx.send(ServerToAgent::ControlEvent(event.clone()))
                 .map_err(|_| ApiError::DeviceOffline)?;
@@ -1212,6 +1221,7 @@ where
         .agents
         .get(&session.device_id)
         .ok_or(ApiError::DeviceOffline)?
+        .tx
         .clone();
     tx.send(make_msg(session_id.to_string()))
         .map_err(|_| ApiError::DeviceOffline)?;
@@ -1225,6 +1235,7 @@ async fn ws_agent(ws: WebSocketUpgrade, State(state): State<AppState>) -> Respon
 async fn agent_socket(state: AppState, socket: WebSocket) {
     let (mut ws_tx, mut ws_rx) = socket.split();
     let (tx, mut rx) = mpsc::unbounded_channel::<ServerToAgent>();
+    let (replacement_tx, mut replacement_rx) = mpsc::unbounded_channel::<()>();
     let mut device_id: Option<String> = None;
 
     let writer = tokio::spawn(async move {
@@ -1240,16 +1251,24 @@ async fn agent_socket(state: AppState, socket: WebSocket) {
         }
     });
 
-    while let Some(Ok(msg)) = ws_rx.next().await {
+    loop {
+        let next = tokio::select! {
+            _ = replacement_rx.recv() => {
+                info!("agent connection replaced by a newer connection");
+                break;
+            }
+            next = ws_rx.next() => next,
+        };
+        let Some(Ok(msg)) = next else { break };
         let Message::Text(text) = msg else { continue };
         match serde_json::from_str::<AgentToServer>(&text) {
             Ok(AgentToServer::AgentRegister(reg)) => {
                 device_id = Some(reg.device_id.clone());
-                if let Some(old) = state.agents.insert(reg.device_id.clone(), tx.clone()) {
-                    let _ = old.send(ServerToAgent::SessionClose {
-                        session_id: "replaced".into(),
-                    });
-                }
+                let connection = AgentConnection {
+                    tx: tx.clone(),
+                    replacement: replacement_tx.clone(),
+                };
+                install_agent_connection(&state.agents, reg.device_id.clone(), connection);
                 if let Err(e) = upsert_device(&state, &reg).await {
                     error!("register device failed: {e}");
                 }
@@ -1316,16 +1335,39 @@ async fn agent_socket(state: AppState, socket: WebSocket) {
     }
 
     if let Some(id) = device_id {
-        state.agents.remove(&id);
-        let _ = touch_device(&state, &id, false).await;
-        close_active_sessions_for_device(&state, &id, "agent_offline").await;
-        audit(&state, "system", "device_offline", &id, "agent websocket disconnected").await;
-        let _ = state.admin_events.send(AdminEvent::AgentStatusChanged {
-            device_id: id,
-            online: false,
-        });
+        if remove_current_agent_connection(&state.agents, &id, &tx) {
+            let _ = touch_device(&state, &id, false).await;
+            close_active_sessions_for_device(&state, &id, "agent_offline").await;
+            audit(&state, "system", "device_offline", &id, "agent websocket disconnected").await;
+            let _ = state.admin_events.send(AdminEvent::AgentStatusChanged {
+                device_id: id,
+                online: false,
+            });
+        }
     }
     writer.abort();
+}
+
+fn install_agent_connection(
+    agents: &DashMap<String, AgentConnection>,
+    device_id: String,
+    connection: AgentConnection,
+) {
+    if let Some(old) = agents.insert(device_id, connection.clone()) {
+        if !old.tx.same_channel(&connection.tx) {
+            let _ = old.replacement.send(());
+        }
+    }
+}
+
+fn remove_current_agent_connection(
+    agents: &DashMap<String, AgentConnection>,
+    device_id: &str,
+    sender: &mpsc::UnboundedSender<ServerToAgent>,
+) -> bool {
+    agents
+        .remove_if(device_id, |_, current| current.tx.same_channel(sender))
+        .is_some()
 }
 
 async fn upsert_device(state: &AppState, reg: &DeviceRegistration) -> Result<(), sqlx::Error> {
@@ -1537,4 +1579,45 @@ async fn static_handler(uri: axum::http::Uri) -> Response {
 fn db_err(err: sqlx::Error) -> ApiError {
     error!("database error: {err}");
     ApiError::Internal(err.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn newer_agent_connection_replaces_old_without_being_removed_by_it() {
+        let agents = DashMap::new();
+        let (old_tx, _) = mpsc::unbounded_channel();
+        let (old_replacement, mut old_replacement_rx) = mpsc::unbounded_channel();
+        install_agent_connection(
+            &agents,
+            "device-1".into(),
+            AgentConnection {
+                tx: old_tx.clone(),
+                replacement: old_replacement,
+            },
+        );
+
+        let (new_tx, _) = mpsc::unbounded_channel();
+        let (new_replacement, _) = mpsc::unbounded_channel();
+        install_agent_connection(
+            &agents,
+            "device-1".into(),
+            AgentConnection {
+                tx: new_tx.clone(),
+                replacement: new_replacement,
+            },
+        );
+
+        assert_eq!(old_replacement_rx.try_recv(), Ok(()));
+        assert!(!remove_current_agent_connection(
+            &agents, "device-1", &old_tx
+        ));
+        assert!(agents.contains_key("device-1"));
+        assert!(remove_current_agent_connection(
+            &agents, "device-1", &new_tx
+        ));
+        assert!(!agents.contains_key("device-1"));
+    }
 }
