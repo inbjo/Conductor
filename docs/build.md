@@ -488,11 +488,11 @@ npm --prefix web run build
 Flutter client：
 
 ```sh
-cd client
 /home/flex/Code/flutter/bin/flutter analyze
 /home/flex/Code/flutter/bin/flutter test
-/home/flex/Code/flutter/bin/flutter build linux
-cd ..
+./scripts/build-client.sh
+./scripts/verify-client-archive.sh linux release/conductor-client-linux-x64.tar.gz
+./scripts/smoke-client-launch.sh linux release/conductor-client-linux-x64.tar.gz
 ```
 
 Release smoke test：

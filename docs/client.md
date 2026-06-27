@@ -105,10 +105,11 @@ Linux 已验证命令：
 /home/flex/Code/flutter/bin/flutter analyze
 /home/flex/Code/flutter/bin/flutter test
 ./scripts/build-client.sh
-timeout 5s client/build/linux/x64/release/bundle/conductor_client
+./scripts/verify-client-archive.sh linux release/conductor-client-linux-x64.tar.gz
+./scripts/smoke-client-launch.sh linux release/conductor-client-linux-x64.tar.gz
 ```
 
-`timeout` 返回 `124` 是预期，表示 GUI 进程被测试命令主动结束；只要没有动态库缺失或 GTK 初始化错误，说明 bundle 可加载。
+启动 smoke 会解包 release tar.gz，启动 `conductor_client`，等待数秒确认 GUI 入口没有立刻退出，然后通过 `timeout` 主动结束进程。无图形会话时需要安装 `xvfb`，脚本会自动使用 `xvfb-run`。
 
 ## Windows 构建
 

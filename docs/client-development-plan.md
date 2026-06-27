@@ -119,6 +119,7 @@ cargo test
 /home/flex/Code/flutter/bin/flutter test
 ./scripts/build-client.sh
 ./scripts/verify-client-archive.sh linux release/conductor-client-linux-x64.tar.gz
+./scripts/smoke-client-launch.sh linux release/conductor-client-linux-x64.tar.gz
 ```
 
 Windows runner 或真机运行：
