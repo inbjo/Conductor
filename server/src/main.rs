@@ -776,20 +776,21 @@ async fn close_session(
     Path(id): Path<String>,
 ) -> Result<Json<SessionRow>, ApiError> {
     let session = get_session_by_id(&state.db, &id).await?;
-    mark_session_closed(&state, &id, "closed").await?;
-    if let Some(tx) = state.agents.get(&session.device_id) {
-        let _ = tx.tx.send(ServerToAgent::SessionClose {
-            session_id: id.clone(),
-        });
+    if mark_session_closed(&state, &id, "closed").await? {
+        if let Some(tx) = state.agents.get(&session.device_id) {
+            let _ = tx.tx.send(ServerToAgent::SessionClose {
+                session_id: id.clone(),
+            });
+        }
+        audit(
+            &state,
+            &user.username,
+            "session_close",
+            &session.device_id,
+            &id,
+        )
+        .await;
     }
-    audit(
-        &state,
-        &user.username,
-        "session_close",
-        &session.device_id,
-        &id,
-    )
-    .await;
     get_session_by_id(&state.db, &id).await.map(Json)
 }
 
@@ -1753,14 +1754,15 @@ async fn mark_session_closed(
     state: &AppState,
     session_id: &str,
     status: &str,
-) -> Result<(), ApiError> {
+) -> Result<bool, ApiError> {
     if close_open_session(&state.db, session_id, status, &Utc::now().to_rfc3339()).await? {
         let _ = state.admin_events.send(AdminEvent::SessionStatus {
             session_id: session_id.into(),
             status: status.into(),
         });
+        return Ok(true);
     }
-    Ok(())
+    Ok(false)
 }
 
 async fn close_open_session(

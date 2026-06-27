@@ -857,7 +857,13 @@ function RemotePage() {
           <p className="eyebrow">Remote Session</p>
           <h1>{sessionStatus}</h1>
         </div>
-        <button className="danger" onClick={() => close.mutate()}>结束会话</button>
+        <button
+          className="danger"
+          onClick={() => close.mutate()}
+          disabled={close.isPending || !['pending', 'active'].includes(sessionStatus)}
+        >
+          结束会话
+        </button>
       </div>
       {awaitingApproval && (
         <div className="session-banner">
