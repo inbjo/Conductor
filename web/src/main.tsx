@@ -1602,7 +1602,11 @@ function FilesPage() {
             {(files.data?.entries || []).map((f) => (
               <tr key={f.path}>
                 <td>
-                  <button className="linkish" onClick={() => f.is_dir && setPath(f.path)}>{f.is_dir ? '目录' : '文件'} / {f.name}</button>
+                  {f.is_dir ? (
+                    <button className="linkish" onClick={() => setPath(f.path)}>目录 / {f.name}</button>
+                  ) : (
+                    <span>文件 / {f.name}</span>
+                  )}
                 </td>
                 <td>{f.is_dir ? '-' : formatSize(f.size)}</td>
                 <td>{formatTime(f.modified)}</td>
