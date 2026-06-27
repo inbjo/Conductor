@@ -1,4 +1,13 @@
-use std::{collections::HashMap, net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    path::PathBuf,
+    sync::{
+        atomic::{AtomicI64, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
 use anyhow::Context;
 use argon2::{
@@ -80,6 +89,7 @@ struct AppState {
 struct AgentConnection {
     tx: mpsc::UnboundedSender<ServerToAgent>,
     replacement: mpsc::UnboundedSender<()>,
+    last_heartbeat: Arc<AtomicI64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -1288,6 +1298,9 @@ async fn agent_socket(state: AppState, socket: WebSocket) {
                 let connection = AgentConnection {
                     tx: tx.clone(),
                     replacement: replacement_tx.clone(),
+                    last_heartbeat: Arc::new(AtomicI64::new(
+                        Utc::now().timestamp(),
+                    )),
                 };
                 install_agent_connection(&state.agents, reg.device_id.clone(), connection);
                 if let Err(e) = upsert_device(&state, &reg).await {
@@ -1306,8 +1319,31 @@ async fn agent_socket(state: AppState, socket: WebSocket) {
                     online: true,
                 });
             }
-            Ok(AgentToServer::AgentHeartbeat { device_id }) => {
-                if let Err(e) = touch_device(&state, &device_id, true).await {
+            Ok(AgentToServer::AgentHeartbeat { device_id: heartbeat_id }) => {
+                let Some(registered_id) = device_id.as_deref() else {
+                    warn!("ignored heartbeat before agent registration");
+                    continue;
+                };
+                if heartbeat_id != registered_id {
+                    warn!(
+                        "ignored heartbeat with mismatched device id registered={} received={}",
+                        registered_id, heartbeat_id
+                    );
+                    continue;
+                }
+                let current_connection = state
+                    .agents
+                    .get(registered_id)
+                    .filter(|connection| connection.tx.same_channel(&tx));
+                let Some(connection) = current_connection else {
+                    warn!("ignored heartbeat from replaced agent connection: {registered_id}");
+                    continue;
+                };
+                connection
+                    .last_heartbeat
+                    .store(Utc::now().timestamp(), Ordering::Relaxed);
+                drop(connection);
+                if let Err(e) = touch_device(&state, registered_id, true).await {
                     warn!("heartbeat update failed: {e}");
                 }
             }
@@ -1442,9 +1478,34 @@ async fn offline_sweeper(state: AppState) {
             let stale = DateTime::parse_from_rfc3339(&last)
                 .map(|dt| dt.with_timezone(&Utc) < cutoff)
                 .unwrap_or(true);
-            if stale && !state.agents.contains_key(&device_id) {
-                let _ = touch_device(&state, &device_id, false).await;
+            let has_fresh_connection = state
+                .agents
+                .get(&device_id)
+                .map(|connection| {
+                    connection.last_heartbeat.load(Ordering::Relaxed) >= cutoff.timestamp()
+                })
+                .unwrap_or(false);
+            if stale && !has_fresh_connection {
+                if let Some((_, connection)) = state.agents.remove_if(&device_id, |_, current| {
+                    current.last_heartbeat.load(Ordering::Relaxed) < cutoff.timestamp()
+                }) {
+                    let _ = connection.replacement.send(());
+                }
+                let marked_offline = mark_device_offline_if_heartbeat(&state.db, &device_id, &last)
+                    .await
+                    .unwrap_or(false);
+                if !marked_offline {
+                    continue;
+                }
                 close_active_sessions_for_device(&state, &device_id, "heartbeat_timeout").await;
+                audit(
+                    &state,
+                    "system",
+                    "device_offline",
+                    &device_id,
+                    "agent heartbeat timed out",
+                )
+                .await;
                 let _ = state.admin_events.send(AdminEvent::AgentStatusChanged {
                     device_id,
                     online: false,
@@ -1452,6 +1513,23 @@ async fn offline_sweeper(state: AppState) {
             }
         }
     }
+}
+
+async fn mark_device_offline_if_heartbeat(
+    db: &SqlitePool,
+    device_id: &str,
+    expected_heartbeat: &str,
+) -> Result<bool, sqlx::Error> {
+    let now = Utc::now().to_rfc3339();
+    let result = sqlx::query(
+        "UPDATE devices SET online = 0, updated_at = ? WHERE device_id = ? AND online = 1 AND last_heartbeat = ?",
+    )
+    .bind(now)
+    .bind(device_id)
+    .bind(expected_heartbeat)
+    .execute(db)
+    .await?;
+    Ok(result.rows_affected() == 1)
 }
 
 async fn update_session_status(state: &AppState, session_id: &str, status: &str) {
@@ -1638,6 +1716,7 @@ mod tests {
             AgentConnection {
                 tx: old_tx.clone(),
                 replacement: old_replacement,
+                last_heartbeat: Arc::new(AtomicI64::new(Utc::now().timestamp())),
             },
         );
 
@@ -1649,6 +1728,7 @@ mod tests {
             AgentConnection {
                 tx: new_tx.clone(),
                 replacement: new_replacement,
+                last_heartbeat: Arc::new(AtomicI64::new(Utc::now().timestamp())),
             },
         );
 
@@ -1709,5 +1789,28 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(status, "closed");
+    }
+
+    #[tokio::test]
+    async fn offline_update_requires_the_observed_heartbeat() {
+        let db = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        sqlx::query(
+            "INSERT INTO devices (device_id, hostname, os, arch, username, agent_version, local_ip, online, last_heartbeat, created_at, updated_at) VALUES ('device-1', 'host', 'test', 'test', 'user', 'test', '127.0.0.1', 1, 'old-heartbeat', 'now', 'now')",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+
+        assert!(!mark_device_offline_if_heartbeat(&db, "device-1", "new-heartbeat")
+            .await
+            .unwrap());
+        assert!(mark_device_offline_if_heartbeat(&db, "device-1", "old-heartbeat")
+            .await
+            .unwrap());
     }
 }
