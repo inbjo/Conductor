@@ -171,6 +171,7 @@ try {
     Invoke-RestMethod -Method Get -Uri "$BaseUrl/health" -TimeoutSec 2 | Out-Null
 
     Write-Host "[2/4] Starting Windows client autostart smoke: $ClientExe"
+    Write-Host "Client server URL input: $BaseUrl"
     $ClientProcess = Start-ConductorProcess `
         -FileName $ClientExe `
         -WorkingDirectory $TempDir `
@@ -180,7 +181,7 @@ try {
             CONDUCTOR_CLIENT_AGENT_BIN = $AgentExe
             CONDUCTOR_CLIENT_SETTINGS_FILE = $ClientSettings
             CONDUCTOR_CLIENT_AUTOCOMMANDS = "/diagnostics"
-            CONDUCTOR_SERVER_URL = "ws://127.0.0.1:$Port/ws/agent"
+            CONDUCTOR_SERVER_URL = $BaseUrl
             CONDUCTOR_AGENT_TOKEN = $AgentToken
             CONDUCTOR_AGENT_NAME = $AgentName
             CONDUCTOR_AGENT_ROOT = $AgentRoot

@@ -126,11 +126,12 @@ elif [[ -z "${DISPLAY:-}" ]]; then
 fi
 
 echo "[2/4] Starting client autostart smoke"
+echo "Client server URL input: $base_url"
 CONDUCTOR_CLIENT_AUTOSTART=1 \
 CONDUCTOR_CLIENT_AGENT_BIN="$agent_bin" \
 CONDUCTOR_CLIENT_SETTINGS_FILE="$client_settings" \
 CONDUCTOR_CLIENT_AUTOCOMMANDS="/diagnostics" \
-CONDUCTOR_SERVER_URL="ws://127.0.0.1:$port/ws/agent" \
+CONDUCTOR_SERVER_URL="$base_url" \
 CONDUCTOR_AGENT_TOKEN="$agent_token" \
 CONDUCTOR_AGENT_NAME="$agent_name" \
 CONDUCTOR_AGENT_ROOT="$agent_root" \

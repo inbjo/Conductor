@@ -25,8 +25,8 @@
 
 - OS：Ubuntu 24.04.2 LTS
 - Flutter：`/home/flex/Code/flutter`，Flutter 3.44.4
-- 最近验证：2026-06-28，commit `e9d8183`
-- 最近归档 SHA256：`be3f6a69a2a98fe8df449373925ce2244675e37853190bd1d345e2b9e4a4fcc3`
+- 最近验证：2026-06-28，commit `dac439f`
+- 最近归档 SHA256：`94128516a6f7246be3b2694e8cdd8eafd248cc5c0114362f20601b1956431e5e`
 - 目标：先在 Ubuntu 本机跑通 Flutter 客户端壳、bundle、归档、启动和 Agent 注册流程
 
 已跑通命令：
@@ -47,6 +47,7 @@ FLUTTER_BIN=/home/flex/Code/flutter/bin/flutter ./scripts/validate-linux-client.
 - Linux bundle 内包含 `conductor_client`、`conductor-agent`、`data/`、`lib/`。
 - GUI 入口可以启动且不会立刻崩溃。
 - Client 可通过 `CONDUCTOR_CLIENT_AUTOSTART=1` 自动拉起包内 Agent。
+- Client e2e smoke 使用 `http://127.0.0.1:<port>` 作为输入，Settings 和 Agent config evidence 中记录为 `ws://127.0.0.1:<port>/ws/agent`，证明运行时 Server URL 会被规范化。
 - Agent 可注册到本地 smoke server，后台 API 能看到在线设备。
 
 后续仍需补充：
