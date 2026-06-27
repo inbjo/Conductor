@@ -2008,6 +2008,69 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn open_session_index_migration_archives_existing_duplicates() {
+        let db = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::query(
+            "CREATE TABLE sessions (
+              session_id TEXT PRIMARY KEY,
+              device_id TEXT NOT NULL,
+              status TEXT NOT NULL,
+              created_at TEXT NOT NULL,
+              closed_at TEXT
+            )",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO sessions (session_id, device_id, status, created_at) VALUES
+             ('old-open', 'device-1', 'active', '2026-01-01T00:00:00Z'),
+             ('new-open', 'device-1', 'pending', '2026-01-02T00:00:00Z'),
+             ('other-open', 'device-2', 'active', '2026-01-01T00:00:00Z')",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+
+        for statement in include_str!("../migrations/0002_one_open_session_per_device.sql")
+            .split(';')
+            .map(str::trim)
+            .filter(|statement| !statement.is_empty())
+        {
+            sqlx::query(statement).execute(&db).await.unwrap();
+        }
+
+        let rows = sqlx::query_as::<_, (String, String, Option<String>)>(
+            "SELECT session_id, status, closed_at FROM sessions ORDER BY session_id",
+        )
+        .fetch_all(&db)
+        .await
+        .unwrap();
+        assert_eq!(rows.len(), 3);
+        assert!(rows.iter().any(|(id, status, closed_at)| {
+            id == "old-open" && status == "superseded" && closed_at.is_some()
+        }));
+        assert!(rows
+            .iter()
+            .any(|(id, status, _)| id == "new-open" && status == "pending"));
+        assert!(rows
+            .iter()
+            .any(|(id, status, _)| id == "other-open" && status == "active"));
+
+        let duplicate = sqlx::query(
+            "INSERT INTO sessions (session_id, device_id, status, created_at)
+             VALUES ('duplicate-open', 'device-1', 'active', '2026-01-03T00:00:00Z')",
+        )
+        .execute(&db)
+        .await;
+        assert!(duplicate.is_err());
+    }
+
+    #[tokio::test]
     async fn offline_update_requires_the_observed_heartbeat() {
         let db = SqlitePoolOptions::new()
             .max_connections(1)
