@@ -12,6 +12,7 @@
 - `docs/build.md`：开发环境搭建、Linux/Windows/macOS 构建与验证说明。
 - `docs/client.md`：Flutter 被控客户端运行、配置和平台说明。
 - `docs/client-development-plan.md`：三端被控客户端后续开发和验收路线。
+- `docs/client-platform-matrix.md`：三端客户端平台验证状态和真机验收记录模板。
 
 ## 当前实现状态
 
@@ -62,7 +63,7 @@
 - Flutter 3.44+（桌面被控客户端，当前 SDK 位于 `/home/flex/Code/flutter`）
 - `ffmpeg`（Agent WebRTC VP8 屏幕视频所需，必须包含 `libvpx` 编码器）和 `ffplay`（Agent 播放远端语音所需）
 
-完整开发环境搭建和三端构建说明见 `docs/build.md`；Flutter 被控客户端专项说明见 `docs/client.md`。
+完整开发环境搭建和三端构建说明见 `docs/build.md`；Flutter 被控客户端专项说明见 `docs/client.md`；平台验证状态见 `docs/client-platform-matrix.md`。
 
 ## 快速运行
 

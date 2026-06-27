@@ -84,7 +84,7 @@ Windows 后续增强：
 - Agent 到浏览器麦克风回传是否可用。
 - 降级原因是否能在日志中看懂。
 
-建议新增 `docs/client-platform-matrix.md`，把每次真机验证结果固化下来，避免口头状态漂移。
+平台验证状态和真机记录模板维护在 `docs/client-platform-matrix.md`，每次 Windows/macOS runner 或真机验证后都应更新该矩阵，避免口头状态漂移。
 
 ## 6. P3：Agent 工程化拆分
 
