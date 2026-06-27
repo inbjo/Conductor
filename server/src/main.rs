@@ -1978,6 +1978,32 @@ fn db_err(err: sqlx::Error) -> ApiError {
 mod tests {
     use super::*;
 
+    async fn test_state() -> AppState {
+        let db = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        let (admin_events, _) = broadcast::channel(8);
+        let cfg = Config {
+            bind: "127.0.0.1:0".parse().unwrap(),
+            db_path: ":memory:".into(),
+            jwt_secret: "test-jwt-secret".into(),
+            admin_username: "admin".into(),
+            admin_password: "admin123".into(),
+            agent_token: "test-agent-token".into(),
+        };
+        seed_admin(&db, &cfg).await.unwrap();
+        AppState {
+            cfg,
+            db,
+            agents: Arc::new(DashMap::new()),
+            pending_files: Arc::new(DashMap::new()),
+            admin_events,
+        }
+    }
+
     #[test]
     fn newer_agent_connection_replaces_old_without_being_removed_by_it() {
         let agents = DashMap::new();
@@ -2088,6 +2114,30 @@ mod tests {
         assert!(header.contains("filename=\"__ 1.txt\""));
         assert!(header.contains("filename*=UTF-8''%E6%8A%A5%E5%91%8A%201.txt"));
         assert_eq!(percent_encode_filename("a b.txt"), "a%20b.txt");
+    }
+
+    #[tokio::test]
+    async fn failed_login_attempt_is_audited() {
+        let state = test_state().await;
+        let result = login(
+            State(state.clone()),
+            Json(LoginRequest {
+                username: "admin".into(),
+                password: "wrong-password".into(),
+            }),
+        )
+        .await;
+
+        assert!(matches!(result, Err(ApiError::Unauthorized)));
+        let (count, detail): (i64, String) = sqlx::query_as(
+            "SELECT COUNT(*), MAX(detail) FROM audit_logs
+             WHERE action = 'auth_login_failed' AND target = 'admin'",
+        )
+        .fetch_one(&state.db)
+        .await
+        .unwrap();
+        assert_eq!(count, 1);
+        assert_eq!(detail, "invalid password");
     }
 
     #[tokio::test]
