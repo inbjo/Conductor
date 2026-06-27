@@ -31,6 +31,7 @@ server_log="$tmp_dir/server.log"
 client_log="$tmp_dir/client.log"
 server_pid=""
 client_pid=""
+agent_bin=""
 
 cleanup() {
   local status=$?
