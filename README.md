@@ -112,7 +112,7 @@ cd release/conductor-<target>
 ./scripts/smoke-release.sh .
 ```
 
-该检查会临时启动 release 包内的 Server 和 Agent，并自动验证健康接口、前端路由、登录、设备上线、远控会话、文件列表、聊天和会话关闭。完整比赛演示步骤见 `docs/demo.md`。
+该检查会临时启动 release 包内的 Server 和 Agent，并自动验证健康接口、前端路由、登录、设备上线、远控会话、文件列表、聊天和会话关闭。默认使用 `127.0.0.1:18080`，端口被占用时可指定 `CONDUCTOR_SMOKE_PORT=18081 ./scripts/smoke-release.sh .`。完整比赛演示步骤见 `docs/demo.md`。
 
 Agent 控制台聊天命令：
 

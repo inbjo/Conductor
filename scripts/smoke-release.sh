@@ -51,6 +51,13 @@ rm -f "$DB_PATH" "$DB_PATH-shm" "$DB_PATH-wal"
 : >"$SERVER_LOG"
 : >"$AGENT_LOG"
 
+if curl -fsS "$BASE_URL/health" >/dev/null 2>&1; then
+  echo "Port $PORT already has a responding service at $BASE_URL." >&2
+  echo "Set CONDUCTOR_SMOKE_PORT to an unused port, for example:" >&2
+  echo "  CONDUCTOR_SMOKE_PORT=18081 $0 ${1:-}" >&2
+  exit 1
+fi
+
 echo "[1/7] Starting release server"
 CONDUCTOR_DB="$DB_PATH" \
 CONDUCTOR_BIND="127.0.0.1:$PORT" \
