@@ -1458,9 +1458,11 @@ function FilesPage() {
     queryFn: () => api<Device>(`/api/devices/${id}`),
     enabled: Boolean(id),
   });
+  const online = device.data?.online === 1;
   const files = useQuery({
     queryKey: ['files', id, path],
     queryFn: () => api<{ ok: boolean; error?: string; entries?: FileEntry[] }>(`/api/devices/${id}/files?path=${encodeURIComponent(path)}`),
+    enabled: Boolean(id) && online,
   });
   const refresh = () => qc.invalidateQueries({ queryKey: ['files', id, path] });
   const mkdir = useMutation({
@@ -1523,6 +1525,7 @@ function FilesPage() {
         : mkdir.isPending
           ? '创建目录中'
           : '';
+  const disabled = !online || Boolean(busyLabel);
 
   return (
     <section className="page">
@@ -1532,10 +1535,15 @@ function FilesPage() {
           <h1>远端文件</h1>
           <p className="page-meta">{device.data?.hostname || id} / {path}</p>
         </div>
-        <button className="icon-text" onClick={refresh}><RefreshCcw size={16} />刷新</button>
+        <button className="icon-text" onClick={refresh} disabled={!online}><RefreshCcw size={16} />刷新</button>
       </div>
+      {!device.isLoading && !online && (
+        <div className="session-banner">
+          <span>设备离线，文件操作暂不可用。</span>
+        </div>
+      )}
       <div className="toolbar">
-        <button className="icon-text" onClick={goParent} disabled={path === '.' || files.isFetching}>
+        <button className="icon-text" onClick={goParent} disabled={!online || path === '.' || files.isFetching}>
           上级
         </button>
         <div className="crumbs">
@@ -1544,19 +1552,19 @@ function FilesPage() {
               ? '.'
               : crumbs.slice(0, index + 1).filter((item) => item !== '.').join('/') || '.';
             return (
-              <button key={`${target}-${index}`} className="crumb" onClick={() => setPath(target)}>
+              <button key={`${target}-${index}`} className="crumb" onClick={() => setPath(target)} disabled={!online}>
                 {index > 0 && <ChevronRight size={14} />}
                 <span>{part}</span>
               </button>
             );
           })}
         </div>
-        <input className="path-input" value={path} onChange={(e) => setPath(e.target.value || '.')} />
-        <input className="path-input" placeholder="新目录名称" value={mkdirName} onChange={(e) => setMkdirName(e.target.value)} />
-        <button className="icon-text" onClick={() => mkdir.mutate()} disabled={!mkdirName.trim() || Boolean(busyLabel)}><FolderPlus size={16} />新建</button>
-        <label className="icon-text file-pick">
+        <input className="path-input" value={path} onChange={(e) => setPath(e.target.value || '.')} disabled={!online} />
+        <input className="path-input" placeholder="新目录名称" value={mkdirName} onChange={(e) => setMkdirName(e.target.value)} disabled={!online} />
+        <button className="icon-text" onClick={() => mkdir.mutate()} disabled={!mkdirName.trim() || disabled}><FolderPlus size={16} />新建</button>
+        <label className={`icon-text file-pick ${disabled ? 'disabled' : ''}`}>
           <Upload size={16} />上传
-          <input type="file" onChange={(e) => e.target.files?.[0] && upload.mutate(e.target.files[0])} disabled={Boolean(busyLabel)} />
+          <input type="file" onChange={(e) => e.target.files?.[0] && upload.mutate(e.target.files[0])} disabled={disabled} />
         </label>
         {busyLabel && <span className="busy-pill">{busyLabel}</span>}
       </div>
@@ -1572,12 +1580,12 @@ function FilesPage() {
                 <td>{f.is_dir ? '-' : formatSize(f.size)}</td>
                 <td>{formatTime(f.modified)}</td>
                 <td className="row-actions">
-                  {!f.is_dir && <button className="icon-only" onClick={() => download.mutate(f.path)} title="下载"><FileDown size={16} /></button>}
-                  <button className="icon-only danger-text" onClick={() => confirm(`删除 ${f.name}?`) && del.mutate(f.path)} title="删除"><Trash2 size={16} /></button>
+                  {!f.is_dir && <button className="icon-only" onClick={() => download.mutate(f.path)} title="下载" disabled={disabled}><FileDown size={16} /></button>}
+                  <button className="icon-only danger-text" onClick={() => confirm(`删除 ${f.name}?`) && del.mutate(f.path)} title="删除" disabled={disabled}><Trash2 size={16} /></button>
                 </td>
               </tr>
             ))}
-            {!files.isLoading && (files.data?.entries || []).length === 0 && <tr><td colSpan={4} className="empty">目录为空</td></tr>}
+            {online && !files.isLoading && (files.data?.entries || []).length === 0 && <tr><td colSpan={4} className="empty">目录为空</td></tr>}
           </tbody>
         </table>
       </div>
