@@ -163,6 +163,16 @@ release\conductor-client-windows-x64.zip
 校验 zip 结构并做一次启动 smoke：
 
 ```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-client-flow.ps1
+```
+
+`smoke-windows-client-flow.ps1` 会依次构建客户端包、构建 Web 静态资源和 smoke server、校验 zip、启动包内 Agent、验证包内 Agent 注册、验证 Flutter 客户端自动拉起 Agent 并注册、最后做 GUI 入口启动 smoke。
+
+如果已经构建过包和 `target\debug\conductor-server.exe`，可以加 `-SkipClientBuild -SkipServerBuild` 只重复校验和 smoke。
+
+分步排错时可分别运行：
+
+```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\verify-client-archive.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
 powershell -ExecutionPolicy Bypass -File .\scripts\smoke-agent-launch.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
 powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-agent-e2e.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
