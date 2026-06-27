@@ -64,6 +64,7 @@ summary_path="$evidence_dir/validation-summary.txt"
 log_path="$evidence_dir/smoke-macos-client-flow.log"
 e2e_server_log="$evidence_dir/logs/client-e2e/server.log"
 e2e_client_log="$evidence_dir/logs/client-e2e/client.log"
+e2e_settings_file="$evidence_dir/logs/client-e2e/client-settings.json"
 
 if [[ ! -f "$summary_path" ]]; then
   echo "Missing macOS smoke evidence summary: $summary_path" >&2
@@ -79,6 +80,10 @@ if [[ ! -f "$e2e_server_log" ]]; then
 fi
 if [[ ! -f "$e2e_client_log" ]]; then
   echo "Missing macOS client e2e client log: $e2e_client_log" >&2
+  exit 1
+fi
+if [[ ! -f "$e2e_settings_file" ]]; then
+  echo "Missing macOS client e2e settings file: $e2e_settings_file" >&2
   exit 1
 fi
 
@@ -174,6 +179,18 @@ if ! grep -q "agent config " "$e2e_client_log"; then
 fi
 if ! grep -q "\[diagnostics\] conductor-agent" "$e2e_client_log"; then
   echo "macOS client e2e client log does not contain diagnostics output." >&2
+  exit 1
+fi
+if ! grep -q '"serverUrl": "ws://127\.0\.0\.1:.*\/ws\/agent"' "$e2e_settings_file"; then
+  echo "macOS client e2e settings file does not contain the normalized serverUrl." >&2
+  exit 1
+fi
+if ! grep -q '"agentName": "macos-client-e2e-agent-' "$e2e_settings_file"; then
+  echo "macOS client e2e settings file does not contain the expected agentName." >&2
+  exit 1
+fi
+if ! grep -q '"interactiveApproval": false' "$e2e_settings_file"; then
+  echo "macOS client e2e settings file does not contain interactiveApproval=false." >&2
   exit 1
 fi
 

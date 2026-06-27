@@ -42,6 +42,7 @@ $AgentE2eServerLog = Join-Path $EvidenceFullPath "logs\agent-e2e\server.log"
 $AgentE2eAgentLog = Join-Path $EvidenceFullPath "logs\agent-e2e\agent.log"
 $ClientE2eServerLog = Join-Path $EvidenceFullPath "logs\client-e2e\server.log"
 $ClientE2eClientLog = Join-Path $EvidenceFullPath "logs\client-e2e\client.log"
+$ClientE2eSettingsFile = Join-Path $EvidenceFullPath "logs\client-e2e\client-settings.json"
 
 if (!(Test-Path $SummaryPath)) {
     Write-Error "Missing Windows smoke evidence summary: $SummaryPath"
@@ -49,7 +50,7 @@ if (!(Test-Path $SummaryPath)) {
 if (!(Test-Path $LogPath)) {
     Write-Error "Missing Windows smoke transcript: $LogPath"
 }
-foreach ($path in @($AgentE2eServerLog, $AgentE2eAgentLog, $ClientE2eServerLog, $ClientE2eClientLog)) {
+foreach ($path in @($AgentE2eServerLog, $AgentE2eAgentLog, $ClientE2eServerLog, $ClientE2eClientLog, $ClientE2eSettingsFile)) {
     if (!(Test-Path $path)) {
         Write-Error "Missing Windows e2e raw log: $path"
     }
@@ -148,6 +149,17 @@ if ($ClientLogText -notmatch "agent config ") {
 }
 if ($ClientLogText -notmatch "\[diagnostics\] conductor-agent") {
     Write-Error "Windows client e2e log does not contain diagnostics output."
+}
+
+$ClientSettings = Get-Content $ClientE2eSettingsFile -Raw | ConvertFrom-Json
+if ($ClientSettings.serverUrl -notmatch "^ws://127\.0\.0\.1:\d+/ws/agent$") {
+    Write-Error "Windows client e2e settings file does not contain the normalized serverUrl: $($ClientSettings.serverUrl)"
+}
+if ($ClientSettings.agentName -notmatch "^windows-client-e2e-") {
+    Write-Error "Windows client e2e settings file does not contain the expected agentName: $($ClientSettings.agentName)"
+}
+if ($ClientSettings.interactiveApproval -ne $false) {
+    Write-Error "Windows client e2e settings file does not contain interactiveApproval=false."
 }
 
 Write-Host "Windows smoke evidence verified: $EvidenceFullPath"

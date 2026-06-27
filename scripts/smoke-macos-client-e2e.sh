@@ -46,6 +46,9 @@ export_evidence_logs() {
   if [[ -f "$client_log" ]]; then
     cp "$client_log" "$evidence_log_dir/client.log"
   fi
+  if [[ -f "$client_settings" ]]; then
+    cp "$client_settings" "$evidence_log_dir/client-settings.json"
+  fi
 }
 
 cleanup() {
@@ -178,5 +181,15 @@ if [[ -z "$diagnostics_log" ]]; then
   exit 1
 fi
 echo "Agent diagnostics observed: $diagnostics_log"
+
+if [[ ! -f "$client_settings" ]]; then
+  echo "Client settings file was not written: $client_settings" >&2
+  exit 1
+fi
+grep -q "\"serverUrl\": \"ws://127.0.0.1:$port/ws/agent\"" "$client_settings"
+grep -q "\"agentToken\": \"$agent_token\"" "$client_settings"
+grep -q "\"agentName\": \"$agent_name\"" "$client_settings"
+grep -q "\"interactiveApproval\": false" "$client_settings"
+echo "Client settings file observed: $client_settings"
 
 echo "macOS client e2e smoke passed. Agent name: $agent_name"

@@ -548,7 +548,7 @@ macOS runner 或真机还应运行：
 ./scripts/validate-client-evidence.sh --require-ci-fields --expected-commit <commit-sha>
 ```
 
-三端 smoke evidence 除 `validation-summary.txt` 和 `smoke-*-client-flow.log` 外，还会保留 e2e 原始日志：Linux/macOS 在 `logs/client-e2e/`，Windows 在 `logs/agent-e2e/` 和 `logs/client-e2e/`。证据校验会要求这些日志存在，并检查 Agent 配置传递日志和 `/diagnostics` 输出。
+三端 smoke evidence 除 `validation-summary.txt` 和 `smoke-*-client-flow.log` 外，还会保留 e2e 原始日志和 `client-settings.json`：Linux/macOS 在 `logs/client-e2e/`，Windows 在 `logs/agent-e2e/` 和 `logs/client-e2e/`。证据校验会要求这些日志存在，并检查 Agent 配置传递日志、`/diagnostics` 输出和 Settings 中规范化后的 `serverUrl`。
 
 Release smoke test：
 

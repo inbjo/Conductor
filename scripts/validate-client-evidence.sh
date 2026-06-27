@@ -266,14 +266,19 @@ verify_windows() {
   local agent_e2e_agent_log="$evidence_dir/logs/agent-e2e/agent.log"
   local client_e2e_server_log="$evidence_dir/logs/client-e2e/server.log"
   local client_e2e_client_log="$evidence_dir/logs/client-e2e/client.log"
+  local client_e2e_settings_file="$evidence_dir/logs/client-e2e/client-settings.json"
 
   require_file "Windows agent e2e server log" "$agent_e2e_server_log"
   require_file "Windows agent e2e agent log" "$agent_e2e_agent_log"
   require_file "Windows client e2e server log" "$client_e2e_server_log"
   require_file "Windows client e2e client log" "$client_e2e_client_log"
+  require_file "Windows client e2e settings file" "$client_e2e_settings_file"
   require_grep "Windows agent e2e agent log" "agent config " "$agent_e2e_agent_log"
   require_grep "Windows client e2e client log" "agent config " "$client_e2e_client_log"
   require_grep "Windows client e2e client log" "\[diagnostics\] conductor-agent" "$client_e2e_client_log"
+  require_grep "Windows client e2e settings file" '"serverUrl": "ws://127\.0\.0\.1:.*\/ws\/agent"' "$client_e2e_settings_file"
+  require_grep "Windows client e2e settings file" '"agentName": "windows-client-e2e-' "$client_e2e_settings_file"
+  require_grep "Windows client e2e settings file" '"interactiveApproval": false' "$client_e2e_settings_file"
 
   echo "Windows smoke evidence verified: $evidence_dir"
 }

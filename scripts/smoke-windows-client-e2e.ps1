@@ -246,6 +246,24 @@ try {
     }
     Write-Host "Agent diagnostics observed: $AgentDiagnosticsLog"
 
+    if (!(Test-Path $ClientSettings)) {
+        Write-Error "Client settings file was not written: $ClientSettings"
+    }
+    $Settings = Get-Content $ClientSettings -Raw | ConvertFrom-Json
+    if ($Settings.serverUrl -ne "ws://127.0.0.1:$Port/ws/agent") {
+        Write-Error "Client settings serverUrl mismatch: $($Settings.serverUrl)"
+    }
+    if ($Settings.agentToken -ne $AgentToken) {
+        Write-Error "Client settings agentToken mismatch."
+    }
+    if ($Settings.agentName -ne $AgentName) {
+        Write-Error "Client settings agentName mismatch: $($Settings.agentName)"
+    }
+    if ($Settings.interactiveApproval -ne $false) {
+        Write-Error "Client settings interactiveApproval mismatch: $($Settings.interactiveApproval)"
+    }
+    Write-Host "Client settings file observed: $ClientSettings"
+
     $Failed = $false
     Write-Host "Windows client e2e smoke passed. Device: $($device.device_id)"
 } finally {
@@ -274,5 +292,6 @@ try {
     Export-EvidenceLog "$ServerLog.err" "server.err.log"
     Export-EvidenceLog $ClientLog "client.log"
     Export-EvidenceLog "$ClientLog.err" "client.err.log"
+    Export-EvidenceLog $ClientSettings "client-settings.json"
     Remove-Item -Recurse -Force $TempDir -ErrorAction SilentlyContinue
 }
