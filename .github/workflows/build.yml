@@ -140,6 +140,10 @@ jobs:
         shell: pwsh
         run: .\scripts\smoke-windows-client-flow.ps1 -SkipClientBuild -SkipServerBuild -EvidenceDir artifacts\windows-client-smoke
 
+      - name: Verify Windows smoke evidence
+        shell: pwsh
+        run: .\scripts\verify-windows-smoke-evidence.ps1 -EvidenceDir artifacts\windows-client-smoke
+
       - name: Upload Windows smoke evidence
         if: always()
         uses: actions/upload-artifact@v4

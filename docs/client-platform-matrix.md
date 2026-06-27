@@ -97,6 +97,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-client-flow.ps1
 CI 中的 `client-windows` job 会把上述 flow 的 transcript 和环境摘要上传为 `windows-client-smoke-evidence` artifact。判断 Windows 自动化是否真正通过时，需要同时确认：
 
 - `client-windows` job 成功。
+- `Verify Windows smoke evidence` 步骤成功。
 - `windows-client-smoke-evidence/validation-summary.txt` 记录了 commit、runner、PowerShell、Rust 和 Flutter 版本。
 - `windows-client-smoke-evidence/validation-summary.txt` 记录 `archive_sha256=<sha256>` 和 `result=passed`。
 - `windows-client-smoke-evidence/smoke-windows-client-flow.log` 末尾出现 `Windows client flow smoke passed`。

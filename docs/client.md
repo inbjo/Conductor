@@ -178,6 +178,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-client-flow.ps1
 
 脚本会写出 `validation-summary.txt` 和 `smoke-windows-client-flow.log`，用于记录 runner/工具链版本和完整 smoke 输出。
 
+证据目录可以再用脚本校验：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\verify-windows-smoke-evidence.ps1 -EvidenceDir .\artifacts\windows-client-smoke
+```
+
 分步排错时可分别运行：
 
 ```powershell
