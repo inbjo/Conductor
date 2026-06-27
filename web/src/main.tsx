@@ -1505,10 +1505,6 @@ function FilesPage() {
       if (file.size > MAX_UPLOAD_BYTES) {
         throw new Error('文件超过 32 MB 上传上限');
       }
-      const existing = (files.data?.entries || []).find((entry) => !entry.is_dir && entry.name === file.name);
-      if (existing && !confirm(`目录中已存在 ${file.name}，是否覆盖?`)) {
-        throw new Error('已取消上传');
-      }
       const data = new FormData();
       data.set('path', path);
       data.set('file', file);
@@ -1516,6 +1512,12 @@ function FilesPage() {
     },
     onSuccess: refresh,
   });
+  const handleUploadPick = (file: File | undefined) => {
+    if (!file) return;
+    const existing = (files.data?.entries || []).find((entry) => !entry.is_dir && entry.name === file.name);
+    if (existing && !confirm(`目录中已存在 ${file.name}，是否覆盖?`)) return;
+    upload.mutate(file);
+  };
   const download = useMutation({
     mutationFn: async (target: string) => {
       const token = useAuth.getState().token;
@@ -1595,7 +1597,14 @@ function FilesPage() {
         <button className="icon-text" onClick={() => mkdir.mutate()} disabled={!mkdirName.trim() || disabled}><FolderPlus size={16} />新建</button>
         <label className={`icon-text file-pick ${disabled ? 'disabled' : ''}`}>
           <Upload size={16} />上传
-          <input type="file" onChange={(e) => e.target.files?.[0] && upload.mutate(e.target.files[0])} disabled={disabled} />
+          <input
+            type="file"
+            onChange={(e) => {
+              handleUploadPick(e.target.files?.[0]);
+              e.currentTarget.value = '';
+            }}
+            disabled={disabled}
+          />
         </label>
         {busyLabel && <span className="busy-pill">{busyLabel}</span>}
       </div>
