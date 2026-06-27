@@ -912,6 +912,7 @@ async fn list_files(
     let path = q.path.unwrap_or_else(|| ".".into());
     validate_relative_path(&path)?;
     let result = forward_file_command(&state, &device_id, "list", path.clone(), None, None).await?;
+    ensure_file_ok(&result)?;
     audit(&state, &user.username, "file_list", &device_id, &path).await;
     Ok(Json(result))
 }
@@ -928,6 +929,7 @@ async fn delete_file(
     validate_relative_path(&path)?;
     let result =
         forward_file_command(&state, &device_id, "delete", path.clone(), None, None).await?;
+    ensure_file_ok(&result)?;
     audit(&state, &user.username, "file_delete", &device_id, &path).await;
     Ok(Json(result))
 }
@@ -949,6 +951,7 @@ async fn mkdir(
         None,
     )
     .await?;
+    ensure_file_ok(&result)?;
     audit(
         &state,
         &user.username,
@@ -1017,6 +1020,7 @@ async fn upload_file(
         content,
     )
     .await?;
+    ensure_file_ok(&result)?;
     audit(
         &state,
         &user.username,
@@ -1026,6 +1030,18 @@ async fn upload_file(
     )
     .await;
     Ok(Json(result))
+}
+
+fn ensure_file_ok(result: &FileResultPayload) -> Result<(), ApiError> {
+    if result.ok {
+        return Ok(());
+    }
+    Err(ApiError::BadRequest(
+        result
+            .error
+            .clone()
+            .unwrap_or_else(|| "file operation failed".into()),
+    ))
 }
 
 async fn download_file(
@@ -1959,6 +1975,28 @@ mod tests {
         assert!(validate_path_segment("nested/file.txt", "file name").is_err());
         assert!(validate_path_segment("nested\\file.txt", "file name").is_err());
         assert!(validate_path_segment("", "file name").is_err());
+    }
+
+    #[test]
+    fn failed_file_results_become_api_errors() {
+        let ok = FileResultPayload {
+            request_id: "ok".into(),
+            ok: true,
+            error: None,
+            entries: None,
+            content_base64: None,
+        };
+        assert!(ensure_file_ok(&ok).is_ok());
+
+        let failed = FileResultPayload {
+            request_id: "failed".into(),
+            ok: false,
+            error: Some("permission denied".into()),
+            entries: None,
+            content_base64: None,
+        };
+        let err = ensure_file_ok(&failed).unwrap_err().to_string();
+        assert!(err.contains("permission denied"));
     }
 
     #[tokio::test]
