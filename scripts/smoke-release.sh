@@ -11,11 +11,14 @@ DB_PATH="${CONDUCTOR_SMOKE_DB:-/tmp/conductor-smoke-$PORT.sqlite3}"
 ADMIN_PASSWORD="${CONDUCTOR_SMOKE_ADMIN_PASSWORD:-admin123}"
 JWT_SECRET="${CONDUCTOR_SMOKE_JWT_SECRET:-demo-smoke-secret}"
 AGENT_TOKEN="${CONDUCTOR_SMOKE_AGENT_TOKEN:-demo-smoke-token}"
+SERVER_LOG="${CONDUCTOR_SMOKE_SERVER_LOG:-/tmp/conductor-smoke-server-$PORT.log}"
+AGENT_LOG="${CONDUCTOR_SMOKE_AGENT_LOG:-/tmp/conductor-smoke-agent-$PORT.log}"
 
 server_pid=""
 agent_pid=""
 
 cleanup() {
+  local status=$?
   if [[ -n "$agent_pid" ]] && kill -0 "$agent_pid" 2>/dev/null; then
     kill "$agent_pid" 2>/dev/null || true
   fi
@@ -24,6 +27,13 @@ cleanup() {
   fi
   wait "$agent_pid" 2>/dev/null || true
   wait "$server_pid" 2>/dev/null || true
+  if [[ "$status" -ne 0 ]]; then
+    echo "Smoke test failed. Server log: $SERVER_LOG" >&2
+    tail -n 40 "$SERVER_LOG" >&2 2>/dev/null || true
+    echo "Smoke test failed. Agent log: $AGENT_LOG" >&2
+    tail -n 40 "$AGENT_LOG" >&2 2>/dev/null || true
+  fi
+  exit "$status"
 }
 trap cleanup EXIT
 
@@ -38,6 +48,8 @@ require_file "$SERVER_BIN"
 require_file "$AGENT_BIN"
 
 rm -f "$DB_PATH" "$DB_PATH-shm" "$DB_PATH-wal"
+: >"$SERVER_LOG"
+: >"$AGENT_LOG"
 
 echo "[1/7] Starting release server"
 CONDUCTOR_DB="$DB_PATH" \
@@ -45,7 +57,7 @@ CONDUCTOR_BIND="127.0.0.1:$PORT" \
 CONDUCTOR_ADMIN_PASSWORD="$ADMIN_PASSWORD" \
 CONDUCTOR_JWT_SECRET="$JWT_SECRET" \
 CONDUCTOR_AGENT_TOKEN="$AGENT_TOKEN" \
-"$SERVER_BIN" &
+"$SERVER_BIN" >"$SERVER_LOG" 2>&1 &
 server_pid="$!"
 
 for _ in {1..50}; do
@@ -68,7 +80,7 @@ echo "[3/7] Starting release agent"
 CONDUCTOR_SERVER_URL="ws://127.0.0.1:$PORT/ws/agent" \
 CONDUCTOR_AGENT_TOKEN="$AGENT_TOKEN" \
 CONDUCTOR_AGENT_NAME="demo-smoke-agent" \
-"$AGENT_BIN" >/tmp/conductor-smoke-agent-$PORT.log 2>&1 &
+"$AGENT_BIN" >"$AGENT_LOG" 2>&1 &
 agent_pid="$!"
 
 echo "[4/7] Logging in"
@@ -129,3 +141,5 @@ curl -fsS -X POST "$BASE_URL/api/sessions/$session_id/close" \
   -H "Authorization: Bearer $token" | grep -q '"status":"closed"'
 
 echo "Release smoke test passed for $RELEASE_DIR"
+echo "Server log: $SERVER_LOG"
+echo "Agent log: $AGENT_LOG"
