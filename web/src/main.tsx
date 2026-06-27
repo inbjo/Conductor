@@ -1452,6 +1452,11 @@ function ChatPanel({
           会话已结束，不能继续发送消息。
         </div>
       )}
+      {(messages.error || send.error) && (
+        <div className="chat-note">
+          {(messages.error || send.error)?.message}
+        </div>
+      )}
       <form
         className="chat-send"
         onSubmit={(e) => {
