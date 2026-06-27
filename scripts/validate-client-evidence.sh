@@ -5,6 +5,7 @@ evidence_root="artifacts"
 platform="all"
 require_ci_fields=0
 expected_commit=""
+write_summary_dir=""
 
 usage() {
   cat >&2 <<'EOF'
@@ -15,6 +16,7 @@ Options:
   --platform <name>          all, linux, windows, or macos.
   --require-ci-fields        Require runner_os and runner_arch in evidence.
   --expected-commit <sha>    Require evidence commit to match this SHA.
+  --write-summary <path>     Write aggregate summary files after validating all platforms.
   -h, --help                 Show this help.
 EOF
 }
@@ -48,6 +50,11 @@ while [[ $# -gt 0 ]]; do
     --expected-commit)
       require_value "$1" "${2:-}"
       expected_commit="${2:-}"
+      shift 2
+      ;;
+    --write-summary)
+      require_value "$1" "${2:-}"
+      write_summary_dir="${2:-}"
       shift 2
       ;;
     -h|--help)
@@ -111,6 +118,11 @@ require_grep() {
     echo "$label does not contain required marker: $pattern" >&2
     exit 1
   fi
+}
+
+summary_path_for_platform() {
+  local platform_name="$1"
+  printf '%s\n' "$(platform_evidence_dir "$platform_name")/validation-summary.txt"
 }
 
 platform_evidence_dir() {
@@ -286,6 +298,55 @@ verify_windows() {
   echo "Windows smoke evidence verified: $evidence_dir"
 }
 
+write_aggregate_summary() {
+  if [[ -z "$write_summary_dir" ]]; then
+    return
+  fi
+  if [[ "$platform" != "all" ]]; then
+    echo "--write-summary requires --platform all." >&2
+    exit 2
+  fi
+  if [[ "$write_summary_dir" != /* ]]; then
+    write_summary_dir="$root_dir/$write_summary_dir"
+  fi
+
+  local linux_summary
+  local windows_summary
+  local macos_summary
+  linux_summary="$(summary_path_for_platform linux)"
+  windows_summary="$(summary_path_for_platform windows)"
+  macos_summary="$(summary_path_for_platform macos)"
+
+  mkdir -p "$write_summary_dir"
+  cp "$linux_summary" "$write_summary_dir/linux-validation-summary.txt"
+  cp "$windows_summary" "$write_summary_dir/windows-validation-summary.txt"
+  cp "$macos_summary" "$write_summary_dir/macos-validation-summary.txt"
+
+  local aggregate_commit="$expected_commit"
+  if [[ -z "$aggregate_commit" ]]; then
+    aggregate_commit="$(summary_value "$linux_summary" commit)"
+  fi
+  for platform_summary in "$linux_summary" "$windows_summary" "$macos_summary"; do
+    if [[ "$(summary_value "$platform_summary" commit)" != "$aggregate_commit" ]]; then
+      echo "Client smoke evidence commit mismatch while writing aggregate summary: $platform_summary" >&2
+      exit 1
+    fi
+  done
+
+  {
+    printf 'commit=%s\n' "$aggregate_commit"
+    printf 'verified_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    printf 'linux_result=%s\n' "$(summary_value "$linux_summary" result)"
+    printf 'windows_result=%s\n' "$(summary_value "$windows_summary" result)"
+    printf 'macos_result=%s\n' "$(summary_value "$macos_summary" result)"
+    printf 'linux_archive_sha256=%s\n' "$(summary_value "$linux_summary" archive_sha256)"
+    printf 'windows_archive_sha256=%s\n' "$(summary_value "$windows_summary" archive_sha256)"
+    printf 'macos_archive_sha256=%s\n' "$(summary_value "$macos_summary" archive_sha256)"
+  } > "$write_summary_dir/aggregate-summary.txt"
+
+  echo "Client smoke evidence aggregate summary written: $write_summary_dir"
+}
+
 case "$platform" in
   all)
     verify_linux
@@ -306,5 +367,7 @@ case "$platform" in
     exit 2
     ;;
 esac
+
+write_aggregate_summary
 
 echo "Client smoke evidence validation passed for platform=$platform"

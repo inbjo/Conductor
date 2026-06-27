@@ -238,10 +238,13 @@ CI job 覆盖：
 下载三端 smoke evidence artifact 后，可在仓库根目录统一复核：
 
 ```sh
-./scripts/validate-client-evidence.sh --require-ci-fields --expected-commit <commit-sha>
+./scripts/validate-client-evidence.sh \
+  --require-ci-fields \
+  --expected-commit <commit-sha> \
+  --write-summary artifacts/client-smoke-evidence-verified
 ```
 
-CI 中的 `client-smoke-evidence` job 会在 `client-linux`、`client-windows`、`client-macos` 都成功后自动执行这条统一复核命令。
+CI 中的 `client-smoke-evidence` job 会在 `client-linux`、`client-windows`、`client-macos` 都成功后自动执行这条统一复核命令，并上传 `client-smoke-evidence-verified` artifact。
 
 默认优先读取 CI 内部路径名：
 

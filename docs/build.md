@@ -544,10 +544,13 @@ macOS runner 或真机还应运行：
 ./scripts/validate-macos-client.sh
 ```
 
-下载 CI smoke evidence artifact 后，可统一复核：
+下载 CI smoke evidence artifact 后，可统一复核，并生成和 CI 相同格式的聚合摘要：
 
 ```sh
-./scripts/validate-client-evidence.sh --require-ci-fields --expected-commit <commit-sha>
+./scripts/validate-client-evidence.sh \
+  --require-ci-fields \
+  --expected-commit <commit-sha> \
+  --write-summary artifacts/client-smoke-evidence-verified
 ```
 
 三端 smoke evidence 除 `validation-summary.txt` 和 `smoke-*-client-flow.log` 外，还会保留 e2e 原始日志和 `client-settings.json`：Linux/macOS 在 `logs/client-e2e/`，Windows 在 `logs/agent-e2e/` 和 `logs/client-e2e/`。证据校验会要求这些日志存在，并检查 Agent 配置传递日志、`/diagnostics` 输出，以及 Settings 中规范化后的 `serverUrl`、`agentToken`、`agentName`、`agentRoot`、`audioInput` 和 `interactiveApproval=false`。
