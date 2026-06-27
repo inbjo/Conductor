@@ -92,12 +92,18 @@ client/build/linux/x64/release/bundle/conductor_client
 
 在界面中确认：
 
-- `Server WebSocket URL`：例如 `ws://127.0.0.1:8080/ws/agent`，也可以填写 `http://127.0.0.1:8080` 或 `127.0.0.1:8080`，客户端会自动规范化。
+- `Server URL`：在 Settings 页配置，例如 `ws://127.0.0.1:8080/ws/agent`，也可以填写 `http://127.0.0.1:8080` 或 `127.0.0.1:8080`，客户端会自动规范化。
 - `Agent Token`：必须与 Server 的 `CONDUCTOR_AGENT_TOKEN` 一致
 - `Agent Name`：可选，便于后台识别
 - `File Root`：可选，限制文件管理根目录
 
 点击 `Start Agent` 后，后台设备列表应出现该终端。
+
+主界面只显示运行状态、启动/停止入口和日志；Server URL、Agent Token、Agent Name、文件根目录、音频输入和本地审批开关都在 Settings 页配置。构建脚本也可写入这些默认值：
+
+```sh
+./scripts/build-client.sh --server-url ws://server:8080/ws/agent --agent-token token
+```
 
 Linux 已验证命令：
 
@@ -134,6 +140,18 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-client.ps1
 ```
 
 脚本会先启用 Flutter Windows desktop、运行 `flutter doctor -v`，再构建 Rust Agent 和 Flutter Windows 客户端，最后生成可分发 zip。
+
+构建时默认配置参数：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-client.ps1 `
+  -ServerUrl "ws://server:8080/ws/agent" `
+  -AgentToken "token" `
+  -AgentName "windows-client-01" `
+  -AgentRoot "$env:USERPROFILE" `
+  -AudioInput "default" `
+  -InteractiveApproval "false"
+```
 
 如果 Flutter 不在默认位置，指定：
 

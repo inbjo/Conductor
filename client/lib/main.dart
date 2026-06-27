@@ -4,6 +4,28 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+const buildDefaultServerUrl = String.fromEnvironment(
+  'CONDUCTOR_DEFAULT_SERVER_URL',
+  defaultValue: 'ws://127.0.0.1:8080/ws/agent',
+);
+const buildDefaultAgentToken = String.fromEnvironment(
+  'CONDUCTOR_DEFAULT_AGENT_TOKEN',
+  defaultValue: 'dev-agent-token-change-me',
+);
+const buildDefaultAgentName = String.fromEnvironment(
+  'CONDUCTOR_DEFAULT_AGENT_NAME',
+);
+const buildDefaultAgentRoot = String.fromEnvironment(
+  'CONDUCTOR_DEFAULT_AGENT_ROOT',
+);
+const buildDefaultAudioInput = String.fromEnvironment(
+  'CONDUCTOR_DEFAULT_AUDIO_INPUT',
+);
+const buildDefaultInteractiveApprovalText = String.fromEnvironment(
+  'CONDUCTOR_DEFAULT_INTERACTIVE_APPROVAL',
+  defaultValue: 'false',
+);
+
 void main() {
   runApp(const ConductorClientApp());
 }
@@ -37,21 +59,19 @@ class AgentLauncherPage extends StatefulWidget {
 }
 
 class _AgentLauncherPageState extends State<AgentLauncherPage> {
-  final _serverUrl = TextEditingController(
-    text: 'ws://127.0.0.1:8080/ws/agent',
-  );
-  final _agentToken = TextEditingController(text: 'dev-agent-token-change-me');
-  final _agentName = TextEditingController();
-  final _agentRoot = TextEditingController();
+  final _serverUrl = TextEditingController(text: buildDefaultServerUrl);
+  final _agentToken = TextEditingController(text: buildDefaultAgentToken);
+  final _agentName = TextEditingController(text: buildDefaultAgentName);
+  final _agentRoot = TextEditingController(text: buildDefaultAgentRoot);
   final _agentBin = TextEditingController();
-  final _audioInput = TextEditingController();
+  final _audioInput = TextEditingController(text: buildDefaultAudioInput);
   final _agentCommand = TextEditingController();
   final _logs = <String>[];
   final _scrollController = ScrollController();
 
   Process? _process;
   int? _lastExitCode;
-  bool _interactiveApproval = false;
+  bool _interactiveApproval = flagValue(buildDefaultInteractiveApprovalText);
   bool _starting = false;
 
   bool get _running => _process != null;
@@ -295,6 +315,11 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
       appBar: AppBar(
         title: const Text('Conductor Client'),
         actions: [
+          IconButton(
+            tooltip: 'Settings',
+            onPressed: _running || _starting ? null : _openSettings,
+            icon: const Icon(Icons.settings_outlined),
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: Center(
@@ -307,24 +332,15 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final wide = constraints.maxWidth >= 920;
-            final form = LauncherForm(
-              serverUrl: _serverUrl,
-              agentToken: _agentToken,
-              agentName: _agentName,
-              agentRoot: _agentRoot,
-              agentBin: _agentBin,
-              audioInput: _audioInput,
-              interactiveApproval: _interactiveApproval,
-              running: _running || _starting,
-              onInteractiveApprovalChanged: (value) {
-                setState(() => _interactiveApproval = value);
-              },
-              onSave: () async {
-                await _saveSettings();
-                _appendLog('settings saved');
-              },
+            final overview = AgentOverview(
+              statusText: statusText,
+              running: _running,
+              starting: _starting,
+              lastExitCode: _lastExitCode,
+              logCount: _logs.length,
               onStart: _startAgent,
               onStop: _stopAgent,
+              onOpenSettings: _openSettings,
             );
             final logs = LogPanel(
               logs: _logs,
@@ -339,14 +355,14 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
                   ? Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        SizedBox(width: 440, child: form),
+                        SizedBox(width: 360, child: overview),
                         const SizedBox(width: 16),
                         Expanded(child: logs),
                       ],
                     )
                   : ListView(
                       children: [
-                        form,
+                        overview,
                         const SizedBox(height: 16),
                         SizedBox(height: 360, child: logs),
                       ],
@@ -357,37 +373,52 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
       ),
     );
   }
+
+  Future<void> _openSettings() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (context) => SettingsPage(
+          serverUrl: _serverUrl,
+          agentToken: _agentToken,
+          agentName: _agentName,
+          agentRoot: _agentRoot,
+          agentBin: _agentBin,
+          audioInput: _audioInput,
+          interactiveApproval: _interactiveApproval,
+          onInteractiveApprovalChanged: (value) {
+            setState(() => _interactiveApproval = value);
+          },
+          onSave: () async {
+            await _saveSettings();
+            _appendLog('settings saved');
+          },
+        ),
+      ),
+    );
+  }
 }
 
-class LauncherForm extends StatelessWidget {
-  const LauncherForm({
+class AgentOverview extends StatelessWidget {
+  const AgentOverview({
     super.key,
-    required this.serverUrl,
-    required this.agentToken,
-    required this.agentName,
-    required this.agentRoot,
-    required this.agentBin,
-    required this.audioInput,
-    required this.interactiveApproval,
+    required this.statusText,
     required this.running,
-    required this.onInteractiveApprovalChanged,
-    required this.onSave,
+    required this.starting,
+    required this.lastExitCode,
+    required this.logCount,
     required this.onStart,
     required this.onStop,
+    required this.onOpenSettings,
   });
 
-  final TextEditingController serverUrl;
-  final TextEditingController agentToken;
-  final TextEditingController agentName;
-  final TextEditingController agentRoot;
-  final TextEditingController agentBin;
-  final TextEditingController audioInput;
-  final bool interactiveApproval;
+  final String statusText;
   final bool running;
-  final ValueChanged<bool> onInteractiveApprovalChanged;
-  final VoidCallback onSave;
+  final bool starting;
+  final int? lastExitCode;
+  final int logCount;
   final VoidCallback onStart;
   final VoidCallback onStop;
+  final VoidCallback onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -399,57 +430,170 @@ class LauncherForm extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const Icon(Icons.desktop_windows_outlined, size: 40),
+            const SizedBox(height: 16),
             Text(
-              'Agent Configuration',
+              'Controlled Endpoint',
               style: Theme.of(context).textTheme.titleLarge,
             ),
-            const SizedBox(height: 16),
-            Field(controller: serverUrl, label: 'Server WebSocket URL'),
-            Field(
-              controller: agentToken,
-              label: 'Agent Token',
-              obscureText: true,
-            ),
-            Field(controller: agentName, label: 'Agent Name', hint: 'optional'),
-            Field(
-              controller: agentRoot,
-              label: 'File Root',
-              hint: 'optional, defaults to home',
-            ),
-            Field(controller: agentBin, label: 'Agent Binary'),
-            Field(
-              controller: audioInput,
-              label: 'Audio Input',
-              hint: 'optional',
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Require local approval'),
-              subtitle: const Text(
-                'Remote control and voice requests wait for local CLI approval.',
-              ),
-              value: interactiveApproval,
-              onChanged: running ? null : onInteractiveApprovalChanged,
-            ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onSave,
-                    icon: const Icon(Icons.save_outlined),
-                    label: const Text('Save'),
-                  ),
+            Text(
+              statusText,
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 18),
+            _Metric(label: 'Log lines', value: '$logCount'),
+            _Metric(
+              label: 'Last exit',
+              value: lastExitCode == null ? '-' : '$lastExitCode',
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: running ? onStop : onStart,
+              icon: Icon(running ? Icons.stop : Icons.play_arrow),
+              label: Text(running ? 'Stop Agent' : 'Start Agent'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: starting || running ? null : onOpenSettings,
+              icon: const Icon(Icons.tune),
+              label: const Text('Settings'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Metric extends StatelessWidget {
+  const _Metric({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.bodyMedium),
+          Text(
+            value,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SettingsPage extends StatefulWidget {
+  const SettingsPage({
+    super.key,
+    required this.serverUrl,
+    required this.agentToken,
+    required this.agentName,
+    required this.agentRoot,
+    required this.agentBin,
+    required this.audioInput,
+    required this.interactiveApproval,
+    required this.onInteractiveApprovalChanged,
+    required this.onSave,
+  });
+
+  final TextEditingController serverUrl;
+  final TextEditingController agentToken;
+  final TextEditingController agentName;
+  final TextEditingController agentRoot;
+  final TextEditingController agentBin;
+  final TextEditingController audioInput;
+  final bool interactiveApproval;
+  final ValueChanged<bool> onInteractiveApprovalChanged;
+  final Future<void> Function() onSave;
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  late bool _interactiveApproval;
+
+  @override
+  void initState() {
+    super.initState();
+    _interactiveApproval = widget.interactiveApproval;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Settings')),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Card(
+              margin: EdgeInsets.zero,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Agent Configuration',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 16),
+                    Field(controller: widget.serverUrl, label: 'Server URL'),
+                    Field(
+                      controller: widget.agentToken,
+                      label: 'Agent Token',
+                      obscureText: true,
+                    ),
+                    Field(
+                      controller: widget.agentName,
+                      label: 'Agent Name',
+                      hint: 'optional',
+                    ),
+                    Field(
+                      controller: widget.agentRoot,
+                      label: 'File Root',
+                      hint: 'optional, defaults to home',
+                    ),
+                    Field(controller: widget.agentBin, label: 'Agent Binary'),
+                    Field(
+                      controller: widget.audioInput,
+                      label: 'Audio Input',
+                      hint: 'optional',
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Require local approval'),
+                      value: _interactiveApproval,
+                      onChanged: (value) {
+                        setState(() => _interactiveApproval = value);
+                        widget.onInteractiveApprovalChanged(value);
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton.icon(
+                      onPressed: () async {
+                        await widget.onSave();
+                        if (context.mounted) Navigator.of(context).pop();
+                      },
+                      icon: const Icon(Icons.save_outlined),
+                      label: const Text('Save'),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: running ? onStop : onStart,
-                    icon: Icon(running ? Icons.stop : Icons.play_arrow),
-                    label: Text(running ? 'Stop Agent' : 'Start Agent'),
-                  ),
-                ),
-              ],
+              ),
             ),
           ],
         ),
@@ -759,8 +903,12 @@ File settingsFile() {
 }
 
 bool envFlag(String key) {
-  final value = Platform.environment[key]?.trim().toLowerCase();
-  return value == '1' || value == 'true' || value == 'yes' || value == 'on';
+  return flagValue(Platform.environment[key]);
+}
+
+bool flagValue(String? value) {
+  final text = value?.trim().toLowerCase();
+  return text == '1' || text == 'true' || text == 'yes' || text == 'on';
 }
 
 String pathJoin(String first, String second, [String? third, String? fourth]) {

@@ -1,3 +1,17 @@
+param(
+    [string] $ServerUrl = $env:CONDUCTOR_DEFAULT_SERVER_URL,
+
+    [string] $AgentToken = $env:CONDUCTOR_DEFAULT_AGENT_TOKEN,
+
+    [string] $AgentName = $env:CONDUCTOR_DEFAULT_AGENT_NAME,
+
+    [string] $AgentRoot = $env:CONDUCTOR_DEFAULT_AGENT_ROOT,
+
+    [string] $AudioInput = $env:CONDUCTOR_DEFAULT_AUDIO_INPUT,
+
+    [string] $InteractiveApproval = $env:CONDUCTOR_DEFAULT_INTERACTIVE_APPROVAL
+)
+
 $ErrorActionPreference = "Stop"
 
 $RootDir = Resolve-Path (Join-Path $PSScriptRoot "..")
@@ -32,9 +46,31 @@ Write-Host "[2/5] Building Rust agent"
 cargo build --manifest-path (Join-Path $RootDir "Cargo.toml") --release -p conductor-agent
 
 Write-Host "[3/5] Building Flutter client for windows"
+$FlutterDefines = @()
+if (![string]::IsNullOrWhiteSpace($ServerUrl)) {
+    $FlutterDefines += @("--dart-define", "CONDUCTOR_DEFAULT_SERVER_URL=$ServerUrl")
+}
+if (![string]::IsNullOrWhiteSpace($AgentToken)) {
+    $FlutterDefines += @("--dart-define", "CONDUCTOR_DEFAULT_AGENT_TOKEN=$AgentToken")
+}
+if (![string]::IsNullOrWhiteSpace($AgentName)) {
+    $FlutterDefines += @("--dart-define", "CONDUCTOR_DEFAULT_AGENT_NAME=$AgentName")
+}
+if (![string]::IsNullOrWhiteSpace($AgentRoot)) {
+    $FlutterDefines += @("--dart-define", "CONDUCTOR_DEFAULT_AGENT_ROOT=$AgentRoot")
+}
+if (![string]::IsNullOrWhiteSpace($AudioInput)) {
+    $FlutterDefines += @("--dart-define", "CONDUCTOR_DEFAULT_AUDIO_INPUT=$AudioInput")
+}
+if (![string]::IsNullOrWhiteSpace($InteractiveApproval)) {
+    $FlutterDefines += @(
+        "--dart-define",
+        "CONDUCTOR_DEFAULT_INTERACTIVE_APPROVAL=$InteractiveApproval"
+    )
+}
 Push-Location (Join-Path $RootDir "client")
 try {
-    & $FlutterBin build windows --release
+    & $FlutterBin build windows --release @FlutterDefines
 } finally {
     Pop-Location
 }

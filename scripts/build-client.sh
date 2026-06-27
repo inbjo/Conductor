@@ -4,6 +4,45 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FLUTTER_BIN="${FLUTTER_BIN:-/home/flex/Code/flutter/bin/flutter}"
 RELEASE_DIR="$ROOT_DIR/release"
+DEFAULT_SERVER_URL="${CONDUCTOR_DEFAULT_SERVER_URL:-}"
+DEFAULT_AGENT_TOKEN="${CONDUCTOR_DEFAULT_AGENT_TOKEN:-}"
+DEFAULT_AGENT_NAME="${CONDUCTOR_DEFAULT_AGENT_NAME:-}"
+DEFAULT_AGENT_ROOT="${CONDUCTOR_DEFAULT_AGENT_ROOT:-}"
+DEFAULT_AUDIO_INPUT="${CONDUCTOR_DEFAULT_AUDIO_INPUT:-}"
+DEFAULT_INTERACTIVE_APPROVAL="${CONDUCTOR_DEFAULT_INTERACTIVE_APPROVAL:-}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --server-url)
+      DEFAULT_SERVER_URL="${2:-}"
+      shift 2
+      ;;
+    --agent-token)
+      DEFAULT_AGENT_TOKEN="${2:-}"
+      shift 2
+      ;;
+    --agent-name)
+      DEFAULT_AGENT_NAME="${2:-}"
+      shift 2
+      ;;
+    --agent-root)
+      DEFAULT_AGENT_ROOT="${2:-}"
+      shift 2
+      ;;
+    --audio-input)
+      DEFAULT_AUDIO_INPUT="${2:-}"
+      shift 2
+      ;;
+    --interactive-approval)
+      DEFAULT_INTERACTIVE_APPROVAL="${2:-}"
+      shift 2
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+  esac
+done
 
 if [[ ! -x "$FLUTTER_BIN" ]]; then
   echo "Flutter executable not found: $FLUTTER_BIN" >&2
@@ -47,9 +86,31 @@ echo "[1/4] Building Rust agent"
 cargo build --manifest-path "$ROOT_DIR/Cargo.toml" --release -p conductor-agent
 
 echo "[2/4] Building Flutter client for $PLATFORM"
+FLUTTER_DEFINES=()
+if [[ -n "$DEFAULT_SERVER_URL" ]]; then
+  FLUTTER_DEFINES+=(--dart-define "CONDUCTOR_DEFAULT_SERVER_URL=$DEFAULT_SERVER_URL")
+fi
+if [[ -n "$DEFAULT_AGENT_TOKEN" ]]; then
+  FLUTTER_DEFINES+=(--dart-define "CONDUCTOR_DEFAULT_AGENT_TOKEN=$DEFAULT_AGENT_TOKEN")
+fi
+if [[ -n "$DEFAULT_AGENT_NAME" ]]; then
+  FLUTTER_DEFINES+=(--dart-define "CONDUCTOR_DEFAULT_AGENT_NAME=$DEFAULT_AGENT_NAME")
+fi
+if [[ -n "$DEFAULT_AGENT_ROOT" ]]; then
+  FLUTTER_DEFINES+=(--dart-define "CONDUCTOR_DEFAULT_AGENT_ROOT=$DEFAULT_AGENT_ROOT")
+fi
+if [[ -n "$DEFAULT_AUDIO_INPUT" ]]; then
+  FLUTTER_DEFINES+=(--dart-define "CONDUCTOR_DEFAULT_AUDIO_INPUT=$DEFAULT_AUDIO_INPUT")
+fi
+if [[ -n "$DEFAULT_INTERACTIVE_APPROVAL" ]]; then
+  FLUTTER_DEFINES+=(
+    --dart-define
+    "CONDUCTOR_DEFAULT_INTERACTIVE_APPROVAL=$DEFAULT_INTERACTIVE_APPROVAL"
+  )
+fi
 (
   cd "$ROOT_DIR/client"
-  "$FLUTTER_BIN" build "$PLATFORM" --release
+  "$FLUTTER_BIN" build "$PLATFORM" --release "${FLUTTER_DEFINES[@]}"
 )
 
 echo "[3/4] Copying agent into client bundle"

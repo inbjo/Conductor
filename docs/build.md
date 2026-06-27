@@ -264,6 +264,18 @@ cd client
 ./scripts/build-client.sh
 ```
 
+可在构建时写入客户端默认配置；未传参数时使用内置默认值，运行后仍可在 Settings 页修改：
+
+```sh
+./scripts/build-client.sh \
+  --server-url ws://127.0.0.1:8080/ws/agent \
+  --agent-token dev-agent-token-change-me \
+  --agent-name linux-client-01 \
+  --agent-root "$HOME" \
+  --audio-input default \
+  --interactive-approval false
+```
+
 脚本会执行：
 
 1. `cargo build --release -p conductor-agent`
@@ -312,6 +324,18 @@ timeout 5s client/build/linux/x64/release/bundle/conductor_client
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\build-client.ps1
+```
+
+可在构建时写入客户端默认配置；未传参数时使用内置默认值，运行后仍可在 Settings 页修改：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-client.ps1 `
+  -ServerUrl "ws://127.0.0.1:8080/ws/agent" `
+  -AgentToken "dev-agent-token-change-me" `
+  -AgentName "windows-client-01" `
+  -AgentRoot "$env:USERPROFILE" `
+  -AudioInput "default" `
+  -InteractiveApproval "false"
 ```
 
 如果 Flutter 不在默认位置：
