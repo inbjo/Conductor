@@ -278,10 +278,11 @@ cd client
 
 脚本会执行：
 
-1. `cargo build --release -p conductor-agent`
-2. `flutter build linux --release`
-3. 将 `target/release/conductor-agent` 复制到 Flutter bundle 同目录
-4. 生成 `release/conductor-client-linux-x64.tar.gz`
+1. `flutter config --enable-linux-desktop`
+2. `cargo build --release -p conductor-agent`
+3. `flutter build linux --release`
+4. 将 `target/release/conductor-agent` 复制到 Flutter bundle 同目录
+5. 生成 `release/conductor-client-linux-x64.tar.gz`
 
 输出目录：
 
@@ -398,10 +399,11 @@ Windows 验收优先级：
 
 脚本会执行：
 
-1. `cargo build --release -p conductor-agent`
-2. `flutter build macos --release`
-3. 将 `target/release/conductor-agent` 复制到 `conductor_client.app/Contents/MacOS/`
-4. 生成 `release/conductor-client-macos.tar.gz`
+1. `flutter config --enable-macos-desktop`
+2. `cargo build --release -p conductor-agent`
+3. `flutter build macos --release`
+4. 将 `target/release/conductor-agent` 复制到 `conductor_client.app/Contents/MacOS/`
+5. 生成 `release/conductor-client-macos.tar.gz`
 
 输出应用：
 

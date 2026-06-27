@@ -143,10 +143,13 @@ case "$(uname -s)" in
     ;;
 esac
 
-echo "[1/4] Building Rust agent"
+echo "[1/5] Enabling Flutter $PLATFORM desktop target"
+"$FLUTTER_BIN" config "--enable-$PLATFORM-desktop"
+
+echo "[2/5] Building Rust agent"
 cargo build --manifest-path "$ROOT_DIR/Cargo.toml" --release -p conductor-agent
 
-echo "[2/4] Building Flutter client for $PLATFORM"
+echo "[3/5] Building Flutter client for $PLATFORM"
 FLUTTER_DEFINES=()
 if [[ -n "$DEFAULT_SERVER_URL" ]]; then
   FLUTTER_DEFINES+=(--dart-define "CONDUCTOR_DEFAULT_SERVER_URL=$DEFAULT_SERVER_URL")
@@ -174,11 +177,11 @@ fi
   "$FLUTTER_BIN" build "$PLATFORM" --release "${FLUTTER_DEFINES[@]}"
 )
 
-echo "[3/4] Copying agent into client bundle"
+echo "[4/5] Copying agent into client bundle"
 mkdir -p "$BUNDLE_DIR"
 cp "$ROOT_DIR/target/release/$AGENT_NAME" "$BUNDLE_DIR/$AGENT_NAME"
 
-echo "[4/4] Creating distributable archive"
+echo "[5/5] Creating distributable archive"
 mkdir -p "$RELEASE_DIR"
 tar -czf "$ARCHIVE_PATH" -C "$ARCHIVE_CWD" "$ARCHIVE_ITEM"
 
