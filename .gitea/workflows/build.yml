@@ -107,6 +107,10 @@ jobs:
         shell: pwsh
         run: .\scripts\verify-client-archive.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
 
+      - name: Smoke launch Windows client
+        shell: pwsh
+        run: .\scripts\smoke-client-launch.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
+
       - name: Upload Windows client
         uses: actions/upload-artifact@v4
         with:

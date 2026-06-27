@@ -158,6 +158,15 @@ release\conductor-client-windows-x64.zip
 - `conductor-agent.exe`
 - Flutter 运行时 DLL 和 data 目录
 
+校验 zip 结构并做一次启动 smoke：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\verify-client-archive.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
+powershell -ExecutionPolicy Bypass -File .\scripts\smoke-client-launch.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
+```
+
+启动 smoke 会解压 zip，从解包目录启动 `conductor_client.exe`，等待数秒确认进程没有立刻退出，然后主动结束进程。它用于发现缺 DLL、入口程序无法启动或归档目录错误。
+
 运行 `conductor_client.exe`，填写 Server 地址和 Token，点击 `Start Agent`。后台设备列表出现该 Windows 终端后，再进入远控页验证屏幕、输入、文件和聊天流程。
 
 Windows 首次跑通建议：
