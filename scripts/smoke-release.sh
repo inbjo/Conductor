@@ -46,6 +46,10 @@ require_file() {
 
 require_file "$SERVER_BIN"
 require_file "$AGENT_BIN"
+if [[ ! -f "$RELEASE_DIR/SHA256SUMS" ]]; then
+  echo "Missing checksum file: $RELEASE_DIR/SHA256SUMS" >&2
+  exit 1
+fi
 
 rm -f "$DB_PATH" "$DB_PATH-shm" "$DB_PATH-wal"
 : >"$SERVER_LOG"
@@ -58,7 +62,13 @@ if curl -fsS "$BASE_URL/health" >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "[1/7] Starting release server"
+echo "[1/8] Verifying release checksums"
+(
+  cd "$RELEASE_DIR"
+  sha256sum -c SHA256SUMS
+)
+
+echo "[2/8] Starting release server"
 CONDUCTOR_DB="$DB_PATH" \
 CONDUCTOR_BIND="127.0.0.1:$PORT" \
 CONDUCTOR_ADMIN_PASSWORD="$ADMIN_PASSWORD" \
@@ -75,7 +85,7 @@ for _ in {1..50}; do
 done
 curl -fsS "$BASE_URL/health" | grep -q '"ok":true'
 
-echo "[2/7] Checking embedded web routes"
+echo "[3/8] Checking embedded web routes"
 curl -fsSI "$BASE_URL/" | grep -qi '^content-type: text/html'
 curl -fsSI "$BASE_URL/devices" | grep -qi '^content-type: text/html'
 if curl -fsSI "$BASE_URL/api/not-real" >/dev/null 2>&1; then
@@ -83,14 +93,14 @@ if curl -fsSI "$BASE_URL/api/not-real" >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "[3/7] Starting release agent"
+echo "[4/8] Starting release agent"
 CONDUCTOR_SERVER_URL="ws://127.0.0.1:$PORT/ws/agent" \
 CONDUCTOR_AGENT_TOKEN="$AGENT_TOKEN" \
 CONDUCTOR_AGENT_NAME="demo-smoke-agent" \
 "$AGENT_BIN" >"$AGENT_LOG" 2>&1 &
 agent_pid="$!"
 
-echo "[4/7] Logging in"
+echo "[5/8] Logging in"
 login_body="$(curl -fsS -X POST "$BASE_URL/api/auth/login" \
   -H 'Content-Type: application/json' \
   -d "{\"username\":\"admin\",\"password\":\"$ADMIN_PASSWORD\"}")"
@@ -100,7 +110,7 @@ if [[ -z "$token" ]]; then
   exit 1
 fi
 
-echo "[5/7] Waiting for agent registration"
+echo "[6/8] Waiting for agent registration"
 devices=""
 for _ in {1..50}; do
   devices="$(curl -fsS "$BASE_URL/api/devices" -H "Authorization: Bearer $token")"
@@ -115,7 +125,7 @@ if [[ -z "$device_id" ]]; then
   exit 1
 fi
 
-echo "[6/7] Checking session, files, and chat"
+echo "[7/8] Checking session, files, and chat"
 session_body="$(curl -fsS -X POST "$BASE_URL/api/sessions" \
   -H "Authorization: Bearer $token" \
   -H 'Content-Type: application/json' \
@@ -143,7 +153,7 @@ curl -fsS -X POST "$BASE_URL/api/sessions/$session_id/messages" \
   -H 'Content-Type: application/json' \
   -d '{"text":"release smoke hello"}' | grep -q '"text":"release smoke hello"'
 
-echo "[7/7] Closing session"
+echo "[8/8] Closing session"
 curl -fsS -X POST "$BASE_URL/api/sessions/$session_id/close" \
   -H "Authorization: Bearer $token" | grep -q '"status":"closed"'
 
