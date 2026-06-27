@@ -349,6 +349,9 @@ function useAdminSocket(token: string | null) {
         }
         if (payload.type === 'error') {
           addLog(payload.session_id || 'global', `error ${payload.message}`);
+          if (payload.session_id) {
+            pushSignal(payload.session_id, 'error', { message: payload.message });
+          }
         }
       };
       socket.onclose = () => {
@@ -1264,6 +1267,10 @@ function useSessionRtc({
             setStatus('unexpected_offer');
             setDetail('agent offer not supported yet');
             addEvent('rtc unexpected offer');
+          }
+          if (signal.kind === 'error') {
+            const payload = signal.payload as { message?: unknown };
+            throw new Error(typeof payload?.message === 'string' ? payload.message : 'server command failed');
           }
         } catch (error) {
           const message = error instanceof Error ? error.message : `signal ${signal.kind} failed`;
