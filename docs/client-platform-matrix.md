@@ -132,7 +132,7 @@ Visual Studio / MSVC 版本：
 4. 在 Settings 页填写正确 Token 和容易识别的 Agent Name。
 5. 点击 `Start Agent`，后台设备列表应出现该 Windows 终端。
 6. 验证文件列表、聊天、远控会话创建、屏幕画面和鼠标键盘输入。
-7. 如有失败，保留 Client 日志、Server 日志、Windows Defender/防火墙状态和 `flutter doctor -v` 输出。
+7. 如有失败，在客户端 `Agent Command` 输入 `/diagnostics`，保留 Client 日志、Server 日志、Windows Defender/防火墙状态和 `flutter doctor -v` 输出。
 
 ## macOS 验收记录模板
 
@@ -202,6 +202,7 @@ Xcode 版本：
 
 - `.app` 可启动内置 `Contents/MacOS/conductor-agent`。
 - macOS 设备可注册到 Server；CI 的基础 e2e smoke 会验证 Flutter 客户端可自动拉起包内 Agent 并注册到本地 smoke server。
+- 客户端 `Agent Command` 的 `/diagnostics` 可输出 `screencapture`、`ffmpeg`、`ffplay` 等依赖探测结果，用于定位权限或缺依赖问题。
 - 文件列表可打开并受 `CONDUCTOR_AGENT_ROOT` 限制。
 - 授权后远控画面、输入和语音符合预期。
 

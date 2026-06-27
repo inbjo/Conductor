@@ -647,6 +647,7 @@ $env:CONDUCTOR_CLIENT_AGENT_BIN = "C:\path\to\conductor-agent.exe"
 - Settings 页中的 `Server URL` 是否指向正确 Server。客户端会自动把 `http://host:port` 或 `host:port` 转成 `ws://host:port/ws/agent`。
 - Settings 页中的 Agent Token 是否等于 Server 的 `CONDUCTOR_AGENT_TOKEN`。
 - 如果在 CI 或 smoke 中运行客户端，设置 `CONDUCTOR_CLIENT_SETTINGS_FILE` 到临时路径，避免读取或覆盖用户 home 下的 `.conductor-client/settings.json`。
+- 客户端已启动 Agent 时，可在 `Agent Command` 输入 `/diagnostics`，查看平台、文件根目录、本地审批状态、音频输入、屏幕捕获后端和 `ffmpeg`/`ffplay` 依赖探测结果。
 - Agent 日志是否出现连接失败或鉴权失败。
 
 ### Windows 构建失败找不到 C++ 工具链

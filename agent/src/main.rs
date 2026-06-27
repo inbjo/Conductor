@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     path::{Component, Path, PathBuf},
+    process::Command as StdCommand,
     sync::Arc,
     time::Duration,
 };
@@ -302,7 +303,11 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
     let mut audio_capture_tasks = HashMap::<String, AudioCaptureTask>::new();
     let mut session_frames = HashMap::<String, (u32, u32)>::new();
     let mut input = InputController::new();
-    let mut console = AgentConsole::new(cfg.device_id.clone(), cfg.interactive_approval);
+    let mut console = AgentConsole::new(
+        cfg.device_id.clone(),
+        cfg.root_dir.clone(),
+        cfg.interactive_approval,
+    );
     let mut stdin_lines = BufReader::new(tokio::io::stdin()).lines();
     let mut stdin_open = true;
     let mut frame_no = 0_u64;
@@ -1072,6 +1077,7 @@ async fn apply_browser_offer(pc: &RTCPeerConnection, sdp: &str) -> anyhow::Resul
 
 struct AgentConsole {
     device_id: String,
+    root_dir: PathBuf,
     current_session: Option<String>,
     known_sessions: Vec<String>,
     interactive_approval: bool,
@@ -1080,9 +1086,10 @@ struct AgentConsole {
 }
 
 impl AgentConsole {
-    fn new(device_id: String, interactive_approval: bool) -> Self {
+    fn new(device_id: String, root_dir: PathBuf, interactive_approval: bool) -> Self {
         Self {
             device_id,
+            root_dir,
             current_session: None,
             known_sessions: Vec::new(),
             interactive_approval,
@@ -1097,6 +1104,7 @@ impl AgentConsole {
         println!("  /sessions               查看可回复的会话");
         println!("  /use <session_id>       切换当前会话");
         println!("  /reply <id> <text>      向指定会话发送回复");
+        println!("  /diagnostics            输出本机依赖和权限排障信息");
         println!("  直接输入文本            发送到当前会话");
         if self.interactive_approval {
             println!("  /requests               查看待处理的远控/语音请求");
@@ -1192,6 +1200,10 @@ impl AgentConsole {
             }
             ConsoleCommand::Requests => {
                 self.print_requests();
+                None
+            }
+            ConsoleCommand::Diagnostics => {
+                self.print_diagnostics();
                 None
             }
             ConsoleCommand::Use { session_id } => {
@@ -1305,6 +1317,12 @@ impl AgentConsole {
             }
         }
     }
+
+    fn print_diagnostics(&self) {
+        for line in diagnostics_lines(&self.device_id, &self.root_dir, self.interactive_approval) {
+            println!("{line}");
+        }
+    }
 }
 
 enum ConsoleAction {
@@ -1319,6 +1337,7 @@ enum ConsoleCommand {
     Help,
     Sessions,
     Requests,
+    Diagnostics,
     Use { session_id: String },
     Send { session_id: String, text: String },
     AcceptSession { session_id: String },
@@ -1338,6 +1357,9 @@ fn parse_console_command(line: &str, current_session: Option<&str>) -> ConsoleCo
     }
     if trimmed.eq_ignore_ascii_case("/requests") {
         return ConsoleCommand::Requests;
+    }
+    if trimmed.eq_ignore_ascii_case("/diagnostics") {
+        return ConsoleCommand::Diagnostics;
     }
     if let Some(rest) = trimmed.strip_prefix("/use ") {
         let session_id = rest.trim();
@@ -1414,6 +1436,75 @@ fn parse_request_command(rest: &str, kind: &str) -> ConsoleCommand {
         _ => ConsoleCommand::Error(format!(
             "usage: /{kind} <accept|reject> <session_id> [reason]"
         )),
+    }
+}
+
+fn diagnostics_lines(device_id: &str, root_dir: &Path, interactive_approval: bool) -> Vec<String> {
+    let audio_input = non_empty_env("CONDUCTOR_AUDIO_INPUT").unwrap_or_else(|| "default".into());
+    let mut lines = vec![
+        "[diagnostics] conductor-agent".to_string(),
+        format!("[diagnostics] version={VERSION}"),
+        format!("[diagnostics] os={}", std::env::consts::OS),
+        format!("[diagnostics] arch={}", std::env::consts::ARCH),
+        format!("[diagnostics] device_id={device_id}"),
+        format!("[diagnostics] root={}", root_dir.display()),
+        format!("[diagnostics] audio_input={audio_input}"),
+        format!("[diagnostics] interactive_approval={interactive_approval}"),
+    ];
+
+    lines.push("[diagnostics] screen capture backends:".to_string());
+    for command in screen_capture_dependency_commands() {
+        lines.push(format!(
+            "[diagnostics]   {command}: {}",
+            command_status(command)
+        ));
+    }
+
+    lines.push("[diagnostics] audio dependencies:".to_string());
+    for command in audio_dependency_commands() {
+        lines.push(format!(
+            "[diagnostics]   {command}: {}",
+            command_status(command)
+        ));
+    }
+    lines
+}
+
+fn screen_capture_dependency_commands() -> &'static [&'static str] {
+    if cfg!(target_os = "linux") {
+        &["grim", "gnome-screenshot", "import"]
+    } else if cfg!(target_os = "macos") {
+        &["screencapture"]
+    } else if cfg!(target_os = "windows") {
+        &["powershell"]
+    } else {
+        &[]
+    }
+}
+
+fn audio_dependency_commands() -> &'static [&'static str] {
+    &["ffmpeg", "ffplay"]
+}
+
+fn command_status(command: &str) -> &'static str {
+    if command_available(command) {
+        "found"
+    } else {
+        "missing"
+    }
+}
+
+fn command_available(command: &str) -> bool {
+    if cfg!(target_os = "windows") {
+        StdCommand::new("where")
+            .arg(command)
+            .output()
+            .is_ok_and(|output| output.status.success())
+    } else {
+        StdCommand::new("sh")
+            .args(["-c", "command -v \"$1\" >/dev/null 2>&1", "sh", command])
+            .output()
+            .is_ok_and(|output| output.status.success())
     }
 }
 
@@ -2092,6 +2183,31 @@ mod tests {
             }
             _ => panic!("expected voice reject command"),
         }
+    }
+
+    #[test]
+    fn console_command_parses_diagnostics() {
+        assert!(matches!(
+            parse_console_command("/diagnostics", None),
+            ConsoleCommand::Diagnostics
+        ));
+        assert!(matches!(
+            parse_console_command("/DIAGNOSTICS", None),
+            ConsoleCommand::Diagnostics
+        ));
+    }
+
+    #[test]
+    fn diagnostics_include_platform_and_dependency_sections() {
+        let lines = diagnostics_lines("device-1", Path::new("/tmp/root"), true);
+        assert!(lines.iter().any(|line| line.contains("device_id=device-1")));
+        assert!(lines.iter().any(|line| line.contains("root=/tmp/root")));
+        assert!(lines.iter().any(|line| line.contains("os=")));
+        assert!(lines
+            .iter()
+            .any(|line| line.contains("screen capture backends")));
+        assert!(lines.iter().any(|line| line.contains("audio dependencies")));
+        assert!(lines.iter().any(|line| line.contains("ffmpeg:")));
     }
 
     #[test]
