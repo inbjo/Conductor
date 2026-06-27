@@ -1955,10 +1955,13 @@ async fn static_handler(uri: axum::http::Uri) -> Response {
     if asset_path.starts_with("api/") || asset_path.starts_with("ws/") {
         return StatusCode::NOT_FOUND.into_response();
     }
-    let file = WebAssets::get(asset_path).or_else(|| WebAssets::get("index.html"));
+    let (file, mime_path) = match WebAssets::get(asset_path) {
+        Some(file) => (Some(file), asset_path),
+        None => (WebAssets::get("index.html"), "index.html"),
+    };
     match file {
         Some(content) => {
-            let mime = mime_guess::from_path(asset_path).first_or_octet_stream();
+            let mime = mime_guess::from_path(mime_path).first_or_octet_stream();
             let mut headers = HeaderMap::new();
             headers.insert(
                 header::CONTENT_TYPE,
