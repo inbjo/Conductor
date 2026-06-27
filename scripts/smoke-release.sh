@@ -8,11 +8,14 @@ BASE_URL="http://127.0.0.1:$PORT"
 SERVER_BIN="$RELEASE_DIR/bin/conductor-server"
 AGENT_BIN="$RELEASE_DIR/bin/conductor-agent"
 DB_PATH="${CONDUCTOR_SMOKE_DB:-/tmp/conductor-smoke-$PORT.sqlite3}"
+AGENT_ROOT="${CONDUCTOR_SMOKE_AGENT_ROOT:-/tmp/conductor-smoke-agent-root-$PORT}"
 ADMIN_PASSWORD="${CONDUCTOR_SMOKE_ADMIN_PASSWORD:-admin123}"
 JWT_SECRET="${CONDUCTOR_SMOKE_JWT_SECRET:-demo-smoke-secret}"
 AGENT_TOKEN="${CONDUCTOR_SMOKE_AGENT_TOKEN:-demo-smoke-token}"
 SERVER_LOG="${CONDUCTOR_SMOKE_SERVER_LOG:-/tmp/conductor-smoke-server-$PORT.log}"
 AGENT_LOG="${CONDUCTOR_SMOKE_AGENT_LOG:-/tmp/conductor-smoke-agent-$PORT.log}"
+UPLOAD_FILE="/tmp/conductor-smoke-upload-$PORT.txt"
+DOWNLOAD_FILE="/tmp/conductor-smoke-download-$PORT.txt"
 
 server_pid=""
 agent_pid=""
@@ -51,7 +54,10 @@ if [[ ! -f "$RELEASE_DIR/SHA256SUMS" ]]; then
   exit 1
 fi
 
-rm -f "$DB_PATH" "$DB_PATH-shm" "$DB_PATH-wal"
+rm -f "$DB_PATH" "$DB_PATH-shm" "$DB_PATH-wal" "$UPLOAD_FILE" "$DOWNLOAD_FILE"
+rm -rf "$AGENT_ROOT"
+mkdir -p "$AGENT_ROOT"
+printf 'conductor smoke file operation\n' >"$UPLOAD_FILE"
 : >"$SERVER_LOG"
 : >"$AGENT_LOG"
 
@@ -97,6 +103,7 @@ echo "[4/8] Starting release agent"
 CONDUCTOR_SERVER_URL="ws://127.0.0.1:$PORT/ws/agent" \
 CONDUCTOR_AGENT_TOKEN="$AGENT_TOKEN" \
 CONDUCTOR_AGENT_NAME="demo-smoke-agent" \
+CONDUCTOR_AGENT_ROOT="$AGENT_ROOT" \
 "$AGENT_BIN" >"$AGENT_LOG" 2>&1 &
 agent_pid="$!"
 
@@ -147,6 +154,23 @@ done
 printf '%s' "$session" | grep -q '"status":"active"'
 
 curl -fsS "$BASE_URL/api/devices/$device_id/files?path=." \
+  -H "Authorization: Bearer $token" | grep -q '"ok":true'
+curl -fsS -X POST "$BASE_URL/api/devices/$device_id/files/mkdir" \
+  -H "Authorization: Bearer $token" \
+  -H 'Content-Type: application/json' \
+  -d '{"path":".","name":"smoke-dir"}' | grep -q '"ok":true'
+curl -fsS -X POST "$BASE_URL/api/devices/$device_id/files/upload" \
+  -H "Authorization: Bearer $token" \
+  -F path=smoke-dir \
+  -F "file=@$UPLOAD_FILE;filename=hello.txt" | grep -q '"ok":true'
+curl -fsS "$BASE_URL/api/devices/$device_id/files?path=smoke-dir" \
+  -H "Authorization: Bearer $token" | grep -q '"name":"hello.txt"'
+curl -fsS "$BASE_URL/api/devices/$device_id/files/download?path=smoke-dir/hello.txt" \
+  -H "Authorization: Bearer $token" >"$DOWNLOAD_FILE"
+cmp -s "$UPLOAD_FILE" "$DOWNLOAD_FILE"
+curl -fsS -X DELETE "$BASE_URL/api/devices/$device_id/files?path=smoke-dir/hello.txt" \
+  -H "Authorization: Bearer $token" | grep -q '"ok":true'
+curl -fsS -X DELETE "$BASE_URL/api/devices/$device_id/files?path=smoke-dir" \
   -H "Authorization: Bearer $token" | grep -q '"ok":true'
 curl -fsS -X POST "$BASE_URL/api/sessions/$session_id/messages" \
   -H "Authorization: Bearer $token" \

@@ -256,8 +256,11 @@ impl Config {
                 id
             }
         };
-        let root_dir = BaseDirs::new()
-            .and_then(|d| Some(d.home_dir().to_path_buf()))
+        let root_dir = std::env::var("CONDUCTOR_AGENT_ROOT")
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+            .map(PathBuf::from)
+            .or_else(|| BaseDirs::new().map(|d| d.home_dir().to_path_buf()))
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
         Ok(Self {
             server_url,
