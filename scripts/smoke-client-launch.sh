@@ -19,6 +19,7 @@ tmp_dir="$(mktemp -d)"
 client=""
 agent=""
 client_pid=""
+# shellcheck disable=SC2317 # Called by the EXIT trap.
 cleanup() {
   if [[ -n "$client_pid" ]] && kill -0 "$client_pid" 2>/dev/null; then
     kill "$client_pid" 2>/dev/null || true
