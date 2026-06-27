@@ -15,11 +15,16 @@
 - `README.md`
 - `docs/demo.md`
 - `docs/plan.md`
+- `scripts/smoke-release.sh`
 - `source/`
 
 正式演示前建议先在本机做一次 smoke test：
 
 ```sh
+# 在解包后的 release 目录内执行
+./scripts/smoke-release.sh .
+
+# 或在源码仓库内指定 release 目录
 ./scripts/smoke-release.sh release/conductor-<target>
 ```
 
