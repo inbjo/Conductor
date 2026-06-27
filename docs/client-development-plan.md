@@ -44,7 +44,7 @@ Flutter 客户端不重写远控能力。它只把用户输入转换为 `conduct
 
 当前缺口：
 
-- Windows 需要真实 Windows 环境执行 `scripts/build-client.ps1`，再运行 `scripts/verify-client-archive.ps1`、`scripts/smoke-agent-launch.ps1` 和 `scripts/smoke-client-launch.ps1`。
+- Windows 需要真实 Windows 环境执行 `scripts/build-client.ps1`，再运行 `scripts/verify-client-archive.ps1`、`scripts/smoke-agent-launch.ps1`、`scripts/smoke-windows-agent-e2e.ps1` 和 `scripts/smoke-client-launch.ps1`。
 - macOS 需要真实 macOS 环境执行 `scripts/build-client.sh` 并运行 `scripts/verify-client-archive.sh macos ...`。
 - 自建 Gitea/Forgejo Actions 需要配置 `windows-2022` 和 `macos-14` 对应 runner，否则只能验证 workflow 配置，不能产出平台包。
 
@@ -128,6 +128,7 @@ Windows runner 或真机运行：
 powershell -ExecutionPolicy Bypass -File .\scripts\build-client.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\verify-client-archive.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
 powershell -ExecutionPolicy Bypass -File .\scripts\smoke-agent-launch.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
+powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-agent-e2e.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
 powershell -ExecutionPolicy Bypass -File .\scripts\smoke-client-launch.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
 ```
 

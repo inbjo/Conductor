@@ -93,11 +93,26 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
+
+      - name: Build web assets for server smoke
+        run: |
+          npm --prefix web ci
+          npm --prefix web run build
+
+      - name: Build Windows smoke server
+        run: cargo build -p conductor-server
 
       - name: Build Windows client
         shell: pwsh
@@ -112,6 +127,10 @@ jobs:
       - name: Smoke launch bundled Windows agent
         shell: pwsh
         run: .\scripts\smoke-agent-launch.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
+
+      - name: Smoke register bundled Windows agent
+        shell: pwsh
+        run: .\scripts\smoke-windows-agent-e2e.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
 
       - name: Smoke launch Windows client
         shell: pwsh

@@ -530,6 +530,10 @@ $env:FLUTTER_BIN = "$env:USERPROFILE\Code\flutter\bin\flutter.bat"
 powershell -ExecutionPolicy Bypass -File .\scripts\build-client.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\verify-client-archive.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
 powershell -ExecutionPolicy Bypass -File .\scripts\smoke-agent-launch.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
+npm --prefix web ci
+npm --prefix web run build
+cargo build -p conductor-server
+powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-agent-e2e.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
 powershell -ExecutionPolicy Bypass -File .\scripts\smoke-client-launch.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
 ```
 
