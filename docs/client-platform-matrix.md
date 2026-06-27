@@ -90,7 +90,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\validate-windows-client.ps1 -
 | `Build Windows client package` | `scripts/build-client.ps1` 能构建 `conductor-agent.exe` 和 Flutter Windows 客户端。 |
 | `Build web assets` | Server smoke 使用的内嵌 Web 静态资源可构建。 |
 | `Build smoke server` | `target\debug\conductor-server.exe` 可构建。 |
-| `Verify Windows client archive` | zip 内包含 `conductor_client.exe`、`conductor-agent.exe`、`flutter_windows.dll` 和 `data\flutter_assets`。 |
+| `Verify Windows client archive` | `.zip.sha256` 与 zip 匹配，zip 内包含 `conductor_client.exe`、`conductor-agent.exe`、`flutter_windows.dll` 和 `data\flutter_assets`。 |
 | `Smoke launch bundled Windows agent` | 包内 Agent 可启动，不会因为缺 DLL 或入口错误立刻崩溃。 |
 | `Smoke register bundled Windows agent` | 包内 Agent 能连到本地 smoke server 并注册上线。 |
 | `Smoke register through Windows client` | Flutter 客户端能自动拉起包内 Agent，Agent 能注册上线。 |

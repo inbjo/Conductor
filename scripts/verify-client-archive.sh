@@ -13,6 +13,21 @@ if [[ ! -f "$archive" ]]; then
   echo "Archive not found: $archive" >&2
   exit 1
 fi
+if [[ ! -f "$archive.sha256" ]]; then
+  echo "Archive checksum not found: $archive.sha256" >&2
+  exit 1
+fi
+
+archive_dir="$(dirname "$archive")"
+archive_name="$(basename "$archive")"
+(
+  cd "$archive_dir"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum -c "$archive_name.sha256"
+  else
+    shasum -a 256 -c "$archive_name.sha256"
+  fi
+)
 
 list="$(tar -tzf "$archive")"
 verbose_list="$(tar -tvzf "$archive")"

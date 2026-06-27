@@ -8,6 +8,19 @@ $ErrorActionPreference = "Stop"
 if (!(Test-Path $ArchivePath)) {
     Write-Error "Archive not found: $ArchivePath"
 }
+$ChecksumPath = "$ArchivePath.sha256"
+if (!(Test-Path $ChecksumPath)) {
+    Write-Error "Archive checksum not found: $ChecksumPath"
+}
+$ExpectedLine = (Get-Content $ChecksumPath -ErrorAction Stop | Select-Object -First 1).Trim()
+$ExpectedHash = ($ExpectedLine -split "\s+")[0].ToLowerInvariant()
+if ($ExpectedHash -notmatch "^[a-f0-9]{64}$") {
+    Write-Error "Archive checksum file is invalid: $ChecksumPath"
+}
+$ActualHash = (Get-FileHash -Algorithm SHA256 -Path $ArchivePath).Hash.ToLowerInvariant()
+if ($ActualHash -ne $ExpectedHash) {
+    Write-Error "Archive checksum mismatch. Expected: $ExpectedHash Actual: $ActualHash"
+}
 
 $TempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("conductor-client-verify-" + [System.Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
