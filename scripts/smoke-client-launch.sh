@@ -16,7 +16,20 @@ if [[ ! -f "$archive" ]]; then
 fi
 
 tmp_dir="$(mktemp -d)"
+client=""
+agent=""
+client_pid=""
 cleanup() {
+  if [[ -n "$client_pid" ]] && kill -0 "$client_pid" 2>/dev/null; then
+    kill "$client_pid" 2>/dev/null || true
+    wait "$client_pid" 2>/dev/null || true
+  fi
+  if [[ -n "$client" ]]; then
+    pkill -f "$client" 2>/dev/null || true
+  fi
+  if [[ -n "$agent" ]]; then
+    pkill -f "$agent" 2>/dev/null || true
+  fi
   rm -rf "$tmp_dir"
 }
 trap cleanup EXIT
@@ -63,9 +76,11 @@ if kill -0 "$client_pid" 2>/dev/null; then
   kill "$client_pid" 2>/dev/null || true
   wait "$client_pid" 2>/dev/null
   status=0
+  client_pid=""
 else
   wait "$client_pid"
   status=$?
+  client_pid=""
 fi
 set -e
 
