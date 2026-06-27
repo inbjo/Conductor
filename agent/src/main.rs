@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     path::{Component, Path, PathBuf},
+    sync::Arc,
     time::Duration,
 };
 
@@ -15,9 +16,19 @@ use serde_json::Value;
 use sysinfo::System;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
+use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{error, info, warn};
 use uuid::Uuid;
+use webrtc::api::media_engine::MediaEngine;
+use webrtc::api::APIBuilder;
+use webrtc::data_channel::data_channel_message::DataChannelMessage;
+use webrtc::data_channel::RTCDataChannel;
+use webrtc::ice_transport::ice_candidate::RTCIceCandidate;
+use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
+use webrtc::peer_connection::configuration::RTCConfiguration;
+use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
+use webrtc::peer_connection::RTCPeerConnection;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -240,6 +251,9 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
     let mut heartbeat = tokio::time::interval(Duration::from_secs(10));
     let mut frame_tick = tokio::time::interval(Duration::from_millis(1000));
     let mut active_sessions = HashSet::<String>::new();
+    let rtc_api = build_webrtc_api()?;
+    let (rtc_tx, mut rtc_rx) = mpsc::unbounded_channel::<AgentToServer>();
+    let mut rtc_sessions = HashMap::<String, Arc<RTCPeerConnection>>::new();
     let mut session_frames = HashMap::<String, (u32, u32)>::new();
     let mut input = InputController::new();
     let mut console = AgentConsole::new(cfg.device_id.clone(), cfg.interactive_approval);
@@ -262,6 +276,9 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                     send_json(&mut write, &AgentToServer::ScreenFrame(frame)).await?;
                 }
             }
+            Some(rtc_msg) = rtc_rx.recv() => {
+                send_json(&mut write, &rtc_msg).await?;
+            }
             line = stdin_lines.next_line(), if stdin_open => {
                 match line {
                     Ok(Some(line)) => {
@@ -277,10 +294,6 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                                     let frame = capture_screen_frame(&cfg, &session_id, frame_no).await;
                                     session_frames.insert(session_id.clone(), (frame.width, frame.height));
                                     send_json(&mut write, &AgentToServer::ScreenFrame(frame)).await?;
-                                    send_json(&mut write, &AgentToServer::WebrtcOffer {
-                                        session_id: session_id.clone(),
-                                        sdp: "placeholder-offer: screen capture and WebRTC transport are reserved for the next implementation pass".into(),
-                                    }).await?;
                                 }
                                 ConsoleAction::RejectSession { session_id, reason } => {
                                     console.mark_session_rejected(&session_id);
@@ -338,26 +351,43 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                             let frame = capture_screen_frame(&cfg, &session_id, frame_no).await;
                             session_frames.insert(session_id.clone(), (frame.width, frame.height));
                             send_json(&mut write, &AgentToServer::ScreenFrame(frame)).await?;
-                            send_json(&mut write, &AgentToServer::WebrtcOffer {
-                                session_id: session_id.clone(),
-                                sdp: "placeholder-offer: screen capture and WebRTC transport are reserved for the next implementation pass".into(),
-                            }).await?;
                         }
                     }
                     Ok(ServerToAgent::SessionClose { session_id }) => {
                         info!("session closed by server: {session_id}");
                         active_sessions.remove(&session_id);
                         session_frames.remove(&session_id);
+                        if let Some(pc) = rtc_sessions.remove(&session_id) {
+                            let _ = pc.close().await;
+                        }
                         console.close_session(&session_id);
                     }
                     Ok(ServerToAgent::WebrtcOffer { session_id, sdp }) => {
-                        info!("received admin offer for session {session_id}: {} bytes", sdp.len());
+                        let pc = ensure_rtc_session(
+                            &rtc_api,
+                            &mut rtc_sessions,
+                            &session_id,
+                            rtc_tx.clone(),
+                        )
+                        .await?;
+                        let answer_sdp = apply_browser_offer(&pc, &sdp).await?;
+                        send_json(&mut write, &AgentToServer::WebrtcAnswer {
+                            session_id,
+                            sdp: answer_sdp,
+                        }).await?;
                     }
                     Ok(ServerToAgent::WebrtcAnswer { session_id, sdp }) => {
                         info!("received admin answer for session {session_id}: {} bytes", sdp.len());
                     }
                     Ok(ServerToAgent::WebrtcIceCandidate { session_id, candidate }) => {
-                        info!("received ICE candidate for session {session_id}: {candidate}");
+                        let Some(pc) = rtc_sessions.get(&session_id) else {
+                            warn!("received ICE candidate for unknown rtc session {session_id}");
+                            continue;
+                        };
+                        let candidate: RTCIceCandidateInit = serde_json::from_value(candidate)
+                            .with_context(|| format!("invalid ICE candidate for session {session_id}"))?;
+                        pc.add_ice_candidate(candidate).await
+                            .with_context(|| format!("add ICE candidate for session {session_id}"))?;
                     }
                     Ok(ServerToAgent::VoiceRequest { session_id }) => {
                         if cfg.interactive_approval {
@@ -382,6 +412,106 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
             }
         }
     }
+}
+
+fn build_webrtc_api() -> anyhow::Result<webrtc::api::API> {
+    let mut media_engine = MediaEngine::default();
+    media_engine
+        .register_default_codecs()
+        .context("register webrtc codecs")?;
+    Ok(APIBuilder::new().with_media_engine(media_engine).build())
+}
+
+async fn ensure_rtc_session(
+    api: &webrtc::api::API,
+    sessions: &mut HashMap<String, Arc<RTCPeerConnection>>,
+    session_id: &str,
+    rtc_tx: mpsc::UnboundedSender<AgentToServer>,
+) -> anyhow::Result<Arc<RTCPeerConnection>> {
+    if let Some(pc) = sessions.get(session_id) {
+        return Ok(Arc::clone(pc));
+    }
+
+    let pc = Arc::new(
+        api.new_peer_connection(RTCConfiguration::default())
+            .await
+            .with_context(|| format!("create rtc peer connection for session {session_id}"))?,
+    );
+
+    let ice_session = session_id.to_string();
+    let ice_tx = rtc_tx.clone();
+    pc.on_ice_candidate(Box::new(move |candidate: Option<RTCIceCandidate>| {
+        let ice_session = ice_session.clone();
+        let ice_tx = ice_tx.clone();
+        Box::pin(async move {
+            let Some(candidate) = candidate else {
+                return;
+            };
+            match candidate.to_json() {
+                Ok(json) => {
+                    let payload = serde_json::to_value(json).unwrap_or(Value::Null);
+                    let _ = ice_tx.send(AgentToServer::WebrtcIceCandidate {
+                        session_id: ice_session,
+                        candidate: payload,
+                    });
+                }
+                Err(err) => warn!("serialize local ICE candidate failed: {err}"),
+            }
+        })
+    }));
+
+    let data_session = session_id.to_string();
+    pc.on_data_channel(Box::new(move |dc: Arc<RTCDataChannel>| {
+        let data_session = data_session.clone();
+        Box::pin(async move {
+            let label = dc.label().to_string();
+            let open_session = data_session.clone();
+            dc.on_open(Box::new(move || {
+                let label = label.clone();
+                let open_session = open_session.clone();
+                Box::pin(async move {
+                    info!(
+                        "rtc data channel opened session={} label={}",
+                        open_session, label
+                    );
+                })
+            }));
+            dc.on_message(Box::new(move |msg: DataChannelMessage| {
+                let text = String::from_utf8_lossy(&msg.data).to_string();
+                let data_session = data_session.clone();
+                Box::pin(async move {
+                    info!(
+                        "rtc data message session={} bytes={} text={}",
+                        data_session,
+                        msg.data.len(),
+                        text
+                    );
+                })
+            }));
+        })
+    }));
+
+    sessions.insert(session_id.to_string(), Arc::clone(&pc));
+    Ok(pc)
+}
+
+async fn apply_browser_offer(pc: &RTCPeerConnection, sdp: &str) -> anyhow::Result<String> {
+    let offer = RTCSessionDescription::offer(sdp.to_string()).context("parse remote offer sdp")?;
+    pc.set_remote_description(offer)
+        .await
+        .context("set remote offer")?;
+
+    let answer = pc.create_answer(None).await.context("create rtc answer")?;
+    let mut gather_complete = pc.gathering_complete_promise().await;
+    pc.set_local_description(answer)
+        .await
+        .context("set local answer")?;
+    let _ = tokio::time::timeout(Duration::from_secs(3), gather_complete.recv()).await;
+    let local = pc
+        .local_description()
+        .await
+        .ok_or_else(|| anyhow!("missing local rtc answer"))?;
+    Ok(local.sdp)
 }
 
 struct AgentConsole {

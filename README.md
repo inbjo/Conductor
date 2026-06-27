@@ -5,7 +5,7 @@
 ## 项目结构
 
 - `server/`：Axum API、管理员鉴权、SQLite 持久化、WebSocket 实时通道、内嵌前端静态资源。
-- `agent/`：被控端命令行 Agent，负责注册、心跳、文件命令、聊天消息、本地 CLI 回复与审批交互、远控画面采集与语音占位消息。
+- `agent/`：被控端命令行 Agent，负责注册、心跳、文件命令、聊天消息、本地 CLI 回复与审批交互、远控画面采集、WebRTC SDP 应答与语音占位消息。
 - `web/`：React + TypeScript + Tailwind CSS + Vite 管理后台。
 - `docs/plan.md`：任务计划与验收标准。
 
@@ -25,6 +25,7 @@
 - Agent 可选交互审批：支持远控请求接受/拒绝、语音请求接受/拒绝
 - 语音沟通控制面板与占位协议
 - 浏览器侧 WebRTC 起始信令：会话进入 `active` 后自动发送 offer/ICE，并在远控页展示信令状态
+- Agent 侧 WebRTC 应答信令：接收浏览器 offer、返回 answer，并回传本地 ICE candidate
 - 审计日志记录与查询
 
 ### 当前仍是占位/演示实现
@@ -32,7 +33,7 @@
 - Agent 会优先尝试真实屏幕采集：Linux 依次尝试 `grim`、`gnome-screenshot`、`import`，macOS 使用 `screencapture`，Windows 使用 PowerShell 截图；当图形会话、截图工具或权限条件不满足时，回退到动态演示帧
 - 真实鼠标键盘输入依赖本机图形会话与系统权限，无法建立输入连接时会保留日志告警
 - 语音沟通只完成 UI、权限检测、协议和状态流转，未接入真实音频采集/播放
-- 浏览器侧已发起 WebRTC offer/ICE，但 Agent 端仍未建立真实 SDP 应答和媒体通道
+- 浏览器与 Agent 已可交换 WebRTC offer/answer/ICE，但仍未接入真实屏幕媒体轨和基于 DataChannel 的控制通道
 
 这意味着当前版本已经可以完整演示“后台管理、终端在线、会话、文件、聊天、审计、控制链路”，但还不是最终的真实远控产品。
 
