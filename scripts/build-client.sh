@@ -15,7 +15,8 @@ usage() {
   cat >&2 <<'EOF'
 Usage: build-client.sh [options]
 
-Builds the controlled desktop client for the current host platform.
+Builds the controlled desktop client for Linux or macOS on the current host.
+Use scripts/build-client.ps1 for the Windows zip package.
 
 Options:
   --server-url <url>             Default Server URL baked into the client.
@@ -120,14 +121,6 @@ case "$(uname -s)" in
     ARCHIVE_CWD="$BUNDLE_DIR"
     ARCHIVE_ITEM="."
     ;;
-  MINGW*|MSYS*|CYGWIN*|Windows_NT)
-    PLATFORM="windows"
-    AGENT_NAME="conductor-agent.exe"
-    BUNDLE_DIR="$ROOT_DIR/client/build/windows/x64/runner/Release"
-    ARCHIVE_PATH="$RELEASE_DIR/conductor-client-windows-x64.tar.gz"
-    ARCHIVE_CWD="$BUNDLE_DIR"
-    ARCHIVE_ITEM="."
-    ;;
   Darwin*)
     PLATFORM="macos"
     AGENT_NAME="conductor-agent"
@@ -136,6 +129,10 @@ case "$(uname -s)" in
     ARCHIVE_PATH="$RELEASE_DIR/conductor-client-macos.tar.gz"
     ARCHIVE_CWD="$(dirname "$APP_DIR")"
     ARCHIVE_ITEM="$(basename "$APP_DIR")"
+    ;;
+  MINGW*|MSYS*|CYGWIN*|Windows_NT)
+    echo "Use scripts/build-client.ps1 to build the Windows client zip package." >&2
+    exit 2
     ;;
   *)
     echo "Unsupported host platform: $(uname -s)" >&2
