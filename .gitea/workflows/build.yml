@@ -60,6 +60,28 @@ jobs:
           ./scripts/verify-linux-smoke-evidence.sh --help
           ./scripts/verify-macos-smoke-evidence.sh --help
 
+  powershell-static-checks:
+    name: PowerShell static checks
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check PowerShell scripts parse
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Get-ChildItem -Path scripts -Filter *.ps1 | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref] $tokens, [ref] $errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              $messages = $errors | ForEach-Object { "$($_.Extent.File):$($_.Extent.StartLineNumber):$($_.Message)" }
+              throw ($messages -join [Environment]::NewLine)
+            }
+            Write-Host "PowerShell syntax ok: $($_.FullName)"
+          }
+
   server-release:
     name: Server release package
     runs-on: ubuntu-24.04

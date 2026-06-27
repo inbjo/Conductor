@@ -485,6 +485,7 @@ CI 会构建并上传四类 artifact：
 | Job | Runner | 产物 |
 | --- | --- | --- |
 | `static-checks` | `ubuntu-24.04` | 不产出包；检查 workflow 镜像、shell 脚本语法和客户端 helper usage。 |
+| `powershell-static-checks` | `windows-2022` | 不产出包；检查 Windows PowerShell 脚本语法。 |
 | `server-release` | `ubuntu-24.04` | `conductor-server-linux-x64` |
 | `client-linux` | `ubuntu-24.04` | `conductor-client-linux-x64` |
 | `client-windows` | `windows-2022` | `conductor-client-windows-x64` |
@@ -501,6 +502,7 @@ CI 会构建并上传四类 artifact：
 CI 构建流程：
 
 - 静态检查：确认 GitHub/Gitea workflow 内容一致、shell 脚本可解析、客户端 helper usage 入口可执行。
+- PowerShell 静态检查：在 Windows runner 上解析 `scripts/*.ps1`，提前发现语法错误。
 - 服务端：安装 Rust/Node，执行 `scripts/build-release.sh x86_64-unknown-linux-gnu`。
 - Linux 客户端：安装 GTK/clang 依赖，执行 `scripts/build-client.sh`，校验归档并做客户端启动/e2e smoke。
 - Windows 客户端：安装 Rust/Flutter，执行 `scripts/build-client.ps1`，再用 `scripts/validate-windows-client.ps1 -SkipClientBuild -SkipServerBuild` 校验归档、Agent 启动、Agent 注册、客户端拉起 Agent、GUI 入口和 smoke evidence。
