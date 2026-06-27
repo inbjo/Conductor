@@ -753,10 +753,15 @@ async fn create_session(
         &session_id,
     )
     .await;
-    tx.send(ServerToAgent::RemoteControlRequest {
-        session_id: session_id.clone(),
-    })
-    .map_err(|_| ApiError::DeviceOffline)?;
+    if tx
+        .send(ServerToAgent::RemoteControlRequest {
+            session_id: session_id.clone(),
+        })
+        .is_err()
+    {
+        let _ = close_open_session(&state.db, &session_id, "agent_offline", &now).await;
+        return Err(ApiError::DeviceOffline);
+    }
     let _ = state.admin_events.send(AdminEvent::SessionStatus {
         session_id: session_id.clone(),
         status: "pending".into(),
@@ -2202,6 +2207,55 @@ mod tests {
                 .unwrap();
         assert_eq!(count, 1);
         assert_eq!(text, "hello");
+    }
+
+    #[tokio::test]
+    async fn failed_remote_request_does_not_leave_open_session() {
+        let state = test_state().await;
+        sqlx::query(
+            "INSERT INTO devices (device_id, hostname, os, arch, username, agent_version, local_ip, online, created_at, updated_at) VALUES ('device-1', 'host', 'test', 'test', 'user', 'test', '127.0.0.1', 1, 'now', 'now')",
+        )
+        .execute(&state.db)
+        .await
+        .unwrap();
+        let (tx, rx) = mpsc::unbounded_channel();
+        drop(rx);
+        let (replacement, _) = mpsc::unbounded_channel();
+        state.agents.insert(
+            "device-1".into(),
+            AgentConnection {
+                tx,
+                replacement,
+                last_heartbeat: Arc::new(AtomicI64::new(Utc::now().timestamp())),
+            },
+        );
+
+        let result = create_session(
+            AuthUser {
+                username: "admin".into(),
+            },
+            State(state.clone()),
+            Json(CreateSessionRequest {
+                device_id: "device-1".into(),
+            }),
+        )
+        .await;
+        assert!(matches!(result, Err(ApiError::DeviceOffline)));
+
+        let (open_count,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM sessions WHERE device_id = 'device-1' AND status IN ('pending', 'active')",
+        )
+        .fetch_one(&state.db)
+        .await
+        .unwrap();
+        assert_eq!(open_count, 0);
+
+        let (status,): (String,) =
+            sqlx::query_as("SELECT status FROM sessions WHERE device_id = 'device-1'")
+                .fetch_one(&state.db)
+                .await
+                .unwrap();
+        assert_eq!(status, "agent_offline");
     }
 
     #[tokio::test]
