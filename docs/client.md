@@ -75,6 +75,7 @@ client/build/linux/x64/release/bundle
 
 ```sh
 release/conductor-client-linux-x64.tar.gz
+release/conductor-client-linux-x64.tar.gz.sha256
 ```
 
 其中应包含：
@@ -138,7 +139,7 @@ cargo --version
 powershell -ExecutionPolicy Bypass -File .\scripts\build-client.ps1
 ```
 
-脚本会先启用 Flutter Windows desktop、运行 `flutter doctor -v`，再构建 Rust Agent 和 Flutter Windows 客户端，最后生成可分发 zip。
+脚本会先启用 Flutter Windows desktop、运行 `flutter doctor -v`，再构建 Rust Agent 和 Flutter Windows 客户端，最后生成可分发 zip 和 `.sha256` 校验文件。
 
 构建时默认配置参数：
 
@@ -267,6 +268,7 @@ client/build/macos/Build/Products/Release/conductor_client.app
 
 ```sh
 release/conductor-client-macos.tar.gz
+release/conductor-client-macos.tar.gz.sha256
 ```
 
 脚本会把 `conductor-agent` 放入：

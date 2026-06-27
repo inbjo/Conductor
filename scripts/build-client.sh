@@ -63,6 +63,22 @@ validate_bool() {
   esac
 }
 
+write_archive_checksum() {
+  local archive_path="$1"
+  local archive_dir
+  local archive_name
+  archive_dir="$(dirname "$archive_path")"
+  archive_name="$(basename "$archive_path")"
+  (
+    cd "$archive_dir"
+    if command -v sha256sum >/dev/null 2>&1; then
+      sha256sum "$archive_name"
+    else
+      shasum -a 256 "$archive_name"
+    fi > "$archive_name.sha256"
+  )
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --server-url)
@@ -187,7 +203,9 @@ cp "$ROOT_DIR/target/release/$AGENT_NAME" "$BUNDLE_DIR/$AGENT_NAME"
 echo "[5/5] Creating distributable archive"
 mkdir -p "$RELEASE_DIR"
 tar -czf "$ARCHIVE_PATH" -C "$ARCHIVE_CWD" "$ARCHIVE_ITEM"
+write_archive_checksum "$ARCHIVE_PATH"
 
 echo "Client bundle ready: $BUNDLE_DIR"
 echo "Agent binary copied to: $BUNDLE_DIR/$AGENT_NAME"
 echo "Archive ready: $ARCHIVE_PATH"
+echo "Archive checksum: $ARCHIVE_PATH.sha256"

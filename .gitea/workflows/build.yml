@@ -179,7 +179,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: conductor-client-linux-x64
-          path: release/conductor-client-linux-x64.tar.gz
+          path: |
+            release/conductor-client-linux-x64.tar.gz
+            release/conductor-client-linux-x64.tar.gz.sha256
           if-no-files-found: error
 
   client-windows:
@@ -235,7 +237,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: conductor-client-windows-x64
-          path: release/conductor-client-windows-x64.zip
+          path: |
+            release/conductor-client-windows-x64.zip
+            release/conductor-client-windows-x64.zip.sha256
           if-no-files-found: error
 
   client-macos:
@@ -287,7 +291,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: conductor-client-macos
-          path: release/conductor-client-macos.tar.gz
+          path: |
+            release/conductor-client-macos.tar.gz
+            release/conductor-client-macos.tar.gz.sha256
           if-no-files-found: error
 
   client-smoke-evidence:

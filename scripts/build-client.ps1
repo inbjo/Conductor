@@ -86,6 +86,7 @@ $AgentBin = Join-Path $RootDir "target\release\conductor-agent.exe"
 $BundleDir = Join-Path $RootDir "client\build\windows\x64\runner\Release"
 $BundleAgent = Join-Path $BundleDir "conductor-agent.exe"
 $ArchivePath = Join-Path $ReleaseDir "conductor-client-windows-x64.zip"
+$ArchiveChecksumPath = "$ArchivePath.sha256"
 
 Write-Host "[1/5] Checking Windows client build environment"
 Require-Command "cargo" "Install Rust stable MSVC from https://rustup.rs/"
@@ -136,7 +137,11 @@ if (Test-Path $ArchivePath) {
     Remove-Item -Force $ArchivePath
 }
 Compress-Archive -Path (Join-Path $BundleDir "*") -DestinationPath $ArchivePath
+$ArchiveHash = (Get-FileHash -Algorithm SHA256 -Path $ArchivePath).Hash.ToLowerInvariant()
+$ArchiveName = Split-Path -Leaf $ArchivePath
+Set-Content -Path $ArchiveChecksumPath -Value "$ArchiveHash  $ArchiveName" -Encoding ascii
 
 Write-Host "Client bundle ready: $BundleDir"
 Write-Host "Agent binary copied to: $BundleAgent"
 Write-Host "Archive ready: $ArchivePath"
+Write-Host "Archive checksum: $ArchiveChecksumPath"

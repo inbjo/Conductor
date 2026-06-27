@@ -10,6 +10,9 @@ Build the current host bundle from the repository root:
 ./scripts/build-client.sh
 ```
 
+The build writes a distributable archive under `release/` and a matching
+`.sha256` checksum file.
+
 Build defaults can be supplied from the repository root:
 
 ```sh
@@ -21,6 +24,9 @@ On Windows:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\build-client.ps1
 ```
+
+The Windows build writes `release\conductor-client-windows-x64.zip` and
+`release\conductor-client-windows-x64.zip.sha256`.
 
 Windows build defaults:
 

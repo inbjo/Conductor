@@ -284,7 +284,7 @@ cd client
 2. `cargo build --release -p conductor-agent`
 3. `flutter build linux --release`
 4. 将 `target/release/conductor-agent` 复制到 Flutter bundle 同目录
-5. 生成 `release/conductor-client-linux-x64.tar.gz`
+5. 生成 `release/conductor-client-linux-x64.tar.gz` 和 `.sha256` 校验文件
 
 输出目录：
 
@@ -305,6 +305,7 @@ lib/
 
 ```sh
 release/conductor-client-linux-x64.tar.gz
+release/conductor-client-linux-x64.tar.gz.sha256
 ```
 
 运行：
@@ -354,7 +355,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-client.ps1
 2. `cargo build --release -p conductor-agent`
 3. `flutter build windows --release`
 4. 将 `target\release\conductor-agent.exe` 复制到 Flutter bundle 同目录
-5. 生成 `release\conductor-client-windows-x64.zip`
+5. 生成 `release\conductor-client-windows-x64.zip` 和 `.sha256` 校验文件
 
 输出目录：
 
@@ -405,7 +406,7 @@ Windows 验收优先级：
 2. `cargo build --release -p conductor-agent`
 3. `flutter build macos --release`
 4. 将 `target/release/conductor-agent` 复制到 `conductor_client.app/Contents/MacOS/`
-5. 生成 `release/conductor-client-macos.tar.gz`
+5. 生成 `release/conductor-client-macos.tar.gz` 和 `.sha256` 校验文件
 
 输出应用：
 
@@ -417,6 +418,7 @@ client/build/macos/Build/Products/Release/conductor_client.app
 
 ```sh
 release/conductor-client-macos.tar.gz
+release/conductor-client-macos.tar.gz.sha256
 ```
 
 运行前需要根据系统提示授予权限：
@@ -499,8 +501,11 @@ CI 会构建并上传以下 artifact：
 - `release/conductor-x86_64-unknown-linux-gnu.tar.gz`
 - `release/conductor-x86_64-unknown-linux-gnu.tar.gz.sha256`
 - `release/conductor-client-linux-x64.tar.gz`
+- `release/conductor-client-linux-x64.tar.gz.sha256`
 - `release/conductor-client-windows-x64.zip`
+- `release/conductor-client-windows-x64.zip.sha256`
 - `release/conductor-client-macos.tar.gz`
+- `release/conductor-client-macos.tar.gz.sha256`
 
 CI 构建流程：
 

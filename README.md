@@ -112,7 +112,7 @@ Linux 本机：
 client/build/linux/x64/release/bundle/conductor_client
 ```
 
-脚本会同时生成 `release/conductor-client-linux-x64.tar.gz`。
+脚本会同时生成 `release/conductor-client-linux-x64.tar.gz` 和 `.sha256` 校验文件。
 
 Windows 主机：
 
@@ -120,7 +120,7 @@ Windows 主机：
 powershell -ExecutionPolicy Bypass -File .\scripts\build-client.ps1
 ```
 
-脚本会检查 Windows Flutter/Rust 环境，并生成 `release\conductor-client-windows-x64.zip`。
+脚本会检查 Windows Flutter/Rust 环境，并生成 `release\conductor-client-windows-x64.zip` 和 `.sha256` 校验文件。
 
 macOS 主机：
 
@@ -128,7 +128,7 @@ macOS 主机：
 ./scripts/build-client.sh
 ```
 
-脚本会生成 `release/conductor-client-macos.tar.gz`，归档中包含 `conductor_client.app` 和内置的 `conductor-agent`。
+脚本会生成 `release/conductor-client-macos.tar.gz` 和 `.sha256` 校验文件，归档中包含 `conductor_client.app` 和内置的 `conductor-agent`。
 
 客户端会把 `conductor-agent` 或 `conductor-agent.exe` 放在可执行文件同目录。启动后主界面只显示状态、启动/停止和日志，Server URL、Agent Token、Agent Name、文件根目录、音频输入和本地审批开关在 Settings 页配置；也可以通过构建脚本参数写入默认值。详细说明见 `docs/client.md`。
 
