@@ -5,7 +5,9 @@ param(
 
     [switch] $SkipClientBuild,
 
-    [switch] $SkipServerBuild
+    [switch] $SkipServerBuild,
+
+    [switch] $RequireCiFields
 )
 
 $ErrorActionPreference = "Stop"
@@ -19,6 +21,7 @@ try {
     Write-Host "Evidence: $EvidenceDir"
     Write-Host "SkipClientBuild: $SkipClientBuild"
     Write-Host "SkipServerBuild: $SkipServerBuild"
+    Write-Host "RequireCiFields: $RequireCiFields"
 
     & .\scripts\smoke-windows-client-flow.ps1 `
         -ArchivePath $ArchivePath `
@@ -26,7 +29,9 @@ try {
         -SkipClientBuild:$SkipClientBuild `
         -SkipServerBuild:$SkipServerBuild
 
-    & .\scripts\verify-windows-smoke-evidence.ps1 -EvidenceDir $EvidenceDir
+    & .\scripts\verify-windows-smoke-evidence.ps1 `
+        -EvidenceDir $EvidenceDir `
+        -RequireCiFields:$RequireCiFields
 
     Write-Host "Windows controlled client validation passed."
 } finally {

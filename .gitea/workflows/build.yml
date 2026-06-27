@@ -138,7 +138,7 @@ jobs:
 
       - name: Validate Windows client flow
         shell: pwsh
-        run: .\scripts\validate-windows-client.ps1 -SkipClientBuild -SkipServerBuild -EvidenceDir artifacts\windows-client-smoke
+        run: .\scripts\validate-windows-client.ps1 -SkipClientBuild -SkipServerBuild -EvidenceDir artifacts\windows-client-smoke -RequireCiFields
 
       - name: Upload Windows smoke evidence
         if: always()

@@ -1,5 +1,7 @@
 param(
-    [string] $EvidenceDir = ".\artifacts\windows-client-smoke"
+    [string] $EvidenceDir = ".\artifacts\windows-client-smoke",
+
+    [switch] $RequireCiFields
 )
 
 $ErrorActionPreference = "Stop"
@@ -48,6 +50,14 @@ $RequiredKeys = @(
 foreach ($key in $RequiredKeys) {
     if (!$Summary.ContainsKey($key) -or [string]::IsNullOrWhiteSpace($Summary[$key])) {
         Write-Error "Missing Windows smoke evidence field: $key"
+    }
+}
+
+if ($RequireCiFields) {
+    foreach ($key in @("commit", "runner_os", "runner_arch")) {
+        if (!$Summary.ContainsKey($key) -or [string]::IsNullOrWhiteSpace($Summary[$key])) {
+            Write-Error "Missing Windows CI smoke evidence field: $key"
+        }
     }
 }
 
