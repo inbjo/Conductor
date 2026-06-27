@@ -25,8 +25,8 @@
 
 - OS：Ubuntu 24.04.2 LTS
 - Flutter：`/home/flex/Code/flutter`，Flutter 3.44.4
-- 最近验证：2026-06-28，commit `dcc59cd`
-- 最近归档 SHA256：`01b6f4edeaf60cfd9bdabb49fd4bcc09d6a96ba7f252361ef1b91f28e2eb1ecc`
+- 最近验证：2026-06-28，commit `88ed243`
+- 最近归档 SHA256：`dc4c040194c03fa643cda605a6dcde77a760264a544d41c642c633d87354c18d`
 - 目标：先在 Ubuntu 本机跑通 Flutter 客户端壳、bundle、归档、启动和 Agent 注册流程
 
 已跑通命令：
