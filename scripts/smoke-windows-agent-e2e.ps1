@@ -49,14 +49,16 @@ function Start-ConductorProcess($FileName, $WorkingDirectory, $Environment, $Log
     $stdout = [System.IO.StreamWriter]::new($LogPath, $false)
     $stderr = [System.IO.StreamWriter]::new($LogPath + ".err", $false)
     $process.add_OutputDataReceived({
-        if ($null -ne $_.Data) {
-            $stdout.WriteLine($_.Data)
+        param($sender, $eventArgs)
+        if ($null -ne $eventArgs.Data) {
+            $stdout.WriteLine($eventArgs.Data)
             $stdout.Flush()
         }
     })
     $process.add_ErrorDataReceived({
-        if ($null -ne $_.Data) {
-            $stderr.WriteLine($_.Data)
+        param($sender, $eventArgs)
+        if ($null -ne $eventArgs.Data) {
+            $stderr.WriteLine($eventArgs.Data)
             $stderr.Flush()
         }
     })
