@@ -228,6 +228,7 @@ CI job 覆盖：
 | `client-linux` | `ubuntu-24.04` | Flutter analyze/test、Linux client build、归档校验、GUI smoke、client e2e 注册和 smoke evidence。 |
 | `client-windows` | `windows-2022` | Windows client build、归档校验、Agent smoke、Agent e2e、Client e2e、GUI smoke。 |
 | `client-macos` | `macos-14` | macOS client build、归档校验、`.app` GUI smoke、Client e2e 注册和 smoke evidence。 |
+| `client-smoke-evidence` | `ubuntu-24.04` | 下载 Linux/Windows/macOS smoke evidence artifact，统一校验 commit、runner 字段、归档 SHA、成功标记和原始 e2e 日志。 |
 
 自建 Gitea/Forgejo Actions 如果没有 Windows 或 macOS runner，只能证明配置存在，不能证明对应平台真正通过。
 
@@ -236,6 +237,8 @@ CI job 覆盖：
 ```sh
 ./scripts/validate-client-evidence.sh --require-ci-fields --expected-commit <commit-sha>
 ```
+
+CI 中的 `client-smoke-evidence` job 会在 `client-linux`、`client-windows`、`client-macos` 都成功后自动执行这条统一复核命令。
 
 默认优先读取 CI 内部路径名：
 

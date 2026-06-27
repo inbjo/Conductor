@@ -286,3 +286,35 @@ jobs:
           name: conductor-client-macos
           path: release/conductor-client-macos.tar.gz
           if-no-files-found: error
+
+  client-smoke-evidence:
+    name: Client smoke evidence
+    runs-on: ubuntu-24.04
+    needs:
+      - client-linux
+      - client-windows
+      - client-macos
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Linux smoke evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-client-smoke-evidence
+          path: artifacts/linux-client-smoke-evidence
+
+      - name: Download Windows smoke evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-client-smoke-evidence
+          path: artifacts/windows-client-smoke-evidence
+
+      - name: Download macOS smoke evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-client-smoke-evidence
+          path: artifacts/macos-client-smoke-evidence
+
+      - name: Verify client smoke evidence
+        run: ./scripts/validate-client-evidence.sh --require-ci-fields --expected-commit "$GITHUB_SHA"
