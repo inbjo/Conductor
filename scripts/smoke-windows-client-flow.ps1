@@ -25,6 +25,7 @@ if (![string]::IsNullOrWhiteSpace($EvidenceDir)) {
     }
 }
 $TranscriptStarted = $false
+$SummaryPath = $null
 
 function Invoke-Step($Name, [scriptblock] $Command) {
     Write-Host ""
@@ -115,6 +116,10 @@ try {
     if (!(Test-Path ".\target\debug\conductor-server.exe")) {
         Write-Error "Smoke server not found: .\target\debug\conductor-server.exe. Run without -SkipServerBuild or build the server first."
     }
+    if ($null -ne $SummaryPath) {
+        $archiveHash = Get-FileHash -Algorithm SHA256 -Path $ArchiveFullPath
+        Add-SummaryLine $SummaryPath "archive_sha256=$($archiveHash.Hash.ToLowerInvariant())"
+    }
 
     Invoke-Step "Verify Windows client archive" {
         & .\scripts\verify-client-archive.ps1 -ArchivePath $ArchiveFullPath
@@ -134,6 +139,15 @@ try {
 
     Write-Host ""
     Write-Host "Windows client flow smoke passed: $ArchiveFullPath"
+    if ($null -ne $SummaryPath) {
+        Add-SummaryLine $SummaryPath "result=passed"
+    }
+} catch {
+    if ($null -ne $SummaryPath) {
+        Add-SummaryLine $SummaryPath "result=failed"
+        Add-SummaryLine $SummaryPath "error=$($_.Exception.Message)"
+    }
+    throw
 } finally {
     if ($TranscriptStarted) {
         Stop-Transcript
