@@ -910,15 +910,8 @@ async fn list_files(
     Query(q): Query<PathQuery>,
 ) -> Result<Json<FileResultPayload>, ApiError> {
     let path = q.path.unwrap_or_else(|| ".".into());
-    let result = forward_file_command(
-        &state,
-        &device_id,
-        "list",
-        path.clone(),
-        None,
-        None,
-    )
-    .await?;
+    validate_relative_path(&path)?;
+    let result = forward_file_command(&state, &device_id, "list", path.clone(), None, None).await?;
     audit(&state, &user.username, "file_list", &device_id, &path).await;
     Ok(Json(result))
 }
@@ -932,6 +925,7 @@ async fn delete_file(
     let path = q
         .path
         .ok_or_else(|| ApiError::BadRequest("path is required".into()))?;
+    validate_relative_path(&path)?;
     let result =
         forward_file_command(&state, &device_id, "delete", path.clone(), None, None).await?;
     audit(&state, &user.username, "file_delete", &device_id, &path).await;
@@ -944,6 +938,8 @@ async fn mkdir(
     Path(device_id): Path<String>,
     Json(req): Json<MkdirRequest>,
 ) -> Result<Json<FileResultPayload>, ApiError> {
+    validate_relative_path(&req.path)?;
+    validate_path_segment(&req.name, "directory name")?;
     let result = forward_file_command(
         &state,
         &device_id,
@@ -988,6 +984,9 @@ async fn upload_file(
             }
             "file" => {
                 file_name = field.file_name().map(|v| v.to_string());
+                if let Some(name) = file_name.as_deref() {
+                    validate_path_segment(name, "file name")?;
+                }
                 let bytes = field
                     .bytes()
                     .await
@@ -1001,6 +1000,13 @@ async fn upload_file(
             }
             _ => {}
         }
+    }
+    validate_relative_path(&target_path)?;
+    if file_name.is_none() {
+        return Err(ApiError::BadRequest("file is required".into()));
+    }
+    if content.is_none() {
+        return Err(ApiError::BadRequest("file content is required".into()));
     }
     let result = forward_file_command(
         &state,
@@ -1031,6 +1037,7 @@ async fn download_file(
     let path = q
         .path
         .ok_or_else(|| ApiError::BadRequest("path is required".into()))?;
+    validate_relative_path(&path)?;
     let result =
         forward_file_command(&state, &device_id, "download", path.clone(), None, None).await?;
     if !result.ok {
@@ -1067,9 +1074,7 @@ async fn forward_file_command(
     name: Option<String>,
     content_base64: Option<String>,
 ) -> Result<FileResultPayload, ApiError> {
-    if path.contains("..") {
-        return Err(ApiError::BadRequest("path traversal is not allowed".into()));
-    }
+    validate_relative_path(&path)?;
     let tx = state
         .agents
         .get(device_id)
@@ -1097,6 +1102,33 @@ async fn forward_file_command(
             Err(ApiError::Internal("agent file operation timed out".into()))
         }
     }
+}
+
+fn validate_relative_path(path: &str) -> Result<(), ApiError> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err(ApiError::BadRequest("path is required".into()));
+    }
+    if trimmed.starts_with('/') || trimmed.starts_with('\\') {
+        return Err(ApiError::BadRequest(
+            "absolute paths are not allowed".into(),
+        ));
+    }
+    if trimmed.split(['/', '\\']).any(|part| part == "..") {
+        return Err(ApiError::BadRequest("path traversal is not allowed".into()));
+    }
+    Ok(())
+}
+
+fn validate_path_segment(value: &str, label: &str) -> Result<(), ApiError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(ApiError::BadRequest(format!("{label} is required")));
+    }
+    if trimmed == "." || trimmed == ".." || trimmed.contains('/') || trimmed.contains('\\') {
+        return Err(ApiError::BadRequest(format!("{label} is invalid")));
+    }
+    Ok(())
 }
 
 async fn ws_admin(
@@ -1309,9 +1341,7 @@ async fn agent_socket(state: AppState, socket: WebSocket) {
                 let connection = AgentConnection {
                     tx: tx.clone(),
                     replacement: replacement_tx.clone(),
-                    last_heartbeat: Arc::new(AtomicI64::new(
-                        Utc::now().timestamp(),
-                    )),
+                    last_heartbeat: Arc::new(AtomicI64::new(Utc::now().timestamp())),
                 };
                 install_agent_connection(&state.agents, reg.device_id.clone(), connection);
                 if let Err(e) = upsert_device(&state, &reg).await {
@@ -1330,7 +1360,9 @@ async fn agent_socket(state: AppState, socket: WebSocket) {
                     online: true,
                 });
             }
-            Ok(AgentToServer::AgentHeartbeat { device_id: heartbeat_id }) => {
+            Ok(AgentToServer::AgentHeartbeat {
+                device_id: heartbeat_id,
+            }) => {
                 let Some(registered_id) = device_id.as_deref() else {
                     warn!("ignored heartbeat before agent registration");
                     continue;
@@ -1505,7 +1537,14 @@ async fn agent_socket(state: AppState, socket: WebSocket) {
         if remove_current_agent_connection(&state.agents, &id, &tx) {
             let _ = touch_device(&state, &id, false).await;
             close_active_sessions_for_device(&state, &id, "agent_offline").await;
-            audit(&state, "system", "device_offline", &id, "agent websocket disconnected").await;
+            audit(
+                &state,
+                "system",
+                "device_offline",
+                &id,
+                "agent websocket disconnected",
+            )
+            .await;
             let _ = state.admin_events.send(AdminEvent::AgentStatusChanged {
                 device_id: id,
                 online: false,
@@ -1657,11 +1696,7 @@ async fn agent_owns_session(
     .await
     .ok()
     .flatten();
-    status.is_some_and(|(status,)| {
-        allowed_statuses
-            .iter()
-            .any(|allowed| *allowed == status)
-    })
+    status.is_some_and(|(status,)| allowed_statuses.iter().any(|allowed| *allowed == status))
 }
 
 async fn update_session_status(state: &AppState, session_id: &str, status: &str) {
@@ -1891,6 +1926,24 @@ mod tests {
         .is_err());
     }
 
+    #[test]
+    fn file_paths_and_names_reject_traversal() {
+        assert!(validate_relative_path(".").is_ok());
+        assert!(validate_relative_path("docs/report.txt").is_ok());
+        assert!(validate_relative_path("docs\\report.txt").is_ok());
+        assert!(validate_relative_path("../secret").is_err());
+        assert!(validate_relative_path("docs/../secret").is_err());
+        assert!(validate_relative_path("/etc/passwd").is_err());
+        assert!(validate_relative_path("").is_err());
+
+        assert!(validate_path_segment("report.txt", "file name").is_ok());
+        assert!(validate_path_segment("new folder", "directory name").is_ok());
+        assert!(validate_path_segment("../secret", "file name").is_err());
+        assert!(validate_path_segment("nested/file.txt", "file name").is_err());
+        assert!(validate_path_segment("nested\\file.txt", "file name").is_err());
+        assert!(validate_path_segment("", "file name").is_err());
+    }
+
     #[tokio::test]
     async fn closed_session_cannot_be_reactivated_by_late_accept() {
         let db = SqlitePoolOptions::new()
@@ -1938,12 +1991,16 @@ mod tests {
         .await
         .unwrap();
 
-        assert!(!mark_device_offline_if_heartbeat(&db, "device-1", "new-heartbeat")
-            .await
-            .unwrap());
-        assert!(mark_device_offline_if_heartbeat(&db, "device-1", "old-heartbeat")
-            .await
-            .unwrap());
+        assert!(
+            !mark_device_offline_if_heartbeat(&db, "device-1", "new-heartbeat")
+                .await
+                .unwrap()
+        );
+        assert!(
+            mark_device_offline_if_heartbeat(&db, "device-1", "old-heartbeat")
+                .await
+                .unwrap()
+        );
     }
 
     #[tokio::test]
@@ -1970,26 +2027,8 @@ mod tests {
         .await
         .unwrap();
 
-        assert!(agent_owns_session(
-            &db,
-            "device-1",
-            "session-1",
-            &["active"]
-        )
-        .await);
-        assert!(!agent_owns_session(
-            &db,
-            "device-2",
-            "session-1",
-            &["active"]
-        )
-        .await);
-        assert!(!agent_owns_session(
-            &db,
-            "device-1",
-            "session-1",
-            &["pending"]
-        )
-        .await);
+        assert!(agent_owns_session(&db, "device-1", "session-1", &["active"]).await);
+        assert!(!agent_owns_session(&db, "device-2", "session-1", &["active"]).await);
+        assert!(!agent_owns_session(&db, "device-1", "session-1", &["pending"]).await);
     }
 }
