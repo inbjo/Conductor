@@ -29,13 +29,14 @@
 - 远控控制通道：浏览器优先通过 WebRTC DataChannel 发送鼠标键盘事件，未就绪时回退到 WebSocket
 - 浏览器侧媒体接收：声明接收远端视频/音频轨，有真实 MediaStream 时优先渲染，否则回退截图帧
 - Agent WebRTC 屏幕视频：把实际 PNG 截图编码为 VP8 视频帧并发送到浏览器，当前为 1 FPS 演示帧率
+- 浏览器语音发送：Agent 接受语音请求后，把浏览器麦克风轨挂载到 WebRTC 音频 sender；静音、挂断时及时移除
 - 审计日志记录与查询
 
 ### 当前仍是占位/演示实现
 
 - Agent 会优先尝试真实屏幕采集：Linux 依次尝试 `grim`、`gnome-screenshot`、`import`，macOS 使用 `screencapture`，Windows 使用 PowerShell 截图；当图形会话、截图工具或权限条件不满足时，回退到动态演示帧
 - 真实鼠标键盘输入依赖本机图形会话与系统权限，无法建立输入连接时会保留日志告警
-- 语音沟通只完成 UI、权限检测、协议和状态流转，未接入真实音频采集/播放
+- 语音沟通已完成浏览器麦克风采集和 WebRTC 发送，Agent 端音频接收播放与回传仍未接入
 - WebRTC 屏幕视频编码依赖 Agent 所在机器提供带 `libvpx` 编码器的 `ffmpeg`；不可用时仍可通过 WebSocket 截图帧展示
 - 浏览器与 Agent 已可交换 WebRTC offer/answer/ICE、屏幕视频和 DataChannel 控制事件；真实音频轨仍未接入
 

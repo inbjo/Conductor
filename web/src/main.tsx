@@ -785,6 +785,12 @@ function RemotePage() {
   const interactiveEnabled = sessionStatus === 'active' && !closeReason;
   const awaitingApproval = sessionStatus === 'pending' && !closeReason;
   const rejected = sessionStatus === 'rejected';
+  const [localVoiceStream, setLocalVoiceStream] = useState<MediaStream | null>(null);
+  const rtcVoiceStream = voice
+    && ['accepted', 'muted'].includes(voice.status)
+    && !voice.muted
+    ? localVoiceStream
+    : null;
   const addRtcEvent = useCallback((line: string) => {
     setEvents((current) => [line, ...current].slice(0, 8));
   }, []);
@@ -793,6 +799,7 @@ function RemotePage() {
     enabled: interactiveEnabled,
     send,
     signals,
+    localAudioStream: rtcVoiceStream,
     addEvent: addRtcEvent,
   });
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -941,7 +948,14 @@ function RemotePage() {
             sessionStatus={sessionStatus}
             closeReason={closeReason}
           />
-          <VoicePanel sessionId={sessionId} voice={voice} send={send} autoRequest={new URLSearchParams(location.search).get('voice') === '1'} disabled={!interactiveEnabled} />
+          <VoicePanel
+            sessionId={sessionId}
+            voice={voice}
+            send={send}
+            autoRequest={new URLSearchParams(location.search).get('voice') === '1'}
+            disabled={!interactiveEnabled}
+            onLocalStreamChange={setLocalVoiceStream}
+          />
           <div className="event-log">
             <h3>
               输入与信令
@@ -1006,16 +1020,19 @@ function useSessionRtc({
   enabled,
   send,
   signals,
+  localAudioStream,
   addEvent,
 }: {
   sessionId: string;
   enabled: boolean;
   send: ((payload: unknown) => void) | null;
   signals: { kind: string; payload: unknown; receivedAt: string }[];
+  localAudioStream: MediaStream | null;
   addEvent: (line: string) => void;
 }) {
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const controlChannelRef = useRef<RTCDataChannel | null>(null);
+  const audioSenderRef = useRef<RTCRtpSender | null>(null);
   const processedSignalCount = useRef(0);
   const answerTimer = useRef<number | null>(null);
   const [status, setStatus] = useState('idle');
@@ -1032,6 +1049,7 @@ function useSessionRtc({
       peerRef.current?.close();
       peerRef.current = null;
       controlChannelRef.current = null;
+      audioSenderRef.current = null;
       processedSignalCount.current = 0;
       setRemoteStream(null);
       setStatus(enabled ? 'ready' : 'idle');
@@ -1052,7 +1070,7 @@ function useSessionRtc({
     };
 
     peer.addTransceiver('video', { direction: 'recvonly' });
-    peer.addTransceiver('audio', { direction: 'recvonly' });
+    audioSenderRef.current = peer.addTransceiver('audio', { direction: 'sendrecv' }).sender;
 
     const controlChannel = peer.createDataChannel('control');
     controlChannelRef.current = controlChannel;
@@ -1131,10 +1149,21 @@ function useSessionRtc({
       peer.close();
       if (peerRef.current === peer) peerRef.current = null;
       if (controlChannelRef.current === controlChannel) controlChannelRef.current = null;
+      audioSenderRef.current = null;
       processedSignalCount.current = 0;
       setRemoteStream(null);
     };
   }, [addEvent, attempt, enabled, send, sessionId]);
+
+  useEffect(() => {
+    const sender = audioSenderRef.current;
+    if (!sender) return;
+    const track = localAudioStream?.getAudioTracks()[0] || null;
+    void sender.replaceTrack(track).then(
+      () => addEvent(track ? 'rtc microphone attached' : 'rtc microphone detached'),
+      (error) => addEvent(`rtc microphone error ${error instanceof Error ? error.message : 'replace track failed'}`),
+    );
+  }, [addEvent, attempt, localAudioStream]);
 
   useEffect(() => {
     const peer = peerRef.current;
@@ -1222,12 +1251,14 @@ function VoicePanel({
   send,
   autoRequest,
   disabled,
+  onLocalStreamChange,
 }: {
   sessionId: string;
   voice?: { status: string; muted: boolean; reason?: string | null };
   send: ((payload: unknown) => void) | null;
   autoRequest?: boolean;
   disabled?: boolean;
+  onLocalStreamChange: (stream: MediaStream | null) => void;
 }) {
   const status = voice?.status || 'idle';
   const muted = voice?.muted || false;
@@ -1242,6 +1273,7 @@ function VoicePanel({
         throw new Error('浏览器不支持麦克风权限检测');
       }
       streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+      onLocalStreamChange(streamRef.current);
       sendVoice({ type: 'voice_request', session_id: sessionId });
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : '麦克风不可用');
@@ -1250,9 +1282,19 @@ function VoicePanel({
   const hangupVoice = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
+    onLocalStreamChange(null);
     sendVoice({ type: 'voice_hangup', session_id: sessionId });
   };
-  useEffect(() => () => streamRef.current?.getTracks().forEach((track) => track.stop()), []);
+  useEffect(() => () => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    onLocalStreamChange(null);
+  }, [onLocalStreamChange]);
+  useEffect(() => {
+    if (!['rejected', 'hangup'].includes(status)) return;
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    onLocalStreamChange(null);
+  }, [onLocalStreamChange, status]);
   useEffect(() => {
     if (!autoRequest || autoRequested.current || !send || disabled || status !== 'idle') return;
     autoRequested.current = true;
