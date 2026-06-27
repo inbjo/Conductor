@@ -165,6 +165,13 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -181,6 +188,15 @@ jobs:
 
       - name: Smoke launch macOS client
         run: ./scripts/smoke-client-launch.sh macos release/conductor-client-macos.tar.gz
+
+      - name: Build macOS smoke server
+        run: |
+          npm --prefix web ci
+          npm --prefix web run build
+          cargo build -p conductor-server
+
+      - name: Smoke register via macOS client
+        run: ./scripts/smoke-macos-client-e2e.sh release/conductor-client-macos.tar.gz
 
       - name: Upload macOS client
         uses: actions/upload-artifact@v4
