@@ -223,3 +223,17 @@ CI job 覆盖：
 | `client-macos` | `macos-14` | macOS client build、归档校验、`.app` GUI smoke、Client e2e 注册和 smoke evidence。 |
 
 自建 Gitea/Forgejo Actions 如果没有 Windows 或 macOS runner，只能证明配置存在，不能证明对应平台真正通过。
+
+下载三端 smoke evidence artifact 后，可在仓库根目录统一复核：
+
+```sh
+./scripts/validate-client-evidence.sh --require-ci-fields --expected-commit <commit-sha>
+```
+
+默认读取：
+
+- `artifacts/linux-client-smoke`
+- `artifacts/windows-client-smoke`
+- `artifacts/macos-client-smoke`
+
+也可以用 `--platform linux|windows|macos` 只校验单个平台。

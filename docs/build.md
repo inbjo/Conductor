@@ -523,6 +523,12 @@ macOS runner 或真机还应运行：
 ./scripts/validate-macos-client.sh
 ```
 
+下载 CI smoke evidence artifact 后，可统一复核：
+
+```sh
+./scripts/validate-client-evidence.sh --require-ci-fields --expected-commit <commit-sha>
+```
+
 Release smoke test：
 
 ```sh
