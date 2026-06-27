@@ -1,7 +1,9 @@
 param(
     [string] $EvidenceDir = ".\artifacts\windows-client-smoke",
 
-    [switch] $RequireCiFields
+    [switch] $RequireCiFields,
+
+    [string] $ExpectedCommit = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -58,6 +60,13 @@ if ($RequireCiFields) {
         if (!$Summary.ContainsKey($key) -or [string]::IsNullOrWhiteSpace($Summary[$key])) {
             Write-Error "Missing Windows CI smoke evidence field: $key"
         }
+    }
+}
+
+if (![string]::IsNullOrWhiteSpace($ExpectedCommit)) {
+    $ActualCommit = $Summary["commit"]
+    if ($ActualCommit -ne $ExpectedCommit) {
+        Write-Error "Windows smoke evidence commit mismatch. Expected: $ExpectedCommit Actual: $ActualCommit"
     }
 }
 

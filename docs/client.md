@@ -186,7 +186,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\verify-windows-smoke-evidence
 ```
 
 校验脚本会确认工具链字段不是 `not found`、`result=passed`、日志包含成功标记，并在归档仍存在时复算 `archive_sha256`。
-CI 中会额外传入 `-RequireCiFields`，要求 evidence 中存在 commit、runner OS 和 runner arch；手工真机验收默认不要求这些 CI 专属字段。
+CI 中会额外传入 `-RequireCiFields -ExpectedCommit $env:GITHUB_SHA`，要求 evidence 中存在 commit、runner OS 和 runner arch，并确认 evidence 的 commit 与当前 workflow commit 一致；手工真机验收默认不要求这些 CI 专属字段。
 
 分步排错时可分别运行：
 
