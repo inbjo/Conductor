@@ -549,28 +549,55 @@ async fn login(
     Json(req): Json<LoginRequest>,
 ) -> Result<Json<Value>, ApiError> {
     if req.username.trim().is_empty() || req.password.is_empty() {
+        audit(
+            &state,
+            "anonymous",
+            "auth_login_failed",
+            req.username.trim(),
+            "missing username or password",
+        )
+        .await;
         return Err(ApiError::BadRequest(
             "username and password are required".into(),
         ));
     }
+    let username = req.username.trim().to_string();
     let row: Option<(String,)> =
         sqlx::query_as("SELECT password_hash FROM admins WHERE username = ?")
-            .bind(&req.username)
+            .bind(&username)
             .fetch_optional(&state.db)
             .await
             .map_err(db_err)?;
     let Some((hash,)) = row else {
+        audit(
+            &state,
+            "anonymous",
+            "auth_login_failed",
+            &username,
+            "unknown username",
+        )
+        .await;
         return Err(ApiError::Unauthorized);
     };
     let parsed = PasswordHash::new(&hash).map_err(|_| ApiError::Unauthorized)?;
-    Argon2::default()
+    if Argon2::default()
         .verify_password(req.password.as_bytes(), &parsed)
-        .map_err(|_| ApiError::Unauthorized)?;
+        .is_err()
+    {
+        audit(
+            &state,
+            "anonymous",
+            "auth_login_failed",
+            &username,
+            "invalid password",
+        )
+        .await;
+        return Err(ApiError::Unauthorized);
+    }
     let exp = Utc::now()
         .checked_add_signed(TimeDelta::hours(12))
         .unwrap()
         .timestamp() as usize;
-    let username = req.username.clone();
     let token = encode(
         &Header::default(),
         &Claims {
