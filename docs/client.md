@@ -160,27 +160,28 @@ release\conductor-client-windows-x64.zip
 - `conductor-agent.exe`
 - Flutter 运行时 DLL 和 data 目录
 
-校验 zip 结构并做一次启动 smoke：
+校验 zip 结构、完整 smoke 流程和 evidence：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-client-flow.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\validate-windows-client.ps1
 ```
 
-`smoke-windows-client-flow.ps1` 会依次构建客户端包、构建 Web 静态资源和 smoke server、校验 zip、启动包内 Agent、验证包内 Agent 注册、验证 Flutter 客户端自动拉起 Agent 并注册、最后做 GUI 入口启动 smoke。
+`validate-windows-client.ps1` 会调用 `smoke-windows-client-flow.ps1` 和 `verify-windows-smoke-evidence.ps1`，依次构建客户端包、构建 Web 静态资源和 smoke server、校验 zip、启动包内 Agent、验证包内 Agent 注册、验证 Flutter 客户端自动拉起 Agent 并注册、做 GUI 入口启动 smoke，最后校验证据目录。
 
 如果已经构建过包和 `target\debug\conductor-server.exe`，可以加 `-SkipClientBuild -SkipServerBuild` 只重复校验和 smoke。
 
 需要保留验收证据时，可以指定输出目录：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-client-flow.ps1 -EvidenceDir .\artifacts\windows-client-smoke
+powershell -ExecutionPolicy Bypass -File .\scripts\validate-windows-client.ps1 -EvidenceDir .\artifacts\windows-client-smoke
 ```
 
 脚本会写出 `validation-summary.txt` 和 `smoke-windows-client-flow.log`，用于记录 runner/工具链版本和完整 smoke 输出。
 
-证据目录可以再用脚本校验：
+也可以分开执行 smoke 和证据校验：
 
 ```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-client-flow.ps1 -EvidenceDir .\artifacts\windows-client-smoke
 powershell -ExecutionPolicy Bypass -File .\scripts\verify-windows-smoke-evidence.ps1 -EvidenceDir .\artifacts\windows-client-smoke
 ```
 
