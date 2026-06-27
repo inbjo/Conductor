@@ -8,9 +8,7 @@ use anyhow::{anyhow, Context};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use chrono::{DateTime, Utc};
 use directories::{BaseDirs, ProjectDirs};
-use enigo::{
-    Axis, Button, Coordinate, Direction, Enigo, Key, Keyboard, Mouse, Settings,
-};
+use enigo::{Axis, Button, Coordinate, Direction, Enigo, Key, Keyboard, Mouse, Settings};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -347,23 +345,20 @@ async fn capture_screen_frame(cfg: &Config, session_id: &str, frame_no: u64) -> 
 }
 
 async fn capture_real_frame(session_id: &str) -> anyhow::Result<ScreenFramePayload> {
-    let output = Command::new("grim")
-        .args(["-c", "-t", "png", "-"])
-        .output()
-        .await
-        .context("run grim")?;
-    if !output.status.success() {
-        return Err(anyhow!(
-            "grim failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
-    }
-    let (width, height) = parse_png_dimensions(&output.stdout).unwrap_or((1280, 720));
+    let capture = capture_real_frame_bytes().await?;
+    let (width, height) = parse_png_dimensions(&capture.bytes).unwrap_or((1280, 720));
+    info!(
+        "screen captured via {}: {}x{} {} bytes",
+        capture.backend,
+        width,
+        height,
+        capture.bytes.len()
+    );
     Ok(ScreenFramePayload {
         session_id: session_id.to_string(),
         width,
         height,
-        image_data_url: format!("data:image/png;base64,{}", B64.encode(&output.stdout)),
+        image_data_url: format!("data:image/png;base64,{}", B64.encode(&capture.bytes)),
         captured_at: Utc::now(),
     })
 }
@@ -375,6 +370,191 @@ fn parse_png_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
     let width = u32::from_be_bytes(bytes[16..20].try_into().ok()?);
     let height = u32::from_be_bytes(bytes[20..24].try_into().ok()?);
     Some((width, height))
+}
+
+struct FrameCapture {
+    backend: &'static str,
+    bytes: Vec<u8>,
+}
+
+async fn capture_real_frame_bytes() -> anyhow::Result<FrameCapture> {
+    let mut errors = Vec::new();
+
+    #[cfg(target_os = "linux")]
+    {
+        for backend in [
+            CaptureBackend::Stdout {
+                name: "grim",
+                program: "grim",
+                args: &["-c", "-t", "png", "-"],
+            },
+            CaptureBackend::File {
+                name: "gnome-screenshot",
+                program: "gnome-screenshot",
+                args: &["-f", "{output}"],
+            },
+            CaptureBackend::File {
+                name: "import",
+                program: "import",
+                args: &["-window", "root", "{output}"],
+            },
+        ] {
+            match capture_with_backend(backend).await {
+                Ok(frame) => return Ok(frame),
+                Err(err) => errors.push(format!("{}: {err}", backend.name())),
+            }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let backend = CaptureBackend::File {
+            name: "screencapture",
+            program: "screencapture",
+            args: &["-x", "-t", "png", "{output}"],
+        };
+        match capture_with_backend(backend).await {
+            Ok(frame) => return Ok(frame),
+            Err(err) => errors.push(format!("{}: {err}", backend.name())),
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let backend = CaptureBackend::File {
+            name: "powershell",
+            program: "powershell",
+            args: &[
+                "-NoProfile",
+                "-Command",
+                "Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; $bounds=[System.Windows.Forms.SystemInformation]::VirtualScreen; $bitmap=New-Object System.Drawing.Bitmap $bounds.Width,$bounds.Height; $graphics=[System.Drawing.Graphics]::FromImage($bitmap); $graphics.CopyFromScreen($bounds.X,$bounds.Y,0,0,$bitmap.Size); $bitmap.Save('{output}', [System.Drawing.Imaging.ImageFormat]::Png); $graphics.Dispose(); $bitmap.Dispose();",
+            ],
+        };
+        match capture_with_backend(backend).await {
+            Ok(frame) => return Ok(frame),
+            Err(err) => errors.push(format!("{}: {err}", backend.name())),
+        }
+    }
+
+    Err(anyhow!(
+        "no screen capture backend succeeded{}",
+        if errors.is_empty() {
+            String::new()
+        } else {
+            format!(": {}", errors.join("; "))
+        }
+    ))
+}
+
+#[derive(Clone, Copy)]
+enum CaptureBackend {
+    Stdout {
+        name: &'static str,
+        program: &'static str,
+        args: &'static [&'static str],
+    },
+    File {
+        name: &'static str,
+        program: &'static str,
+        args: &'static [&'static str],
+    },
+}
+
+impl CaptureBackend {
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Stdout { name, .. } | Self::File { name, .. } => name,
+        }
+    }
+}
+
+async fn capture_with_backend(backend: CaptureBackend) -> anyhow::Result<FrameCapture> {
+    match backend {
+        CaptureBackend::Stdout {
+            name,
+            program,
+            args,
+        } => capture_command_stdout(name, program, args).await,
+        CaptureBackend::File {
+            name,
+            program,
+            args,
+        } => capture_command_file(name, program, args).await,
+    }
+}
+
+async fn capture_command_stdout(
+    backend: &'static str,
+    program: &'static str,
+    args: &'static [&'static str],
+) -> anyhow::Result<FrameCapture> {
+    let output = Command::new(program)
+        .args(args)
+        .output()
+        .await
+        .with_context(|| format!("run {program}"))?;
+    ensure_command_success(backend, &output.status, &output.stderr)?;
+    if !looks_like_png(&output.stdout) {
+        return Err(anyhow!("command did not output a PNG stream"));
+    }
+    Ok(FrameCapture {
+        backend,
+        bytes: output.stdout,
+    })
+}
+
+async fn capture_command_file(
+    backend: &'static str,
+    program: &'static str,
+    args: &'static [&'static str],
+) -> anyhow::Result<FrameCapture> {
+    let output_path = temp_capture_path(backend);
+    let resolved_args = resolve_capture_args(args, &output_path);
+    let output = Command::new(program)
+        .args(&resolved_args)
+        .output()
+        .await
+        .with_context(|| format!("run {program}"))?;
+    ensure_command_success(backend, &output.status, &output.stderr)?;
+    let bytes = tokio::fs::read(&output_path)
+        .await
+        .with_context(|| format!("read capture file {}", output_path.display()))?;
+    let _ = tokio::fs::remove_file(&output_path).await;
+    if !looks_like_png(&bytes) {
+        return Err(anyhow!("capture file is not a PNG"));
+    }
+    Ok(FrameCapture { backend, bytes })
+}
+
+fn ensure_command_success(
+    backend: &str,
+    status: &std::process::ExitStatus,
+    stderr: &[u8],
+) -> anyhow::Result<()> {
+    if status.success() {
+        return Ok(());
+    }
+    let detail = String::from_utf8_lossy(stderr).trim().to_string();
+    if detail.is_empty() {
+        Err(anyhow!("{backend} exited with status {status}"))
+    } else {
+        Err(anyhow!("{backend} failed: {detail}"))
+    }
+}
+
+fn resolve_capture_args(args: &[&str], output_path: &Path) -> Vec<String> {
+    let output = output_path.to_string_lossy();
+    args.iter()
+        .map(|arg| arg.replace("{output}", output.as_ref()))
+        .collect()
+}
+
+fn temp_capture_path(backend: &str) -> PathBuf {
+    std::env::temp_dir().join(format!("conductor-{}-{}.png", backend, Uuid::new_v4()))
+}
+
+fn looks_like_png(bytes: &[u8]) -> bool {
+    bytes.len() >= 8 && &bytes[0..8] == b"\x89PNG\r\n\x1a\n"
 }
 
 fn make_demo_frame(cfg: &Config, session_id: &str, frame_no: u64) -> ScreenFramePayload {
@@ -601,7 +781,10 @@ impl InputController {
             "mouse_click" => {
                 let (x, y) = normalized_position(event, frame_size)?;
                 enigo.move_mouse(x, y, Coordinate::Abs)?;
-                enigo.button(button_from_event(event.button.as_deref())?, Direction::Click)?;
+                enigo.button(
+                    button_from_event(event.button.as_deref())?,
+                    Direction::Click,
+                )?;
             }
             "mouse_wheel" => {
                 let dy = event.delta_y.unwrap_or_default().round() as i32;
@@ -707,14 +890,26 @@ mod tests {
             delta_y: None,
             created_at: Utc::now(),
         };
-        assert_eq!(normalized_position(&event, Some((1920, 1080))).unwrap(), (1919, 0));
+        assert_eq!(
+            normalized_position(&event, Some((1920, 1080))).unwrap(),
+            (1919, 0)
+        );
     }
 
     #[test]
     fn button_mapping_supports_common_buttons() {
-        assert!(matches!(button_from_event(Some("left")).unwrap(), Button::Left));
-        assert!(matches!(button_from_event(Some("right")).unwrap(), Button::Right));
-        assert!(matches!(button_from_event(Some("middle")).unwrap(), Button::Middle));
+        assert!(matches!(
+            button_from_event(Some("left")).unwrap(),
+            Button::Left
+        ));
+        assert!(matches!(
+            button_from_event(Some("right")).unwrap(),
+            Button::Right
+        ));
+        assert!(matches!(
+            button_from_event(Some("middle")).unwrap(),
+            Button::Middle
+        ));
     }
 
     #[test]
