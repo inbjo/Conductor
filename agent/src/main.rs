@@ -514,7 +514,8 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
 }
 
 fn authenticated_server_url(server_url: &str, agent_token: &str) -> anyhow::Result<String> {
-    let mut url = url::Url::parse(server_url).context("invalid agent server URL")?;
+    let normalized = normalize_agent_server_url(server_url)?;
+    let mut url = url::Url::parse(&normalized).context("invalid agent server URL")?;
     let existing = url
         .query_pairs()
         .filter(|(key, _)| key != "token")
@@ -527,6 +528,33 @@ fn authenticated_server_url(server_url: &str, agent_token: &str) -> anyhow::Resu
             query.append_pair(&key, &value);
         }
         query.append_pair("token", agent_token);
+    }
+    Ok(url.into())
+}
+
+fn normalize_agent_server_url(server_url: &str) -> anyhow::Result<String> {
+    let mut text = server_url.trim().to_string();
+    if text.is_empty() {
+        return Err(anyhow!("agent server URL is empty"));
+    }
+    if !text.contains("://") {
+        text = format!("ws://{text}");
+    }
+    if let Some(rest) = text.strip_prefix("http://") {
+        text = format!("ws://{rest}");
+    } else if let Some(rest) = text.strip_prefix("https://") {
+        text = format!("wss://{rest}");
+    }
+
+    let mut url = url::Url::parse(&text).context("invalid agent server URL")?;
+    if url.scheme() != "ws" && url.scheme() != "wss" {
+        return Err(anyhow!("agent server URL must use ws, wss, http, or https"));
+    }
+    if url.host_str().map(str::is_empty).unwrap_or(true) {
+        return Err(anyhow!("agent server URL host is required"));
+    }
+    if url.path().is_empty() || url.path() == "/" {
+        url.set_path("/ws/agent");
     }
     Ok(url.into())
 }
@@ -2282,6 +2310,46 @@ mod tests {
         assert_eq!(
             query.get("token").map(|value| value.as_ref()),
             Some("new token")
+        );
+    }
+
+    #[test]
+    fn agent_server_url_normalization_matches_client_inputs() {
+        assert_eq!(
+            normalize_agent_server_url("127.0.0.1:8080").unwrap(),
+            "ws://127.0.0.1:8080/ws/agent"
+        );
+        assert_eq!(
+            normalize_agent_server_url("http://example.test:8080").unwrap(),
+            "ws://example.test:8080/ws/agent"
+        );
+        assert_eq!(
+            normalize_agent_server_url("https://example.test").unwrap(),
+            "wss://example.test/ws/agent"
+        );
+        assert_eq!(
+            normalize_agent_server_url("wss://example.test/custom").unwrap(),
+            "wss://example.test/custom"
+        );
+        assert_eq!(
+            normalize_agent_server_url("http://example.test/?debug=1").unwrap(),
+            "ws://example.test/ws/agent?debug=1"
+        );
+        assert!(normalize_agent_server_url("file:///tmp/conductor").is_err());
+        assert!(normalize_agent_server_url("").is_err());
+    }
+
+    #[test]
+    fn authenticated_url_normalizes_common_server_url_inputs() {
+        let url = authenticated_server_url("https://example.test", "agent token").unwrap();
+        let parsed = url::Url::parse(&url).unwrap();
+        let query = parsed.query_pairs().collect::<HashMap<_, _>>();
+        assert_eq!(parsed.scheme(), "wss");
+        assert_eq!(parsed.host_str(), Some("example.test"));
+        assert_eq!(parsed.path(), "/ws/agent");
+        assert_eq!(
+            query.get("token").map(|value| value.as_ref()),
+            Some("agent token")
         );
     }
 

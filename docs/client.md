@@ -116,7 +116,7 @@ Linux 已验证命令：
 FLUTTER_BIN=/home/flex/Code/flutter/bin/flutter ./scripts/validate-linux-client.sh
 ```
 
-`validate-linux-client.sh` 会构建客户端包、构建 Web 静态资源和 smoke server、校验 release tar.gz、启动 `conductor_client` GUI 入口 smoke，再启动 Flutter 客户端并通过 `CONDUCTOR_CLIENT_AUTOSTART=1` 自动拉起包内 Agent，最后确认设备上线。无图形会话时需要安装 `xvfb`，脚本会自动使用 `xvfb-run`。脚本会写出 `artifacts/linux-client-smoke/validation-summary.txt`、`smoke-linux-client-flow.log`、`logs/client-e2e/` 原始 server/client 日志和 `client-settings.json`，CI 会上传为 `linux-client-smoke-evidence`。
+`validate-linux-client.sh` 会构建客户端包、构建 Web 静态资源和 smoke server、校验 release tar.gz、启动 `conductor_client` GUI 入口 smoke，再启动 Flutter 客户端并通过 `CONDUCTOR_CLIENT_AUTOSTART=1` 自动拉起包内 Agent，最后确认设备上线。无图形会话时需要安装 `xvfb`，脚本会自动使用 `xvfb-run`。脚本会写出 `artifacts/linux-client-smoke/validation-summary.txt`、`smoke-linux-client-flow.log`、归档 `.sha256` sidecar、`logs/client-e2e/` 原始 server/client 日志和 `client-settings.json`，CI 会上传为 `linux-client-smoke-evidence`。
 
 ## Windows 构建
 
