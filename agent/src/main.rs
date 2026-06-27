@@ -14,7 +14,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sysinfo::System;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -29,6 +29,10 @@ use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
 use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::peer_connection::RTCPeerConnection;
+use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
+use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
+use webrtc::track::track_local::TrackLocal;
+use webrtc::{api::media_engine::MIME_TYPE_VP8, media::Sample};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -190,6 +194,11 @@ struct ScreenFramePayload {
     captured_at: DateTime<Utc>,
 }
 
+struct RtcSession {
+    peer_connection: Arc<RTCPeerConnection>,
+    video_track: Arc<TrackLocalStaticSample>,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
@@ -254,7 +263,7 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
     let rtc_api = build_webrtc_api()?;
     let (rtc_tx, mut rtc_rx) = mpsc::unbounded_channel::<AgentToServer>();
     let (rtc_control_tx, mut rtc_control_rx) = mpsc::unbounded_channel::<ControlEventPayload>();
-    let mut rtc_sessions = HashMap::<String, Arc<RTCPeerConnection>>::new();
+    let mut rtc_sessions = HashMap::<String, Arc<RtcSession>>::new();
     let mut session_frames = HashMap::<String, (u32, u32)>::new();
     let mut input = InputController::new();
     let mut console = AgentConsole::new(cfg.device_id.clone(), cfg.interactive_approval);
@@ -274,6 +283,11 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                     frame_no = frame_no.saturating_add(1);
                     let frame = capture_screen_frame(&cfg, &session_id, frame_no).await;
                     session_frames.insert(session_id.clone(), (frame.width, frame.height));
+                    if let Some(rtc) = rtc_sessions.get(&session_id) {
+                        if let Err(err) = send_screen_frame_to_rtc(&rtc.video_track, &frame).await {
+                            warn!("rtc screen frame failed session={session_id}: {err}");
+                        }
+                    }
                     send_json(&mut write, &AgentToServer::ScreenFrame(frame)).await?;
                 }
             }
@@ -366,13 +380,13 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                         info!("session closed by server: {session_id}");
                         active_sessions.remove(&session_id);
                         session_frames.remove(&session_id);
-                        if let Some(pc) = rtc_sessions.remove(&session_id) {
-                            let _ = pc.close().await;
+                        if let Some(rtc) = rtc_sessions.remove(&session_id) {
+                            let _ = rtc.peer_connection.close().await;
                         }
                         console.close_session(&session_id);
                     }
                     Ok(ServerToAgent::WebrtcOffer { session_id, sdp }) => {
-                        let pc = ensure_rtc_session(
+                        let rtc = ensure_rtc_session(
                             &rtc_api,
                             &mut rtc_sessions,
                             &session_id,
@@ -380,7 +394,7 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                             rtc_control_tx.clone(),
                         )
                         .await?;
-                        let answer_sdp = apply_browser_offer(&pc, &sdp).await?;
+                        let answer_sdp = apply_browser_offer(&rtc.peer_connection, &sdp).await?;
                         send_json(&mut write, &AgentToServer::WebrtcAnswer {
                             session_id,
                             sdp: answer_sdp,
@@ -390,13 +404,13 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                         info!("received admin answer for session {session_id}: {} bytes", sdp.len());
                     }
                     Ok(ServerToAgent::WebrtcIceCandidate { session_id, candidate }) => {
-                        let Some(pc) = rtc_sessions.get(&session_id) else {
+                        let Some(rtc) = rtc_sessions.get(&session_id) else {
                             warn!("received ICE candidate for unknown rtc session {session_id}");
                             continue;
                         };
                         let candidate: RTCIceCandidateInit = serde_json::from_value(candidate)
                             .with_context(|| format!("invalid ICE candidate for session {session_id}"))?;
-                        pc.add_ice_candidate(candidate).await
+                        rtc.peer_connection.add_ice_candidate(candidate).await
                             .with_context(|| format!("add ICE candidate for session {session_id}"))?;
                     }
                     Ok(ServerToAgent::VoiceRequest { session_id }) => {
@@ -434,11 +448,11 @@ fn build_webrtc_api() -> anyhow::Result<webrtc::api::API> {
 
 async fn ensure_rtc_session(
     api: &webrtc::api::API,
-    sessions: &mut HashMap<String, Arc<RTCPeerConnection>>,
+    sessions: &mut HashMap<String, Arc<RtcSession>>,
     session_id: &str,
     rtc_tx: mpsc::UnboundedSender<AgentToServer>,
     control_tx: mpsc::UnboundedSender<ControlEventPayload>,
-) -> anyhow::Result<Arc<RTCPeerConnection>> {
+) -> anyhow::Result<Arc<RtcSession>> {
     if let Some(pc) = sessions.get(session_id) {
         return Ok(Arc::clone(pc));
     }
@@ -502,9 +516,7 @@ async fn ensure_rtc_session(
                             }
                             Err(err) => warn!(
                                 "invalid rtc control payload session={} err={} body={}",
-                                data_session,
-                                err,
-                                text
+                                data_session, err, text
                             ),
                         }
                     } else {
@@ -521,8 +533,109 @@ async fn ensure_rtc_session(
         })
     }));
 
-    sessions.insert(session_id.to_string(), Arc::clone(&pc));
-    Ok(pc)
+    let video_track = Arc::new(TrackLocalStaticSample::new(
+        RTCRtpCodecCapability {
+            mime_type: MIME_TYPE_VP8.to_owned(),
+            ..Default::default()
+        },
+        "screen".to_string(),
+        "conductor-agent".to_string(),
+    ));
+    let sender = pc
+        .add_track(Arc::clone(&video_track) as Arc<dyn TrackLocal + Send + Sync>)
+        .await
+        .with_context(|| format!("add rtc screen track for session {session_id}"))?;
+    tokio::spawn(async move { while sender.read_rtcp().await.is_ok() {} });
+
+    let rtc = Arc::new(RtcSession {
+        peer_connection: pc,
+        video_track,
+    });
+    sessions.insert(session_id.to_string(), Arc::clone(&rtc));
+    Ok(rtc)
+}
+
+async fn send_screen_frame_to_rtc(
+    track: &TrackLocalStaticSample,
+    frame: &ScreenFramePayload,
+) -> anyhow::Result<()> {
+    let png = frame
+        .image_data_url
+        .strip_prefix("data:image/png;base64,")
+        .ok_or_else(|| anyhow!("screen frame is not PNG"))?;
+    let png = B64.decode(png).context("decode screen frame PNG")?;
+    let vp8 = encode_png_as_vp8(&png).await?;
+    track
+        .write_sample(&Sample {
+            data: vp8.into(),
+            duration: Duration::from_secs(1),
+            ..Default::default()
+        })
+        .await
+        .context("write VP8 screen sample")
+}
+
+async fn encode_png_as_vp8(png: &[u8]) -> anyhow::Result<Vec<u8>> {
+    let mut child = Command::new("ffmpeg")
+        .args([
+            "-loglevel",
+            "error",
+            "-f",
+            "image2pipe",
+            "-vcodec",
+            "png",
+            "-i",
+            "pipe:0",
+            "-frames:v",
+            "1",
+            "-an",
+            "-c:v",
+            "libvpx",
+            "-deadline",
+            "realtime",
+            "-cpu-used",
+            "8",
+            "-f",
+            "ivf",
+            "pipe:1",
+        ])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .context("start ffmpeg VP8 encoder")?;
+    let mut stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| anyhow!("ffmpeg stdin unavailable"))?;
+    stdin.write_all(png).await.context("write PNG to ffmpeg")?;
+    drop(stdin);
+    let output = child
+        .wait_with_output()
+        .await
+        .context("wait for ffmpeg VP8 encoder")?;
+    if !output.status.success() {
+        return Err(anyhow!(
+            "ffmpeg VP8 encoder failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    parse_single_ivf_frame(&output.stdout)
+}
+
+fn parse_single_ivf_frame(ivf: &[u8]) -> anyhow::Result<Vec<u8>> {
+    const IVF_HEADER_LEN: usize = 32;
+    const FRAME_HEADER_LEN: usize = 12;
+    if ivf.len() < IVF_HEADER_LEN + FRAME_HEADER_LEN || &ivf[..4] != b"DKIF" {
+        return Err(anyhow!("invalid IVF stream"));
+    }
+    let size = u32::from_le_bytes(ivf[32..36].try_into().unwrap()) as usize;
+    let start = IVF_HEADER_LEN + FRAME_HEADER_LEN;
+    let end = start
+        .checked_add(size)
+        .filter(|end| *end <= ivf.len())
+        .ok_or_else(|| anyhow!("truncated IVF frame"))?;
+    Ok(ivf[start..end].to_vec())
 }
 
 async fn apply_browser_offer(pc: &RTCPeerConnection, sdp: &str) -> anyhow::Result<String> {
@@ -1548,6 +1661,23 @@ mod tests {
             }
             _ => panic!("expected voice reject command"),
         }
+    }
+
+    #[test]
+    fn ivf_parser_extracts_first_encoded_frame() {
+        let mut ivf = vec![0_u8; 44];
+        ivf[..4].copy_from_slice(b"DKIF");
+        ivf[32..36].copy_from_slice(&4_u32.to_le_bytes());
+        ivf.extend_from_slice(&[1, 2, 3, 4]);
+        assert_eq!(parse_single_ivf_frame(&ivf).unwrap(), [1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn ivf_parser_rejects_truncated_frame() {
+        let mut ivf = vec![0_u8; 44];
+        ivf[..4].copy_from_slice(b"DKIF");
+        ivf[32..36].copy_from_slice(&8_u32.to_le_bytes());
+        assert!(parse_single_ivf_frame(&ivf).is_err());
     }
 }
 

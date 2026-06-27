@@ -5,7 +5,7 @@
 ## 项目结构
 
 - `server/`：Axum API、管理员鉴权、SQLite 持久化、WebSocket 实时通道、内嵌前端静态资源。
-- `agent/`：被控端命令行 Agent，负责注册、心跳、文件命令、聊天消息、本地 CLI 回复与审批交互、远控画面采集、WebRTC SDP 应答与语音占位消息。
+- `agent/`：被控端命令行 Agent，负责注册、心跳、文件命令、聊天消息、本地 CLI 回复与审批交互、远控画面采集、WebRTC 屏幕视频与语音占位消息。
 - `web/`：React + TypeScript + Tailwind CSS + Vite 管理后台。
 - `docs/plan.md`：任务计划与验收标准。
 
@@ -28,6 +28,7 @@
 - Agent 侧 WebRTC 应答信令：接收浏览器 offer、返回 answer，并回传本地 ICE candidate
 - 远控控制通道：浏览器优先通过 WebRTC DataChannel 发送鼠标键盘事件，未就绪时回退到 WebSocket
 - 浏览器侧媒体接收：声明接收远端视频/音频轨，有真实 MediaStream 时优先渲染，否则回退截图帧
+- Agent WebRTC 屏幕视频：把实际 PNG 截图编码为 VP8 视频帧并发送到浏览器，当前为 1 FPS 演示帧率
 - 审计日志记录与查询
 
 ### 当前仍是占位/演示实现
@@ -35,7 +36,8 @@
 - Agent 会优先尝试真实屏幕采集：Linux 依次尝试 `grim`、`gnome-screenshot`、`import`，macOS 使用 `screencapture`，Windows 使用 PowerShell 截图；当图形会话、截图工具或权限条件不满足时，回退到动态演示帧
 - 真实鼠标键盘输入依赖本机图形会话与系统权限，无法建立输入连接时会保留日志告警
 - 语音沟通只完成 UI、权限检测、协议和状态流转，未接入真实音频采集/播放
-- 浏览器与 Agent 已可交换 WebRTC offer/answer/ICE，且控制事件可走 DataChannel；仍未由 Agent 输出真实屏幕视频轨和真实音频轨
+- WebRTC 屏幕视频编码依赖 Agent 所在机器提供带 `libvpx` 编码器的 `ffmpeg`；不可用时仍可通过 WebSocket 截图帧展示
+- 浏览器与 Agent 已可交换 WebRTC offer/answer/ICE、屏幕视频和 DataChannel 控制事件；真实音频轨仍未接入
 
 这意味着当前版本已经可以完整演示“后台管理、终端在线、会话、文件、聊天、审计、控制链路”，但还不是最终的真实远控产品。
 
@@ -44,6 +46,7 @@
 - Rust stable
 - Node.js 20+
 - npm 10+
+- `ffmpeg`（Agent WebRTC VP8 屏幕视频所需，必须包含 `libvpx` 编码器）
 
 ## 快速运行
 
@@ -178,11 +181,12 @@ WebSocket：
 
 - 只支持单管理员模型
 - Agent 当前默认把文件访问根目录限制在用户 Home
-- 真实屏幕采集、真实输入注入、真实音频、真实 WebRTC 媒体链路尚未接入
+- WebRTC 屏幕视频当前为 1 FPS，且依赖系统截图工具和带 `libvpx` 的 `ffmpeg`
+- 真实输入注入依赖图形会话权限；真实音频尚未接入
 - 未提供 Windows/macOS/Linux 安装包与系统服务包装
 
 ## 与计划的对应关系
 
-- P0：登录、Agent 在线、设备列表/详情、远控会话、占位画面、基础控制链路、README 已覆盖
+- P0：登录、Agent 在线、设备列表/详情、远控会话、WebRTC 屏幕画面、基础控制链路、README 已覆盖
 - P1：文件管理、双向文字沟通、会话状态清理、审计日志 已覆盖
-- P2：真实语音、真实媒体、TURN、多管理员、安装包 尚未完成
+- P2：真实语音、TURN、多管理员、安装包 尚未完成
