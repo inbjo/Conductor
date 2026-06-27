@@ -25,6 +25,7 @@ $ArchivePath = Join-Path $ReleaseDir "conductor-client-windows-x64.zip"
 Write-Host "[1/5] Checking Windows client build environment"
 Require-Command "cargo" "Install Rust stable MSVC from https://rustup.rs/"
 Require-Command "git" "Install Git for Windows."
+& $FlutterBin config --enable-windows-desktop
 & $FlutterBin doctor -v
 
 Write-Host "[2/5] Building Rust agent"

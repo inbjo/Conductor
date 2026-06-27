@@ -99,7 +99,6 @@ jobs:
       - name: Build Windows client
         shell: pwsh
         run: |
-          flutter config --enable-windows-desktop
           $env:FLUTTER_BIN = (Get-Command flutter).Source
           & .\scripts\build-client.ps1
 

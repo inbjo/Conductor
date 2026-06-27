@@ -131,7 +131,7 @@ cargo --version
 powershell -ExecutionPolicy Bypass -File .\scripts\build-client.ps1
 ```
 
-脚本会先运行 `flutter doctor -v`，再构建 Rust Agent 和 Flutter Windows 客户端，最后生成可分发 zip。
+脚本会先启用 Flutter Windows desktop、运行 `flutter doctor -v`，再构建 Rust Agent 和 Flutter Windows 客户端，最后生成可分发 zip。
 
 如果 Flutter 不在默认位置，指定：
 
