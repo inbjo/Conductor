@@ -1455,16 +1455,37 @@ async fn offline_sweeper(state: AppState) {
 }
 
 async fn update_session_status(state: &AppState, session_id: &str, status: &str) {
-    let _ = sqlx::query("UPDATE sessions SET status = ? WHERE session_id = ?")
-        .bind(status)
-        .bind(session_id)
-        .execute(&state.db)
-        .await;
+    match transition_pending_session(&state.db, session_id, status).await {
+        Ok(true) => {}
+        Ok(false) => {
+            warn!("ignored late session transition session={session_id} target={status}");
+            return;
+        }
+        Err(err) => {
+            error!("session transition failed session={session_id} target={status}: {err}");
+            return;
+        }
+    }
     audit(state, "system", "session_status", session_id, status).await;
     let _ = state.admin_events.send(AdminEvent::SessionStatus {
         session_id: session_id.into(),
         status: status.into(),
     });
+}
+
+async fn transition_pending_session(
+    db: &SqlitePool,
+    session_id: &str,
+    status: &str,
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
+        "UPDATE sessions SET status = ? WHERE session_id = ? AND status = 'pending' AND closed_at IS NULL",
+    )
+    .bind(status)
+    .bind(session_id)
+    .execute(db)
+    .await?;
+    Ok(result.rows_affected() == 1)
 }
 
 async fn mark_session_closed(
@@ -1656,5 +1677,37 @@ mod tests {
             r#"{"device_id":"other-device","text":"hello"}"#
         )
         .is_err());
+    }
+
+    #[tokio::test]
+    async fn closed_session_cannot_be_reactivated_by_late_accept() {
+        let db = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        sqlx::query(
+            "INSERT INTO devices (device_id, hostname, os, arch, username, agent_version, local_ip, online, created_at, updated_at) VALUES ('device-1', 'host', 'test', 'test', 'user', 'test', '127.0.0.1', 1, 'now', 'now')",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO sessions (session_id, device_id, status, created_at, closed_at) VALUES ('late', 'device-1', 'closed', 'now', 'now')",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+
+        assert!(!transition_pending_session(&db, "late", "active")
+            .await
+            .unwrap());
+        let (status,): (String,) =
+            sqlx::query_as("SELECT status FROM sessions WHERE session_id = 'late'")
+                .fetch_one(&db)
+                .await
+                .unwrap();
+        assert_eq!(status, "closed");
     }
 }
