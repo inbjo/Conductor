@@ -412,6 +412,10 @@ function LoginPage() {
           onSubmit={(e) => {
             e.preventDefault();
             setError('');
+            if (!username.trim() || !password) {
+              setError('请输入账号和密码');
+              return;
+            }
             login.mutate();
           }}
         >
