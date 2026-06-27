@@ -87,6 +87,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-client-flow.ps1
 | `Smoke register through Windows client` | Flutter 客户端能自动拉起包内 Agent，Agent 能注册上线。 |
 | `Smoke launch Windows client` | GUI 入口可启动，不会立刻退出。 |
 
+CI 中的 `client-windows` job 会把上述 flow 的 transcript 和环境摘要上传为 `windows-client-smoke-evidence` artifact。判断 Windows 自动化是否真正通过时，需要同时确认：
+
+- `client-windows` job 成功。
+- `windows-client-smoke-evidence/validation-summary.txt` 记录了 commit、runner、PowerShell、Rust 和 Flutter 版本。
+- `windows-client-smoke-evidence/smoke-windows-client-flow.log` 末尾出现 `Windows client flow smoke passed`。
+
 记录通过结果时填写：
 
 ```text
