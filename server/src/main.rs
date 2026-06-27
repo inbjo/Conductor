@@ -1118,7 +1118,7 @@ async fn handle_admin_message(state: &AppState, text: &str) -> Result<(), ApiErr
         .map_err(|e| ApiError::BadRequest(e.to_string()))?
     {
         AdminToServer::ControlEvent(event) => {
-            let session = get_session_by_id(&state.db, &event.session_id).await?;
+            let session = require_session_status(&state.db, &event.session_id, &["active"]).await?;
             let tx = state
                 .agents
                 .get(&session.device_id)
@@ -1129,12 +1129,14 @@ async fn handle_admin_message(state: &AppState, text: &str) -> Result<(), ApiErr
             let _ = state.admin_events.send(AdminEvent::ControlAck(event));
         }
         AdminToServer::WebrtcOffer { session_id, sdp } => {
+            require_session_status(&state.db, &session_id, &["active"]).await?;
             forward_signal_to_agent(state, &session_id, |session_id| {
                 ServerToAgent::WebrtcOffer { session_id, sdp }
             })
             .await?;
         }
         AdminToServer::WebrtcAnswer { session_id, sdp } => {
+            require_session_status(&state.db, &session_id, &["active"]).await?;
             forward_signal_to_agent(state, &session_id, |session_id| {
                 ServerToAgent::WebrtcAnswer { session_id, sdp }
             })
@@ -1144,6 +1146,7 @@ async fn handle_admin_message(state: &AppState, text: &str) -> Result<(), ApiErr
             session_id,
             candidate,
         } => {
+            require_session_status(&state.db, &session_id, &["active"]).await?;
             forward_signal_to_agent(state, &session_id, |session_id| {
                 ServerToAgent::WebrtcIceCandidate {
                     session_id,
@@ -1153,6 +1156,7 @@ async fn handle_admin_message(state: &AppState, text: &str) -> Result<(), ApiErr
             .await?;
         }
         AdminToServer::VoiceRequest { session_id } => {
+            require_session_status(&state.db, &session_id, &["active"]).await?;
             forward_signal_to_agent(state, &session_id, |session_id| {
                 ServerToAgent::VoiceRequest { session_id }
             })
@@ -1160,6 +1164,7 @@ async fn handle_admin_message(state: &AppState, text: &str) -> Result<(), ApiErr
             voice_status(state, &session_id, "requesting", None, None).await;
         }
         AdminToServer::VoiceHangup { session_id } => {
+            require_session_status(&state.db, &session_id, &["active"]).await?;
             forward_signal_to_agent(state, &session_id, |session_id| {
                 ServerToAgent::VoiceHangup { session_id }
             })
@@ -1167,6 +1172,7 @@ async fn handle_admin_message(state: &AppState, text: &str) -> Result<(), ApiErr
             voice_status(state, &session_id, "hangup", None, None).await;
         }
         AdminToServer::VoiceMute { session_id, muted } => {
+            require_session_status(&state.db, &session_id, &["active"]).await?;
             forward_signal_to_agent(state, &session_id, |session_id| ServerToAgent::VoiceMute {
                 session_id,
                 muted,
@@ -1176,6 +1182,21 @@ async fn handle_admin_message(state: &AppState, text: &str) -> Result<(), ApiErr
         }
     }
     Ok(())
+}
+
+async fn require_session_status(
+    db: &SqlitePool,
+    session_id: &str,
+    allowed: &[&str],
+) -> Result<SessionRow, ApiError> {
+    let session = get_session_by_id(db, session_id).await?;
+    if allowed.iter().any(|status| *status == session.status) {
+        return Ok(session);
+    }
+    Err(ApiError::BadRequest(format!(
+        "session {} is not available for this operation (status={})",
+        session_id, session.status
+    )))
 }
 
 async fn forward_signal_to_agent<F>(

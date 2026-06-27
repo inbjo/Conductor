@@ -307,7 +307,12 @@ function useAdminSocket(token: string | null) {
         const payload = JSON.parse(event.data) as AdminEvent;
         if (payload.type === 'agent_status_changed') qc.invalidateQueries({ queryKey: ['devices'] });
         if (payload.type === 'chat_message') qc.invalidateQueries({ queryKey: ['messages', payload.session_id] });
-        if (payload.type === 'session_status') qc.invalidateQueries({ queryKey: ['session', payload.session_id] });
+        if (payload.type === 'session_status') {
+          qc.invalidateQueries({ queryKey: ['session', payload.session_id] });
+          if (['closed', 'agent_offline', 'heartbeat_timeout', 'rejected'].includes(payload.status)) {
+            closeSession(payload.session_id, payload.status);
+          }
+        }
         if (payload.type === 'screen_frame') setFrame(payload);
         if (payload.type === 'control_ack') addLog(payload.session_id, `ack ${payload.kind} ${payload.key || payload.button || ''}`);
         if (payload.type === 'signal') {
@@ -760,7 +765,12 @@ function RemotePage() {
   const closeReason = useLive((s) => s.closedSessions[sessionId]);
   const wsStatus = useLive((s) => s.wsStatus);
   const send = useLive((s) => s.send);
+  const sessionStatus = session.data?.status || 'connecting';
+  const interactiveEnabled = sessionStatus === 'active' && !closeReason;
+  const awaitingApproval = sessionStatus === 'pending' && !closeReason;
+  const rejected = sessionStatus === 'rejected';
   const sendControl = (event: Omit<ControlEventPayload, 'type' | 'session_id' | 'created_at'>) => {
+    if (!interactiveEnabled) return;
     const payload: ControlEventPayload = {
       type: 'control_event',
       session_id: sessionId,
@@ -789,10 +799,21 @@ function RemotePage() {
       <div className="remote-top">
         <div>
           <p className="eyebrow">Remote Session</p>
-          <h1>{session.data?.status || '连接中'}</h1>
+          <h1>{sessionStatus}</h1>
         </div>
         <button className="danger" onClick={() => close.mutate()}>结束会话</button>
       </div>
+      {awaitingApproval && (
+        <div className="session-banner">
+          <span>等待被控端确认远控请求，当前不会发送控制或语音指令。</span>
+        </div>
+      )}
+      {rejected && !closeReason && (
+        <div className="session-banner">
+          <span>被控端已拒绝本次远控请求。</span>
+          <button className="icon-text" onClick={() => session.data?.device_id && navigate(`/devices/${session.data.device_id}`)}>返回设备</button>
+        </div>
+      )}
       {closeReason && (
         <div className="session-banner">
           <span>会话已关闭：{closeReason}</span>
@@ -804,7 +825,7 @@ function RemotePage() {
           className="screen"
           tabIndex={0}
           onMouseMove={(e) => {
-            if (closeReason) return;
+            if (!interactiveEnabled) return;
             const now = performance.now();
             if (now - lastMove.current < 180) return;
             lastMove.current = now;
@@ -816,7 +837,7 @@ function RemotePage() {
             });
           }}
           onClick={(e) => {
-            if (closeReason) return;
+            if (!interactiveEnabled) return;
             const rect = e.currentTarget.getBoundingClientRect();
             sendControl({
               kind: 'mouse_click',
@@ -826,7 +847,7 @@ function RemotePage() {
             });
           }}
           onWheel={(e) => {
-            if (closeReason) return;
+            if (!interactiveEnabled) return;
             sendControl({
               kind: 'mouse_wheel',
               delta_x: e.deltaX,
@@ -835,7 +856,7 @@ function RemotePage() {
           }}
           onKeyDown={(e) => {
             e.preventDefault();
-            if (!closeReason) sendControl({ kind: 'key_down', key: e.key });
+            if (interactiveEnabled) sendControl({ kind: 'key_down', key: e.key });
           }}
         >
           {frame ? (
@@ -844,14 +865,19 @@ function RemotePage() {
             <div className="screen-inner">
               <MonitorDot size={48} />
               <strong>等待 Agent 画面</strong>
-              <span>点击画面区域后可发送鼠标与键盘事件。</span>
+              <span>{awaitingApproval ? '被控端确认后才会进入可控状态。' : '点击画面区域后可发送鼠标与键盘事件。'}</span>
+            </div>
+          )}
+          {!interactiveEnabled && (
+            <div className="screen-overlay">
+              <span>{awaitingApproval ? '等待确认' : closeReason || rejected ? '会话不可用' : '连接中'}</span>
             </div>
           )}
         </div>
         <aside className="side-panel">
           <SessionSummary
             sessionId={sessionId}
-            sessionStatus={session.data?.status || 'connecting'}
+            sessionStatus={sessionStatus}
             device={device.data}
             frameTime={frame?.captured_at || null}
             voiceStatus={voice?.status || 'idle'}
@@ -861,10 +887,10 @@ function RemotePage() {
           <ChatPanel
             sessionId={sessionId}
             deviceId={session.data?.device_id || ''}
-            sessionStatus={session.data?.status || 'connecting'}
+            sessionStatus={sessionStatus}
             closeReason={closeReason}
           />
-          <VoicePanel sessionId={sessionId} voice={voice} send={send} autoRequest={new URLSearchParams(location.search).get('voice') === '1'} />
+          <VoicePanel sessionId={sessionId} voice={voice} send={send} autoRequest={new URLSearchParams(location.search).get('voice') === '1'} disabled={!interactiveEnabled} />
           <div className="event-log">
             <h3>输入与信令</h3>
             {frame && <code>frame {frame.width}x{frame.height} {formatTime(frame.captured_at)}</code>}
@@ -925,11 +951,13 @@ function VoicePanel({
   voice,
   send,
   autoRequest,
+  disabled,
 }: {
   sessionId: string;
   voice?: { status: string; muted: boolean; reason?: string | null };
   send: ((payload: unknown) => void) | null;
   autoRequest?: boolean;
+  disabled?: boolean;
 }) {
   const status = voice?.status || 'idle';
   const muted = voice?.muted || false;
@@ -956,22 +984,22 @@ function VoicePanel({
   };
   useEffect(() => () => streamRef.current?.getTracks().forEach((track) => track.stop()), []);
   useEffect(() => {
-    if (!autoRequest || autoRequested.current || !send || status !== 'idle') return;
+    if (!autoRequest || autoRequested.current || !send || disabled || status !== 'idle') return;
     autoRequested.current = true;
     void requestVoice();
-  }, [autoRequest, send, status]);
+  }, [autoRequest, disabled, send, status]);
   return (
     <div className="voice-panel">
       <div>
         <h3><Volume2 size={16} /> 语音沟通</h3>
-        <p>{localError || `${status}${voice?.reason ? ` / ${voice.reason}` : ''}`}</p>
+        <p>{disabled ? '等待远控会话进入 active 后再发起语音。' : localError || `${status}${voice?.reason ? ` / ${voice.reason}` : ''}`}</p>
       </div>
       <div className="voice-actions">
         <button
           className="icon-only"
           title="开启语音"
           onClick={requestVoice}
-          disabled={!send || ['requesting', 'accepted'].includes(status)}
+          disabled={disabled || !send || ['requesting', 'accepted'].includes(status)}
         >
           <Mic size={16} />
         </button>
@@ -979,7 +1007,7 @@ function VoicePanel({
           className="icon-only"
           title={muted ? '取消静音' : '静音'}
           onClick={() => sendVoice({ type: 'voice_mute', session_id: sessionId, muted: !muted })}
-          disabled={!send || !['requesting', 'accepted', 'muted'].includes(status)}
+          disabled={disabled || !send || !['requesting', 'accepted', 'muted'].includes(status)}
         >
           {muted ? <MicOff size={16} /> : <Volume2 size={16} />}
         </button>
@@ -987,7 +1015,7 @@ function VoicePanel({
           className="icon-only danger-text"
           title="挂断"
           onClick={hangupVoice}
-          disabled={!send || status === 'idle' || status === 'hangup'}
+          disabled={disabled || !send || status === 'idle' || status === 'hangup'}
         >
           <PhoneOff size={16} />
         </button>

@@ -234,7 +234,7 @@
   }
 
   .screen {
-    @apply grid min-h-[62vh] place-items-center border border-ink bg-[#141817] text-white outline-none shadow-crisp;
+    @apply relative grid min-h-[62vh] place-items-center overflow-hidden border border-ink bg-[#141817] text-white outline-none shadow-crisp;
     background-image: linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px);
     background-size: 28px 28px;
   }
@@ -250,6 +250,10 @@
 
   .screen-inner strong {
     @apply text-xl text-white;
+  }
+
+  .screen-overlay {
+    @apply absolute inset-0 grid place-items-center bg-black/55 text-sm font-medium text-white/90;
   }
 
   .side-panel {
