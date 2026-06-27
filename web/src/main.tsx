@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router';
@@ -785,12 +785,15 @@ function RemotePage() {
   const interactiveEnabled = sessionStatus === 'active' && !closeReason;
   const awaitingApproval = sessionStatus === 'pending' && !closeReason;
   const rejected = sessionStatus === 'rejected';
+  const addRtcEvent = useCallback((line: string) => {
+    setEvents((current) => [line, ...current].slice(0, 8));
+  }, []);
   const rtc = useSessionRtc({
     sessionId,
     enabled: interactiveEnabled,
     send,
     signals,
-    addEvent: (line) => setEvents((v) => [line, ...v].slice(0, 8)),
+    addEvent: addRtcEvent,
   });
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -940,7 +943,15 @@ function RemotePage() {
           />
           <VoicePanel sessionId={sessionId} voice={voice} send={send} autoRequest={new URLSearchParams(location.search).get('voice') === '1'} disabled={!interactiveEnabled} />
           <div className="event-log">
-            <h3>输入与信令</h3>
+            <h3>
+              输入与信令
+              {rtc.canRetry && (
+                <button className="icon-text" onClick={rtc.retry} title="重新建立 WebRTC 连接">
+                  <RefreshCcw size={14} />
+                  重试连接
+                </button>
+              )}
+            </h3>
             {frame && <code>frame {frame.width}x{frame.height} {formatTime(frame.captured_at)}</code>}
             <code>rtc {rtc.status}{rtc.detail ? ` / ${rtc.detail}` : ''}</code>
             {liveLogs.map((event, i) => <code key={`live-${event}-${i}`}>{event}</code>)}
@@ -1010,6 +1021,7 @@ function useSessionRtc({
   const [status, setStatus] = useState('idle');
   const [detail, setDetail] = useState('');
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!enabled || !send || !sessionId) {
@@ -1029,7 +1041,7 @@ function useSessionRtc({
     if (peerRef.current) return;
     const peer = new RTCPeerConnection();
     peerRef.current = peer;
-    processedSignalCount.current = 0;
+    processedSignalCount.current = signals.length;
     setStatus('creating_offer');
     setDetail('initializing');
     addEvent('rtc init');
@@ -1122,7 +1134,7 @@ function useSessionRtc({
       processedSignalCount.current = 0;
       setRemoteStream(null);
     };
-  }, [addEvent, enabled, send, sessionId]);
+  }, [addEvent, attempt, enabled, send, sessionId]);
 
   useEffect(() => {
     const peer = peerRef.current;
@@ -1175,7 +1187,20 @@ function useSessionRtc({
     return true;
   };
 
-  return { status, detail, sendControl, remoteStream };
+  const canRetry = enabled && (
+    status === 'offer_timeout'
+    || status === 'offer_failed'
+    || status === 'signal_error'
+    || ((status === 'peer' || status === 'ice') && ['failed', 'disconnected', 'closed'].includes(detail))
+  );
+  const retry = () => {
+    if (!canRetry) return;
+    setStatus('retrying');
+    setDetail('restarting connection');
+    setAttempt((current) => current + 1);
+  };
+
+  return { status, detail, sendControl, remoteStream, canRetry, retry };
 }
 
 function SessionTools({ deviceId }: { deviceId: string }) {
