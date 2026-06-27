@@ -563,6 +563,8 @@ CONDUCTOR_SMOKE_BROWSER=1 ./scripts/smoke-release.sh .
 
 ### Flutter 找不到 SDK
 
+Linux/macOS 构建脚本会优先使用 `FLUTTER_BIN`，未设置时查找 `PATH` 中的 `flutter`。如果 Flutter 不在 `PATH`，可以指定：
+
 Linux/macOS：
 
 ```sh

@@ -2,7 +2,13 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FLUTTER_BIN="${FLUTTER_BIN:-/home/flex/Code/flutter/bin/flutter}"
+if [[ -z "${FLUTTER_BIN:-}" ]]; then
+  if command -v flutter >/dev/null 2>&1; then
+    FLUTTER_BIN="$(command -v flutter)"
+  else
+    FLUTTER_BIN="/home/flex/Code/flutter/bin/flutter"
+  fi
+fi
 RELEASE_DIR="$ROOT_DIR/release"
 DEFAULT_SERVER_URL="${CONDUCTOR_DEFAULT_SERVER_URL:-}"
 DEFAULT_AGENT_TOKEN="${CONDUCTOR_DEFAULT_AGENT_TOKEN:-}"
