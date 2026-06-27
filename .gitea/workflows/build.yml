@@ -106,6 +106,10 @@ jobs:
         shell: pwsh
         run: .\scripts\verify-client-archive.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
 
+      - name: Smoke launch bundled Windows agent
+        shell: pwsh
+        run: .\scripts\smoke-agent-launch.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
+
       - name: Smoke launch Windows client
         shell: pwsh
         run: .\scripts\smoke-client-launch.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip

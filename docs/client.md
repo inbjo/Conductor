@@ -162,10 +162,11 @@ release\conductor-client-windows-x64.zip
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\verify-client-archive.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
+powershell -ExecutionPolicy Bypass -File .\scripts\smoke-agent-launch.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
 powershell -ExecutionPolicy Bypass -File .\scripts\smoke-client-launch.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
 ```
 
-启动 smoke 会解压 zip，从解包目录启动 `conductor_client.exe`，等待数秒确认进程没有立刻退出，然后主动结束进程。它用于发现缺 DLL、入口程序无法启动或归档目录错误。
+Agent smoke 会解压 zip，从解包目录启动 `conductor-agent.exe`，确认它可以进入连接/重连循环且不会立刻崩溃。Client smoke 会启动 `conductor_client.exe`，等待数秒确认 GUI 入口没有立刻退出，然后主动结束进程。它们用于发现缺 DLL、入口程序无法启动或归档目录错误。
 
 运行 `conductor_client.exe`，填写 Server 地址和 Token，点击 `Start Agent`。后台设备列表出现该 Windows 终端后，再进入远控页验证屏幕、输入、文件和聊天流程。
 
