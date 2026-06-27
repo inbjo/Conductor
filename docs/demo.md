@@ -13,6 +13,7 @@
 - `bin/conductor-server`
 - `bin/conductor-agent`
 - `README.md`
+- `RELEASE.txt`
 - `docs/demo.md`
 - `docs/plan.md`
 - `scripts/smoke-release.sh`
