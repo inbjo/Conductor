@@ -63,6 +63,9 @@ jobs:
       - name: Test client evidence summary verifier
         run: ./scripts/test-client-evidence-summary.sh
 
+      - name: Test client archive checksum verifier
+        run: ./scripts/test-client-archive-checksum.sh
+
       - name: Check macOS client metadata
         run: python3 scripts/check-macos-client-metadata.py
 
