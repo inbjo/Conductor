@@ -800,8 +800,9 @@ function RemotePage() {
       created_at: new Date().toISOString(),
       ...event,
     };
-    send?.(payload);
-    setEvents((v) => [`sent ${event.kind} ${event.key || event.button || ''}`, ...v].slice(0, 8));
+    const viaRtc = rtc.sendControl(payload);
+    if (!viaRtc) send?.(payload);
+    setEvents((v) => [`sent ${event.kind} ${event.key || event.button || ''} via ${viaRtc ? 'rtc' : 'ws'}`, ...v].slice(0, 8));
   };
   useEffect(() => {
     const closeOnPageHide = () => {
@@ -978,6 +979,7 @@ function useSessionRtc({
   addEvent: (line: string) => void;
 }) {
   const peerRef = useRef<RTCPeerConnection | null>(null);
+  const controlChannelRef = useRef<RTCDataChannel | null>(null);
   const processedSignalCount = useRef(0);
   const answerTimer = useRef<number | null>(null);
   const [status, setStatus] = useState('idle');
@@ -991,6 +993,7 @@ function useSessionRtc({
       }
       peerRef.current?.close();
       peerRef.current = null;
+      controlChannelRef.current = null;
       processedSignalCount.current = 0;
       setStatus(enabled ? 'ready' : 'idle');
       setDetail('');
@@ -1009,7 +1012,16 @@ function useSessionRtc({
       setDetail(nextDetail);
     };
 
-    peer.createDataChannel('control');
+    const controlChannel = peer.createDataChannel('control');
+    controlChannelRef.current = controlChannel;
+    controlChannel.onopen = () => addEvent('rtc control open');
+    controlChannel.onclose = () => {
+      addEvent('rtc control close');
+      if (controlChannelRef.current === controlChannel) {
+        controlChannelRef.current = null;
+      }
+    };
+    controlChannel.onerror = () => addEvent('rtc control error');
     peer.onicecandidate = (event) => {
       if (!event.candidate) return;
       send({
@@ -1060,6 +1072,7 @@ function useSessionRtc({
       }
       peer.close();
       if (peerRef.current === peer) peerRef.current = null;
+      if (controlChannelRef.current === controlChannel) controlChannelRef.current = null;
       processedSignalCount.current = 0;
     };
   }, [addEvent, enabled, send, sessionId]);
@@ -1108,7 +1121,14 @@ function useSessionRtc({
     }
   }, [addEvent, signals]);
 
-  return { status, detail };
+  const sendControl = (payload: ControlEventPayload) => {
+    const channel = controlChannelRef.current;
+    if (!channel || channel.readyState !== 'open') return false;
+    channel.send(JSON.stringify(payload));
+    return true;
+  };
+
+  return { status, detail, sendControl };
 }
 
 function SessionTools({ deviceId }: { deviceId: string }) {

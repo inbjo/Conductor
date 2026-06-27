@@ -253,6 +253,7 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
     let mut active_sessions = HashSet::<String>::new();
     let rtc_api = build_webrtc_api()?;
     let (rtc_tx, mut rtc_rx) = mpsc::unbounded_channel::<AgentToServer>();
+    let (rtc_control_tx, mut rtc_control_rx) = mpsc::unbounded_channel::<ControlEventPayload>();
     let mut rtc_sessions = HashMap::<String, Arc<RTCPeerConnection>>::new();
     let mut session_frames = HashMap::<String, (u32, u32)>::new();
     let mut input = InputController::new();
@@ -278,6 +279,14 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
             }
             Some(rtc_msg) = rtc_rx.recv() => {
                 send_json(&mut write, &rtc_msg).await?;
+            }
+            Some(control_event) = rtc_control_rx.recv() => {
+                if let Err(err) = input.apply(&control_event, session_frames.get(&control_event.session_id).copied()) {
+                    warn!(
+                        "rtc control failed session={} kind={}: {err}",
+                        control_event.session_id, control_event.kind
+                    );
+                }
             }
             line = stdin_lines.next_line(), if stdin_open => {
                 match line {
@@ -368,6 +377,7 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                             &mut rtc_sessions,
                             &session_id,
                             rtc_tx.clone(),
+                            rtc_control_tx.clone(),
                         )
                         .await?;
                         let answer_sdp = apply_browser_offer(&pc, &sdp).await?;
@@ -427,6 +437,7 @@ async fn ensure_rtc_session(
     sessions: &mut HashMap<String, Arc<RTCPeerConnection>>,
     session_id: &str,
     rtc_tx: mpsc::UnboundedSender<AgentToServer>,
+    control_tx: mpsc::UnboundedSender<ControlEventPayload>,
 ) -> anyhow::Result<Arc<RTCPeerConnection>> {
     if let Some(pc) = sessions.get(session_id) {
         return Ok(Arc::clone(pc));
@@ -463,11 +474,13 @@ async fn ensure_rtc_session(
     let data_session = session_id.to_string();
     pc.on_data_channel(Box::new(move |dc: Arc<RTCDataChannel>| {
         let data_session = data_session.clone();
+        let control_tx = control_tx.clone();
         Box::pin(async move {
             let label = dc.label().to_string();
+            let open_label = label.clone();
             let open_session = data_session.clone();
             dc.on_open(Box::new(move || {
-                let label = label.clone();
+                let label = open_label.clone();
                 let open_session = open_session.clone();
                 Box::pin(async move {
                     info!(
@@ -479,13 +492,30 @@ async fn ensure_rtc_session(
             dc.on_message(Box::new(move |msg: DataChannelMessage| {
                 let text = String::from_utf8_lossy(&msg.data).to_string();
                 let data_session = data_session.clone();
+                let control_tx = control_tx.clone();
+                let channel_label = label.clone();
                 Box::pin(async move {
-                    info!(
-                        "rtc data message session={} bytes={} text={}",
-                        data_session,
-                        msg.data.len(),
-                        text
-                    );
+                    if channel_label == "control" {
+                        match serde_json::from_str::<ControlEventPayload>(&text) {
+                            Ok(event) => {
+                                let _ = control_tx.send(event);
+                            }
+                            Err(err) => warn!(
+                                "invalid rtc control payload session={} err={} body={}",
+                                data_session,
+                                err,
+                                text
+                            ),
+                        }
+                    } else {
+                        info!(
+                            "rtc data message session={} label={} bytes={} text={}",
+                            data_session,
+                            channel_label,
+                            msg.data.len(),
+                            text
+                        );
+                    }
                 })
             }));
         })
