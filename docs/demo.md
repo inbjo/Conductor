@@ -20,6 +20,14 @@
 正式演示前建议先在本机做一次 smoke test：
 
 ```sh
+./scripts/smoke-release.sh release/conductor-<target>
+```
+
+该脚本会临时启动 release 包内的 Server 和 Agent，自动检查健康接口、前端深层路由、登录、设备上线、远控会话、文件列表、聊天和会话关闭。
+
+也可以手工执行同等检查。先启动 Server：
+
+```sh
 export CONDUCTOR_BIND='127.0.0.1:18080'
 export CONDUCTOR_DB='/tmp/conductor-demo.sqlite3'
 export CONDUCTOR_ADMIN_PASSWORD='admin123'
