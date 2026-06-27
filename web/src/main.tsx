@@ -136,6 +136,7 @@ const useAuth = create<AuthStore>((set) => ({
 type LiveStore = {
   frames: Record<string, ScreenFrame>;
   logs: Record<string, string[]>;
+  signals: Record<string, { kind: string; payload: unknown; receivedAt: string }[]>;
   voice: Record<string, { status: string; muted: boolean; reason?: string | null }>;
   closedSessions: Record<string, string>;
   wsStatus: 'disconnected' | 'connecting' | 'connected';
@@ -143,6 +144,7 @@ type LiveStore = {
   setSend: (send: ((payload: unknown) => void) | null) => void;
   setWsStatus: (status: LiveStore['wsStatus']) => void;
   setFrame: (frame: ScreenFrame) => void;
+  pushSignal: (sessionId: string, kind: string, payload: unknown) => void;
   setVoice: (sessionId: string, status: string, muted?: boolean | null, reason?: string | null) => void;
   closeSession: (sessionId: string, reason: string) => void;
   addLog: (sessionId: string, line: string) => void;
@@ -151,6 +153,7 @@ type LiveStore = {
 const useLive = create<LiveStore>((set) => ({
   frames: {},
   logs: {},
+  signals: {},
   voice: {},
   closedSessions: {},
   wsStatus: 'disconnected',
@@ -158,6 +161,16 @@ const useLive = create<LiveStore>((set) => ({
   setSend: (send) => set({ send }),
   setWsStatus: (wsStatus) => set({ wsStatus }),
   setFrame: (frame) => set((state) => ({ frames: { ...state.frames, [frame.session_id]: frame } })),
+  pushSignal: (sessionId, kind, payload) =>
+    set((state) => ({
+      signals: {
+        ...state.signals,
+        [sessionId]: [
+          ...(state.signals[sessionId] || []),
+          { kind, payload, receivedAt: new Date().toISOString() },
+        ].slice(-20),
+      },
+    })),
   setVoice: (sessionId, status, muted, reason) =>
     set((state) => ({
       voice: {
@@ -281,6 +294,7 @@ function useAdminSocket(token: string | null) {
   const qc = useQueryClient();
   const setSend = useLive((s) => s.setSend);
   const setFrame = useLive((s) => s.setFrame);
+  const pushSignal = useLive((s) => s.pushSignal);
   const setVoice = useLive((s) => s.setVoice);
   const closeSession = useLive((s) => s.closeSession);
   const setWsStatus = useLive((s) => s.setWsStatus);
@@ -316,6 +330,7 @@ function useAdminSocket(token: string | null) {
         if (payload.type === 'screen_frame') setFrame(payload);
         if (payload.type === 'control_ack') addLog(payload.session_id, `ack ${payload.kind} ${payload.key || payload.button || ''}`);
         if (payload.type === 'signal') {
+          pushSignal(payload.session_id, payload.kind, payload.payload);
           addLog(payload.session_id, `signal ${payload.kind}`);
           if (payload.kind === 'session_closed') {
             const reason =
@@ -345,7 +360,7 @@ function useAdminSocket(token: string | null) {
       setWsStatus('disconnected');
       socket?.close();
     };
-  }, [addLog, closeSession, qc, setFrame, setSend, setVoice, setWsStatus, token]);
+  }, [addLog, closeSession, pushSignal, qc, setFrame, setSend, setVoice, setWsStatus, token]);
 }
 
 function LoginPage() {
@@ -761,6 +776,7 @@ function RemotePage() {
   const lastMove = useRef(0);
   const frame = useLive((s) => s.frames[sessionId]);
   const liveLogs = useLive((s) => s.logs[sessionId] || []);
+  const signals = useLive((s) => s.signals[sessionId] || []);
   const voice = useLive((s) => s.voice[sessionId]);
   const closeReason = useLive((s) => s.closedSessions[sessionId]);
   const wsStatus = useLive((s) => s.wsStatus);
@@ -769,6 +785,13 @@ function RemotePage() {
   const interactiveEnabled = sessionStatus === 'active' && !closeReason;
   const awaitingApproval = sessionStatus === 'pending' && !closeReason;
   const rejected = sessionStatus === 'rejected';
+  const rtc = useSessionRtc({
+    sessionId,
+    enabled: interactiveEnabled,
+    send,
+    signals,
+    addEvent: (line) => setEvents((v) => [line, ...v].slice(0, 8)),
+  });
   const sendControl = (event: Omit<ControlEventPayload, 'type' | 'session_id' | 'created_at'>) => {
     if (!interactiveEnabled) return;
     const payload: ControlEventPayload = {
@@ -882,6 +905,8 @@ function RemotePage() {
             frameTime={frame?.captured_at || null}
             voiceStatus={voice?.status || 'idle'}
             wsStatus={wsStatus}
+            rtcStatus={rtc.status}
+            rtcDetail={rtc.detail}
           />
           <SessionTools deviceId={session.data?.device_id || ''} />
           <ChatPanel
@@ -894,6 +919,7 @@ function RemotePage() {
           <div className="event-log">
             <h3>输入与信令</h3>
             {frame && <code>frame {frame.width}x{frame.height} {formatTime(frame.captured_at)}</code>}
+            <code>rtc {rtc.status}{rtc.detail ? ` / ${rtc.detail}` : ''}</code>
             {liveLogs.map((event, i) => <code key={`live-${event}-${i}`}>{event}</code>)}
             {events.map((event, i) => <code key={`${event}-${i}`}>{event}</code>)}
           </div>
@@ -910,6 +936,8 @@ function SessionSummary({
   frameTime,
   voiceStatus,
   wsStatus,
+  rtcStatus,
+  rtcDetail,
 }: {
   sessionId: string;
   sessionStatus: string;
@@ -917,6 +945,8 @@ function SessionSummary({
   frameTime: string | null;
   voiceStatus: string;
   wsStatus: string;
+  rtcStatus: string;
+  rtcDetail?: string;
 }) {
   return (
     <div className="tool-panel">
@@ -926,11 +956,159 @@ function SessionSummary({
         <Info label="状态" value={sessionStatus} />
         <Info label="终端" value={device?.hostname || device?.device_id || '-'} />
         <Info label="网络" value={wsStatus} />
+        <Info label="信令" value={rtcDetail ? `${rtcStatus} / ${rtcDetail}` : rtcStatus} />
         <Info label="语音" value={voiceStatus} />
         <Info label="最近帧" value={formatTime(frameTime)} />
       </div>
     </div>
   );
+}
+
+function useSessionRtc({
+  sessionId,
+  enabled,
+  send,
+  signals,
+  addEvent,
+}: {
+  sessionId: string;
+  enabled: boolean;
+  send: ((payload: unknown) => void) | null;
+  signals: { kind: string; payload: unknown; receivedAt: string }[];
+  addEvent: (line: string) => void;
+}) {
+  const peerRef = useRef<RTCPeerConnection | null>(null);
+  const processedSignalCount = useRef(0);
+  const answerTimer = useRef<number | null>(null);
+  const [status, setStatus] = useState('idle');
+  const [detail, setDetail] = useState('');
+
+  useEffect(() => {
+    if (!enabled || !send || !sessionId) {
+      if (answerTimer.current) {
+        window.clearTimeout(answerTimer.current);
+        answerTimer.current = null;
+      }
+      peerRef.current?.close();
+      peerRef.current = null;
+      processedSignalCount.current = 0;
+      setStatus(enabled ? 'ready' : 'idle');
+      setDetail('');
+      return;
+    }
+    if (peerRef.current) return;
+    const peer = new RTCPeerConnection();
+    peerRef.current = peer;
+    processedSignalCount.current = 0;
+    setStatus('creating_offer');
+    setDetail('initializing');
+    addEvent('rtc init');
+
+    const update = (next: string, nextDetail = '') => {
+      setStatus(next);
+      setDetail(nextDetail);
+    };
+
+    peer.createDataChannel('control');
+    peer.onicecandidate = (event) => {
+      if (!event.candidate) return;
+      send({
+        type: 'webrtc_ice_candidate',
+        session_id: sessionId,
+        candidate: event.candidate.toJSON(),
+      });
+      addEvent('rtc local ice');
+    };
+    peer.onconnectionstatechange = () => {
+      update('peer', peer.connectionState);
+      addEvent(`rtc connection ${peer.connectionState}`);
+    };
+    peer.oniceconnectionstatechange = () => {
+      update('ice', peer.iceConnectionState);
+      addEvent(`rtc ice ${peer.iceConnectionState}`);
+    };
+    peer.onsignalingstatechange = () => {
+      update('signaling', peer.signalingState);
+    };
+
+    void (async () => {
+      try {
+        const offer = await peer.createOffer();
+        await peer.setLocalDescription(offer);
+        send({
+          type: 'webrtc_offer',
+          session_id: sessionId,
+          sdp: offer.sdp || '',
+        });
+        update('offer_sent', 'waiting_answer');
+        addEvent('rtc offer sent');
+        answerTimer.current = window.setTimeout(() => {
+          update('offer_timeout', 'no answer');
+          addEvent('rtc answer timeout');
+        }, 8000);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'offer failed';
+        update('offer_failed', message);
+        addEvent(`rtc error ${message}`);
+      }
+    })();
+
+    return () => {
+      if (answerTimer.current) {
+        window.clearTimeout(answerTimer.current);
+        answerTimer.current = null;
+      }
+      peer.close();
+      if (peerRef.current === peer) peerRef.current = null;
+      processedSignalCount.current = 0;
+    };
+  }, [addEvent, enabled, send, sessionId]);
+
+  useEffect(() => {
+    const peer = peerRef.current;
+    if (!peer) return;
+    const newSignals = signals.slice(processedSignalCount.current);
+    if (newSignals.length === 0) return;
+    processedSignalCount.current = signals.length;
+    for (const signal of newSignals) {
+      void (async () => {
+        try {
+          if (signal.kind === 'answer') {
+            const payload = signal.payload as { sdp?: unknown };
+            if (typeof payload?.sdp !== 'string' || !payload.sdp) {
+              throw new Error('missing answer sdp');
+            }
+            await peer.setRemoteDescription({ type: 'answer', sdp: payload.sdp });
+            if (answerTimer.current) {
+              window.clearTimeout(answerTimer.current);
+              answerTimer.current = null;
+            }
+            setStatus('answer_applied');
+            setDetail('remote description set');
+            addEvent('rtc answer applied');
+            return;
+          }
+          if (signal.kind === 'ice_candidate') {
+            await peer.addIceCandidate(signal.payload as RTCIceCandidateInit);
+            addEvent('rtc remote ice');
+            return;
+          }
+          if (signal.kind === 'offer') {
+            setStatus('unexpected_offer');
+            setDetail('agent offer not supported yet');
+            addEvent('rtc unexpected offer');
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : `signal ${signal.kind} failed`;
+          setStatus('signal_error');
+          setDetail(`${signal.kind}: ${message}`);
+          addEvent(`rtc ${signal.kind} error`);
+        }
+      })();
+    }
+  }, [addEvent, signals]);
+
+  return { status, detail };
 }
 
 function SessionTools({ deviceId }: { deviceId: string }) {
