@@ -1072,13 +1072,45 @@ async fn download_file(
     );
     headers.insert(
         header::CONTENT_DISPOSITION,
-        HeaderValue::from_str(&format!(
-            "attachment; filename=\"{}\"",
-            name.replace('"', "")
-        ))
-        .unwrap(),
+        HeaderValue::from_str(&content_disposition_for_download(name)).unwrap(),
     );
     Ok((headers, Body::from(bytes)).into_response())
+}
+
+fn content_disposition_for_download(name: &str) -> String {
+    let fallback: String = name
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-' | ' ') {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>()
+        .replace('"', "");
+    format!(
+        "attachment; filename=\"{}\"; filename*=UTF-8''{}",
+        if fallback.trim().is_empty() {
+            "download.bin"
+        } else {
+            fallback.trim()
+        },
+        percent_encode_filename(name)
+    )
+}
+
+fn percent_encode_filename(value: &str) -> String {
+    value
+        .as_bytes()
+        .iter()
+        .map(|byte| match *byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'.' | b'_' | b'-' => {
+                (*byte as char).to_string()
+            }
+            _ => format!("%{byte:02X}"),
+        })
+        .collect()
 }
 
 fn decode_download_content(content_base64: Option<String>) -> Result<Vec<u8>, ApiError> {
@@ -2021,6 +2053,14 @@ mod tests {
         );
         let err = decode_download_content(None).unwrap_err().to_string();
         assert!(err.contains("download did not return file content"));
+    }
+
+    #[test]
+    fn download_disposition_supports_unicode_file_names() {
+        let header = content_disposition_for_download("报告 1.txt");
+        assert!(header.contains("filename=\"__ 1.txt\""));
+        assert!(header.contains("filename*=UTF-8''%E6%8A%A5%E5%91%8A%201.txt"));
+        assert_eq!(percent_encode_filename("a b.txt"), "a%20b.txt");
     }
 
     #[tokio::test]
