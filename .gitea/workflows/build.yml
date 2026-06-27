@@ -318,3 +318,31 @@ jobs:
 
       - name: Verify client smoke evidence
         run: ./scripts/validate-client-evidence.sh --require-ci-fields --expected-commit "$GITHUB_SHA"
+
+      - name: Write verified client smoke evidence summary
+        run: |
+          mkdir -p artifacts/client-smoke-evidence-verified
+          cp artifacts/linux-client-smoke-evidence/validation-summary.txt artifacts/client-smoke-evidence-verified/linux-validation-summary.txt
+          cp artifacts/windows-client-smoke-evidence/validation-summary.txt artifacts/client-smoke-evidence-verified/windows-validation-summary.txt
+          cp artifacts/macos-client-smoke-evidence/validation-summary.txt artifacts/client-smoke-evidence-verified/macos-validation-summary.txt
+          {
+            echo "commit=$GITHUB_SHA"
+            echo "verified_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "linux_result=$(sed -n 's/^result=//p' artifacts/linux-client-smoke-evidence/validation-summary.txt | tail -n 1)"
+            echo "windows_result=$(sed -n 's/^result=//p' artifacts/windows-client-smoke-evidence/validation-summary.txt | tail -n 1)"
+            echo "macos_result=$(sed -n 's/^result=//p' artifacts/macos-client-smoke-evidence/validation-summary.txt | tail -n 1)"
+            echo "linux_archive_sha256=$(sed -n 's/^archive_sha256=//p' artifacts/linux-client-smoke-evidence/validation-summary.txt | tail -n 1)"
+            echo "windows_archive_sha256=$(sed -n 's/^archive_sha256=//p' artifacts/windows-client-smoke-evidence/validation-summary.txt | tail -n 1)"
+            echo "macos_archive_sha256=$(sed -n 's/^archive_sha256=//p' artifacts/macos-client-smoke-evidence/validation-summary.txt | tail -n 1)"
+          } > artifacts/client-smoke-evidence-verified/aggregate-summary.txt
+
+      - name: Upload verified client smoke evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-smoke-evidence-verified
+          path: |
+            artifacts/client-smoke-evidence-verified
+            artifacts/linux-client-smoke-evidence
+            artifacts/windows-client-smoke-evidence
+            artifacts/macos-client-smoke-evidence
+          if-no-files-found: error

@@ -482,7 +482,7 @@ release/conductor-<target>.tar.gz.sha256
 | `client_audio_input` | `Audio Input` |
 | `client_interactive_approval` | `Require local approval`，取值 `1/0`、`true/false`、`yes/no` 或 `on/off` |
 
-CI 会构建并上传四类 artifact：
+CI 会构建并上传以下 artifact：
 
 | Job | Runner | 产物 |
 | --- | --- | --- |
@@ -492,7 +492,7 @@ CI 会构建并上传四类 artifact：
 | `client-linux` | `ubuntu-24.04` | `conductor-client-linux-x64` |
 | `client-windows` | `windows-2022` | `conductor-client-windows-x64` |
 | `client-macos` | `macos-14` | `conductor-client-macos` |
-| `client-smoke-evidence` | `ubuntu-24.04` | 不产出包；下载并统一校验三端 smoke evidence。 |
+| `client-smoke-evidence` | `ubuntu-24.04` | `client-smoke-evidence-verified`，包含三端已统一复核的 smoke evidence 和聚合摘要。 |
 
 产物文件：
 
@@ -510,7 +510,7 @@ CI 构建流程：
 - Linux 客户端：安装 GTK/clang 依赖，执行 `scripts/build-client.sh`，校验归档并做客户端启动/e2e smoke；e2e evidence 会验证 Server URL、Agent Token、Agent Name、File Root、Audio Input 和本地审批开关都写入 settings 并传给包内 Agent。
 - Windows 客户端：安装 Rust/Flutter，执行 `scripts/build-client.ps1`，再用 `scripts/validate-windows-client.ps1 -SkipClientBuild -SkipServerBuild` 校验归档、Agent 启动、Agent 注册、客户端拉起 Agent、GUI 入口和 smoke evidence；e2e evidence 会验证 Server URL、Agent Token、Agent Name、File Root、Audio Input 和本地审批开关都写入 settings 并传给包内 Agent。
 - macOS 客户端：安装 Rust/Flutter，执行 `scripts/build-client.sh`，校验 `.app` 归档中的主程序、包内 Agent、`App.framework`、`FlutterMacOS.framework`、Flutter assets manifest 和麦克风权限说明，做 `.app` 启动 smoke，并通过 e2e smoke 验证 Flutter 客户端可自动拉起包内 Agent 注册到本地 smoke server；e2e evidence 会验证 Server URL、Agent Token、Agent Name、File Root、Audio Input 和本地审批开关都写入 settings 并传给包内 Agent。
-- 三端 evidence 聚合：`client-smoke-evidence` 下载 Linux/Windows/macOS smoke evidence artifact，执行 `scripts/validate-client-evidence.sh --require-ci-fields --expected-commit "$GITHUB_SHA"`，统一确认三端证据来自同一 commit 且包含原始 e2e 日志。
+- 三端 evidence 聚合：`client-smoke-evidence` 下载 Linux/Windows/macOS smoke evidence artifact，执行 `scripts/validate-client-evidence.sh --require-ci-fields --expected-commit "$GITHUB_SHA"`，统一确认三端证据来自同一 commit 且包含原始 e2e 日志；校验通过后上传 `client-smoke-evidence-verified`，其中 `aggregate-summary.txt` 汇总三端 result 和归档 SHA256。
 
 注意：Windows 和 macOS 任务需要 CI 平台提供对应系统 runner。自建 Gitea/Forgejo Actions 如果没有 `windows-2022` 或 `macos-14` runner，只会创建任务配置，不能真正产出对应平台包。
 
