@@ -88,6 +88,24 @@ CONDUCTOR_SERVER_URL=ws://127.0.0.1:8080/ws/agent cargo run -p conductor-agent
 
 Agent 首次启动会生成并持久化 `device_id`，之后重启会复用同一个设备标识。
 
+## 构建提交包
+
+构建当前平台的前端、Server、Agent 和压缩提交包：
+
+```sh
+./scripts/build-release.sh
+```
+
+指定已安装 Rust 工具链及交叉编译器的目标平台：
+
+```sh
+./scripts/build-release.sh x86_64-unknown-linux-gnu
+./scripts/build-release.sh x86_64-pc-windows-gnu
+./scripts/build-release.sh x86_64-apple-darwin
+```
+
+产物位于 `release/conductor-<target>.tar.gz`。完整比赛演示步骤见 `docs/demo.md`。
+
 Agent 控制台聊天命令：
 
 - `/help`

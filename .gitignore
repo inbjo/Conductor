@@ -19,6 +19,7 @@
 /web/tsconfig.node.tsbuildinfo
 /web/vite.config.js
 /web/vite.config.d.ts
+/release/
 
 # Environment and logs
 .env
