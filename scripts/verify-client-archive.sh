@@ -15,6 +15,7 @@ if [[ ! -f "$archive" ]]; then
 fi
 
 list="$(tar -tzf "$archive")"
+verbose_list="$(tar -tvzf "$archive")"
 
 require_entry() {
   local pattern="$1"
@@ -25,16 +26,36 @@ require_entry() {
   fi
 }
 
+require_executable_entry() {
+  local pattern="$1"
+  local entry
+  entry="$(printf '%s\n' "$verbose_list" | awk -v pattern="$pattern" '$NF ~ pattern { print; exit }')"
+  if [[ -z "$entry" ]]; then
+    echo "Missing executable archive entry matching: $pattern" >&2
+    printf '%s\n' "$verbose_list" >&2
+    exit 1
+  fi
+  local mode="${entry%% *}"
+  if [[ "${mode:3:1}${mode:6:1}${mode:9:1}" != *x* ]]; then
+    echo "Archive entry is not executable: $entry" >&2
+    exit 1
+  fi
+}
+
 case "$platform" in
   linux)
     require_entry '(^|^\./)conductor_client$'
     require_entry '(^|^\./)conductor-agent$'
+    require_executable_entry '(^|^\./)conductor_client$'
+    require_executable_entry '(^|^\./)conductor-agent$'
     require_entry '(^|^\./)data/flutter_assets/'
     require_entry '(^|^\./)lib/libflutter_linux_gtk\.so$'
     ;;
   macos)
     require_entry '^conductor_client\.app/Contents/MacOS/conductor_client$'
     require_entry '^conductor_client\.app/Contents/MacOS/conductor-agent$'
+    require_executable_entry '^conductor_client\.app/Contents/MacOS/conductor_client$'
+    require_executable_entry '^conductor_client\.app/Contents/MacOS/conductor-agent$'
     require_entry '^conductor_client\.app/Contents/Frameworks/'
     require_entry '^conductor_client\.app/Contents/Resources/'
     ;;
