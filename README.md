@@ -5,7 +5,7 @@
 ## 项目结构
 
 - `server/`：Axum API、管理员鉴权、SQLite 持久化、WebSocket 实时通道、内嵌前端静态资源。
-- `agent/`：被控端命令行 Agent，负责注册、心跳、文件命令、聊天消息、本地 CLI 回复交互、远控画面采集与语音占位消息。
+- `agent/`：被控端命令行 Agent，负责注册、心跳、文件命令、聊天消息、本地 CLI 回复与审批交互、远控画面采集与语音占位消息。
 - `web/`：React + TypeScript + Tailwind CSS + Vite 管理后台。
 - `docs/plan.md`：任务计划与验收标准。
 
@@ -22,6 +22,7 @@
 - 文件浏览、上传、下载、删除、新建目录
 - 会话内双向文字沟通
 - Agent 本地 CLI 聊天回复：支持 `/sessions`、`/use <session_id>`、`/reply <session_id> <text>`
+- Agent 可选交互审批：支持远控请求接受/拒绝、语音请求接受/拒绝
 - 语音沟通控制面板与占位协议
 - 审计日志记录与查询
 
@@ -85,6 +86,14 @@ Agent 控制台聊天命令：
 - `/reply <session_id> <text>`
 - 直接输入文本：发送到当前会话
 
+开启交互审批后还支持：
+
+- `/requests`
+- `/session accept <session_id>`
+- `/session reject <session_id> [reason]`
+- `/voice accept <session_id>`
+- `/voice reject <session_id> [reason]`
+
 ## 演示流程
 
 1. 启动 Server。
@@ -121,6 +130,7 @@ Agent 控制台聊天命令：
 
 - `CONDUCTOR_SERVER_URL`：Agent WebSocket 地址，默认 `ws://127.0.0.1:8080/ws/agent`
 - `CONDUCTOR_AGENT_NAME`：覆盖 Agent 上报主机名
+- `CONDUCTOR_INTERACTIVE_APPROVAL`：设为 `1`/`true` 后，Agent 本地 CLI 需要显式接受或拒绝远控/语音请求
 
 ## 数据持久化
 

@@ -26,6 +26,7 @@ struct Config {
     server_url: String,
     device_id: String,
     root_dir: PathBuf,
+    interactive_approval: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -221,6 +222,7 @@ impl Config {
             server_url,
             device_id,
             root_dir,
+            interactive_approval: env_flag("CONDUCTOR_INTERACTIVE_APPROVAL"),
         })
     }
 }
@@ -240,12 +242,12 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
     let mut active_sessions = HashSet::<String>::new();
     let mut session_frames = HashMap::<String, (u32, u32)>::new();
     let mut input = InputController::new();
-    let mut chat = ChatConsole::new(cfg.device_id.clone());
+    let mut console = AgentConsole::new(cfg.device_id.clone(), cfg.interactive_approval);
     let mut stdin_lines = BufReader::new(tokio::io::stdin()).lines();
     let mut stdin_open = true;
     let mut frame_no = 0_u64;
 
-    chat.print_banner();
+    console.print_banner();
 
     loop {
         tokio::select! {
@@ -263,8 +265,36 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
             line = stdin_lines.next_line(), if stdin_open => {
                 match line {
                     Ok(Some(line)) => {
-                        if let Some(outgoing) = chat.handle_stdin(&line) {
-                            send_json(&mut write, &AgentToServer::ChatMessage(outgoing)).await?;
+                        if let Some(action) = console.handle_stdin(&line) {
+                            match action {
+                                ConsoleAction::SendChat(outgoing) => {
+                                    send_json(&mut write, &AgentToServer::ChatMessage(outgoing)).await?;
+                                }
+                                ConsoleAction::AcceptSession { session_id } => {
+                                    active_sessions.insert(session_id.clone());
+                                    console.mark_session_accepted(&session_id);
+                                    send_json(&mut write, &AgentToServer::SessionAccept { session_id: session_id.clone() }).await?;
+                                    let frame = capture_screen_frame(&cfg, &session_id, frame_no).await;
+                                    session_frames.insert(session_id.clone(), (frame.width, frame.height));
+                                    send_json(&mut write, &AgentToServer::ScreenFrame(frame)).await?;
+                                    send_json(&mut write, &AgentToServer::WebrtcOffer {
+                                        session_id: session_id.clone(),
+                                        sdp: "placeholder-offer: screen capture and WebRTC transport are reserved for the next implementation pass".into(),
+                                    }).await?;
+                                }
+                                ConsoleAction::RejectSession { session_id, reason } => {
+                                    console.mark_session_rejected(&session_id);
+                                    send_json(&mut write, &AgentToServer::SessionReject { session_id, reason }).await?;
+                                }
+                                ConsoleAction::AcceptVoice { session_id } => {
+                                    console.mark_voice_resolved(&session_id);
+                                    send_json(&mut write, &AgentToServer::VoiceAccept { session_id }).await?;
+                                }
+                                ConsoleAction::RejectVoice { session_id, reason } => {
+                                    console.mark_voice_resolved(&session_id);
+                                    send_json(&mut write, &AgentToServer::VoiceReject { session_id, reason }).await?;
+                                }
+                            }
                         }
                     }
                     Ok(None) => {
@@ -287,7 +317,7 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                         send_json(&mut write, &AgentToServer::FileResult(result)).await?;
                     }
                     Ok(ServerToAgent::ChatMessage(msg)) => {
-                        chat.receive(msg);
+                        console.receive(msg);
                     }
                     Ok(ServerToAgent::ControlEvent(event)) => {
                         if let Err(err) = input.apply(&event, session_frames.get(&event.session_id).copied()) {
@@ -299,22 +329,26 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                     }
                     Ok(ServerToAgent::RemoteControlRequest { session_id }) => {
                         info!("remote control requested: {session_id}");
-                        active_sessions.insert(session_id.clone());
-                        chat.track_session(&session_id);
-                        send_json(&mut write, &AgentToServer::SessionAccept { session_id: session_id.clone() }).await?;
-                        let frame = capture_screen_frame(&cfg, &session_id, frame_no).await;
-                        session_frames.insert(session_id.clone(), (frame.width, frame.height));
-                        send_json(&mut write, &AgentToServer::ScreenFrame(frame)).await?;
-                        send_json(&mut write, &AgentToServer::WebrtcOffer {
-                            session_id: session_id.clone(),
-                            sdp: "placeholder-offer: screen capture and WebRTC transport are reserved for the next implementation pass".into(),
-                        }).await?;
+                        console.track_session(&session_id);
+                        if cfg.interactive_approval {
+                            console.queue_session_request(&session_id);
+                        } else {
+                            active_sessions.insert(session_id.clone());
+                            send_json(&mut write, &AgentToServer::SessionAccept { session_id: session_id.clone() }).await?;
+                            let frame = capture_screen_frame(&cfg, &session_id, frame_no).await;
+                            session_frames.insert(session_id.clone(), (frame.width, frame.height));
+                            send_json(&mut write, &AgentToServer::ScreenFrame(frame)).await?;
+                            send_json(&mut write, &AgentToServer::WebrtcOffer {
+                                session_id: session_id.clone(),
+                                sdp: "placeholder-offer: screen capture and WebRTC transport are reserved for the next implementation pass".into(),
+                            }).await?;
+                        }
                     }
                     Ok(ServerToAgent::SessionClose { session_id }) => {
                         info!("session closed by server: {session_id}");
                         active_sessions.remove(&session_id);
                         session_frames.remove(&session_id);
-                        chat.close_session(&session_id);
+                        console.close_session(&session_id);
                     }
                     Ok(ServerToAgent::WebrtcOffer { session_id, sdp }) => {
                         info!("received admin offer for session {session_id}: {} bytes", sdp.len());
@@ -326,8 +360,12 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                         info!("received ICE candidate for session {session_id}: {candidate}");
                     }
                     Ok(ServerToAgent::VoiceRequest { session_id }) => {
-                        info!("voice requested for session {session_id}; accepting placeholder voice channel");
-                        send_json(&mut write, &AgentToServer::VoiceAccept { session_id }).await?;
+                        if cfg.interactive_approval {
+                            console.queue_voice_request(&session_id);
+                        } else {
+                            info!("voice requested for session {session_id}; accepting placeholder voice channel");
+                            send_json(&mut write, &AgentToServer::VoiceAccept { session_id }).await?;
+                        }
                     }
                     Ok(ServerToAgent::VoiceMute { session_id, muted }) => {
                         info!("voice mute changed for session {session_id}: {muted}");
@@ -346,28 +384,41 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
     }
 }
 
-struct ChatConsole {
+struct AgentConsole {
     device_id: String,
     current_session: Option<String>,
     known_sessions: Vec<String>,
+    interactive_approval: bool,
+    pending_session_requests: Vec<String>,
+    pending_voice_requests: Vec<String>,
 }
 
-impl ChatConsole {
-    fn new(device_id: String) -> Self {
+impl AgentConsole {
+    fn new(device_id: String, interactive_approval: bool) -> Self {
         Self {
             device_id,
             current_session: None,
             known_sessions: Vec::new(),
+            interactive_approval,
+            pending_session_requests: Vec::new(),
+            pending_voice_requests: Vec::new(),
         }
     }
 
     fn print_banner(&self) {
-        println!("Agent chat ready.");
+        println!("Agent console ready.");
         println!("  /help                   查看聊天命令");
         println!("  /sessions               查看可回复的会话");
         println!("  /use <session_id>       切换当前会话");
         println!("  /reply <id> <text>      向指定会话发送回复");
         println!("  直接输入文本            发送到当前会话");
+        if self.interactive_approval {
+            println!("  /requests               查看待处理的远控/语音请求");
+            println!("  /session accept <id>    接受远控请求");
+            println!("  /session reject <id> [reason]");
+            println!("  /voice accept <id>      接受语音请求");
+            println!("  /voice reject <id> [reason]");
+        }
     }
 
     fn receive(&mut self, msg: ChatPayload) {
@@ -388,27 +439,76 @@ impl ChatConsole {
 
     fn close_session(&mut self, session_id: &str) {
         self.known_sessions.retain(|id| id != session_id);
+        self.pending_session_requests.retain(|id| id != session_id);
+        self.pending_voice_requests.retain(|id| id != session_id);
         if self.current_session.as_deref() == Some(session_id) {
             self.current_session = self.known_sessions.last().cloned();
         }
         println!("[chat] session closed: {session_id}");
     }
 
-    fn handle_stdin(&mut self, line: &str) -> Option<ChatPayload> {
+    fn queue_session_request(&mut self, session_id: &str) {
+        self.track_session(session_id);
+        if !self
+            .pending_session_requests
+            .iter()
+            .any(|id| id == session_id)
+        {
+            self.pending_session_requests.push(session_id.to_string());
+        }
+        println!("[session] remote control requested: {session_id}");
+        println!(
+            "[session] use /session accept {session_id} or /session reject {session_id} <reason>"
+        );
+    }
+
+    fn queue_voice_request(&mut self, session_id: &str) {
+        self.track_session(session_id);
+        if !self
+            .pending_voice_requests
+            .iter()
+            .any(|id| id == session_id)
+        {
+            self.pending_voice_requests.push(session_id.to_string());
+        }
+        println!("[voice] request received: {session_id}");
+        println!("[voice] use /voice accept {session_id} or /voice reject {session_id} <reason>");
+    }
+
+    fn mark_session_accepted(&mut self, session_id: &str) {
+        self.pending_session_requests.retain(|id| id != session_id);
+        self.current_session = Some(session_id.to_string());
+        println!("[session] accepted: {session_id}");
+    }
+
+    fn mark_session_rejected(&mut self, session_id: &str) {
+        self.pending_session_requests.retain(|id| id != session_id);
+        println!("[session] rejected: {session_id}");
+    }
+
+    fn mark_voice_resolved(&mut self, session_id: &str) {
+        self.pending_voice_requests.retain(|id| id != session_id);
+    }
+
+    fn handle_stdin(&mut self, line: &str) -> Option<ConsoleAction> {
         let line = line.trim();
         if line.is_empty() {
             return None;
         }
-        match parse_local_chat_command(line, self.current_session.as_deref()) {
-            LocalChatCommand::Help => {
+        match parse_console_command(line, self.current_session.as_deref()) {
+            ConsoleCommand::Help => {
                 self.print_banner();
                 None
             }
-            LocalChatCommand::Sessions => {
+            ConsoleCommand::Sessions => {
                 self.print_sessions();
                 None
             }
-            LocalChatCommand::Use { session_id } => {
+            ConsoleCommand::Requests => {
+                self.print_requests();
+                None
+            }
+            ConsoleCommand::Use { session_id } => {
                 if self.known_sessions.iter().any(|id| id == &session_id) {
                     self.current_session = Some(session_id.clone());
                     println!("[chat] current session -> {session_id}");
@@ -417,20 +517,68 @@ impl ChatConsole {
                 }
                 None
             }
-            LocalChatCommand::Send { session_id, text } => {
+            ConsoleCommand::Send { session_id, text } => {
                 self.track_session(&session_id);
                 self.current_session = Some(session_id.clone());
                 println!("[chat][{}][agent] {}", session_id, text);
-                Some(ChatPayload {
+                Some(ConsoleAction::SendChat(ChatPayload {
                     message_id: Uuid::new_v4().to_string(),
                     session_id,
                     device_id: self.device_id.clone(),
                     sender: "agent".into(),
                     text,
                     created_at: Utc::now(),
-                })
+                }))
             }
-            LocalChatCommand::Error(message) => {
+            ConsoleCommand::AcceptSession { session_id } => {
+                if self
+                    .pending_session_requests
+                    .iter()
+                    .any(|id| id == &session_id)
+                {
+                    Some(ConsoleAction::AcceptSession { session_id })
+                } else {
+                    println!("[session] no pending request: {session_id}");
+                    None
+                }
+            }
+            ConsoleCommand::RejectSession { session_id, reason } => {
+                if self
+                    .pending_session_requests
+                    .iter()
+                    .any(|id| id == &session_id)
+                {
+                    Some(ConsoleAction::RejectSession { session_id, reason })
+                } else {
+                    println!("[session] no pending request: {session_id}");
+                    None
+                }
+            }
+            ConsoleCommand::AcceptVoice { session_id } => {
+                if self
+                    .pending_voice_requests
+                    .iter()
+                    .any(|id| id == &session_id)
+                {
+                    Some(ConsoleAction::AcceptVoice { session_id })
+                } else {
+                    println!("[voice] no pending request: {session_id}");
+                    None
+                }
+            }
+            ConsoleCommand::RejectVoice { session_id, reason } => {
+                if self
+                    .pending_voice_requests
+                    .iter()
+                    .any(|id| id == &session_id)
+                {
+                    Some(ConsoleAction::RejectVoice { session_id, reason })
+                } else {
+                    println!("[voice] no pending request: {session_id}");
+                    None
+                }
+            }
+            ConsoleCommand::Error(message) => {
                 println!("[chat] {message}");
                 None
             }
@@ -452,30 +600,65 @@ impl ChatConsole {
             println!("{} {}", marker, session_id);
         }
     }
+
+    fn print_requests(&self) {
+        if self.pending_session_requests.is_empty() && self.pending_voice_requests.is_empty() {
+            println!("[requests] no pending requests");
+            return;
+        }
+        if !self.pending_session_requests.is_empty() {
+            println!("[requests] session:");
+            for session_id in &self.pending_session_requests {
+                println!("  - {session_id}");
+            }
+        }
+        if !self.pending_voice_requests.is_empty() {
+            println!("[requests] voice:");
+            for session_id in &self.pending_voice_requests {
+                println!("  - {session_id}");
+            }
+        }
+    }
 }
 
-enum LocalChatCommand {
+enum ConsoleAction {
+    SendChat(ChatPayload),
+    AcceptSession { session_id: String },
+    RejectSession { session_id: String, reason: String },
+    AcceptVoice { session_id: String },
+    RejectVoice { session_id: String, reason: String },
+}
+
+enum ConsoleCommand {
     Help,
     Sessions,
+    Requests,
     Use { session_id: String },
     Send { session_id: String, text: String },
+    AcceptSession { session_id: String },
+    RejectSession { session_id: String, reason: String },
+    AcceptVoice { session_id: String },
+    RejectVoice { session_id: String, reason: String },
     Error(String),
 }
 
-fn parse_local_chat_command(line: &str, current_session: Option<&str>) -> LocalChatCommand {
+fn parse_console_command(line: &str, current_session: Option<&str>) -> ConsoleCommand {
     let trimmed = line.trim();
     if trimmed.eq_ignore_ascii_case("/help") {
-        return LocalChatCommand::Help;
+        return ConsoleCommand::Help;
     }
     if trimmed.eq_ignore_ascii_case("/sessions") {
-        return LocalChatCommand::Sessions;
+        return ConsoleCommand::Sessions;
+    }
+    if trimmed.eq_ignore_ascii_case("/requests") {
+        return ConsoleCommand::Requests;
     }
     if let Some(rest) = trimmed.strip_prefix("/use ") {
         let session_id = rest.trim();
         return if session_id.is_empty() {
-            LocalChatCommand::Error("usage: /use <session_id>".into())
+            ConsoleCommand::Error("usage: /use <session_id>".into())
         } else {
-            LocalChatCommand::Use {
+            ConsoleCommand::Use {
                 session_id: session_id.to_string(),
             }
         };
@@ -485,22 +668,73 @@ fn parse_local_chat_command(line: &str, current_session: Option<&str>) -> LocalC
         let session_id = parts.next().unwrap_or("").trim();
         let text = parts.next().unwrap_or("").trim();
         return if session_id.is_empty() || text.is_empty() {
-            LocalChatCommand::Error("usage: /reply <session_id> <text>".into())
+            ConsoleCommand::Error("usage: /reply <session_id> <text>".into())
         } else {
-            LocalChatCommand::Send {
+            ConsoleCommand::Send {
                 session_id: session_id.to_string(),
                 text: text.to_string(),
             }
         };
     }
+    if let Some(rest) = trimmed.strip_prefix("/session ") {
+        return parse_request_command(rest, "session");
+    }
+    if let Some(rest) = trimmed.strip_prefix("/voice ") {
+        return parse_request_command(rest, "voice");
+    }
     if let Some(session_id) = current_session.filter(|id| !id.trim().is_empty()) {
-        return LocalChatCommand::Send {
+        return ConsoleCommand::Send {
             session_id: session_id.to_string(),
             text: trimmed.to_string(),
         };
     }
-    LocalChatCommand::Error(
-        "no current session; use /sessions or /reply <session_id> <text>".into(),
+    ConsoleCommand::Error("no current session; use /sessions or /reply <session_id> <text>".into())
+}
+
+fn parse_request_command(rest: &str, kind: &str) -> ConsoleCommand {
+    let mut parts = rest.trim().splitn(3, char::is_whitespace);
+    let action = parts.next().unwrap_or("").trim();
+    let session_id = parts.next().unwrap_or("").trim();
+    let reason = parts.next().unwrap_or("").trim();
+    match (kind, action, session_id.is_empty(), reason.is_empty()) {
+        (_, "", _, _) => ConsoleCommand::Error(format!(
+            "usage: /{kind} <accept|reject> <session_id> [reason]"
+        )),
+        (_, _, true, _) => ConsoleCommand::Error(format!(
+            "usage: /{kind} <accept|reject> <session_id> [reason]"
+        )),
+        ("session", "accept", false, _) => ConsoleCommand::AcceptSession {
+            session_id: session_id.to_string(),
+        },
+        ("session", "reject", false, true) => ConsoleCommand::RejectSession {
+            session_id: session_id.to_string(),
+            reason: "rejected by agent user".into(),
+        },
+        ("session", "reject", false, false) => ConsoleCommand::RejectSession {
+            session_id: session_id.to_string(),
+            reason: reason.to_string(),
+        },
+        ("voice", "accept", false, _) => ConsoleCommand::AcceptVoice {
+            session_id: session_id.to_string(),
+        },
+        ("voice", "reject", false, true) => ConsoleCommand::RejectVoice {
+            session_id: session_id.to_string(),
+            reason: "voice request rejected by agent user".into(),
+        },
+        ("voice", "reject", false, false) => ConsoleCommand::RejectVoice {
+            session_id: session_id.to_string(),
+            reason: reason.to_string(),
+        },
+        _ => ConsoleCommand::Error(format!(
+            "usage: /{kind} <accept|reject> <session_id> [reason]"
+        )),
+    }
+}
+
+fn env_flag(name: &str) -> bool {
+    matches!(
+        std::env::var(name).ok().as_deref(),
+        Some("1" | "true" | "TRUE" | "yes" | "YES" | "on" | "ON")
     )
 }
 
@@ -1096,8 +1330,8 @@ mod tests {
 
     #[test]
     fn local_chat_command_uses_current_session_for_plain_text() {
-        match parse_local_chat_command("hello operator", Some("session-1")) {
-            LocalChatCommand::Send { session_id, text } => {
+        match parse_console_command("hello operator", Some("session-1")) {
+            ConsoleCommand::Send { session_id, text } => {
                 assert_eq!(session_id, "session-1");
                 assert_eq!(text, "hello operator");
             }
@@ -1107,8 +1341,8 @@ mod tests {
 
     #[test]
     fn local_chat_command_parses_reply_with_explicit_session() {
-        match parse_local_chat_command("/reply session-2  confirm reboot", None) {
-            LocalChatCommand::Send { session_id, text } => {
+        match parse_console_command("/reply session-2  confirm reboot", None) {
+            ConsoleCommand::Send { session_id, text } => {
                 assert_eq!(session_id, "session-2");
                 assert_eq!(text, "confirm reboot");
             }
@@ -1118,11 +1352,41 @@ mod tests {
 
     #[test]
     fn local_chat_command_requires_session_when_plain_text_used() {
-        match parse_local_chat_command("hello", None) {
-            LocalChatCommand::Error(message) => {
+        match parse_console_command("hello", None) {
+            ConsoleCommand::Error(message) => {
                 assert!(message.contains("no current session"));
             }
             _ => panic!("expected error"),
+        }
+    }
+
+    #[test]
+    fn console_command_parses_session_accept() {
+        match parse_console_command("/session accept session-3", None) {
+            ConsoleCommand::AcceptSession { session_id } => assert_eq!(session_id, "session-3"),
+            _ => panic!("expected session accept command"),
+        }
+    }
+
+    #[test]
+    fn console_command_defaults_session_reject_reason() {
+        match parse_console_command("/session reject session-4", None) {
+            ConsoleCommand::RejectSession { session_id, reason } => {
+                assert_eq!(session_id, "session-4");
+                assert_eq!(reason, "rejected by agent user");
+            }
+            _ => panic!("expected session reject command"),
+        }
+    }
+
+    #[test]
+    fn console_command_parses_voice_reject_reason() {
+        match parse_console_command("/voice reject session-5 microphone busy", None) {
+            ConsoleCommand::RejectVoice { session_id, reason } => {
+                assert_eq!(session_id, "session-5");
+                assert_eq!(reason, "microphone busy");
+            }
+            _ => panic!("expected voice reject command"),
         }
     }
 }
