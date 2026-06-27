@@ -534,6 +534,7 @@ npm --prefix web ci
 npm --prefix web run build
 cargo build -p conductor-server
 powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-agent-e2e.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
+powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-client-e2e.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
 powershell -ExecutionPolicy Bypass -File .\scripts\smoke-client-launch.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
 ```
 

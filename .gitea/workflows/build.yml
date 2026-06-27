@@ -132,6 +132,10 @@ jobs:
         shell: pwsh
         run: .\scripts\smoke-windows-agent-e2e.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
 
+      - name: Smoke register via Windows client
+        shell: pwsh
+        run: .\scripts\smoke-windows-client-e2e.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
+
       - name: Smoke launch Windows client
         shell: pwsh
         run: .\scripts\smoke-client-launch.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip

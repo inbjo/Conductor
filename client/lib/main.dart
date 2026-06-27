@@ -60,7 +60,7 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
   void initState() {
     super.initState();
     _agentBin.text = defaultAgentBinary();
-    _loadSettings();
+    unawaited(_initialize());
   }
 
   @override
@@ -77,12 +77,24 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
     super.dispose();
   }
 
+  Future<void> _initialize() async {
+    await _loadSettings();
+    if (!mounted) return;
+    _applyEnvironmentOverrides();
+    if (envFlag('CONDUCTOR_CLIENT_AUTOSTART')) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_startAgent());
+      });
+    }
+  }
+
   Future<void> _loadSettings() async {
     final file = settingsFile();
     if (!await file.exists()) return;
     try {
       final value =
           jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      if (!mounted) return;
       setState(() {
         _serverUrl.text = value.stringValue('serverUrl') ?? _serverUrl.text;
         _agentToken.text = value.stringValue('agentToken') ?? _agentToken.text;
@@ -95,6 +107,43 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
     } catch (error) {
       _appendLog('settings load failed: $error');
     }
+  }
+
+  void _applyEnvironmentOverrides() {
+    final env = Platform.environment;
+    final serverUrl = env['CONDUCTOR_SERVER_URL'];
+    final agentToken = env['CONDUCTOR_AGENT_TOKEN'];
+    final agentName = env['CONDUCTOR_AGENT_NAME'];
+    final agentRoot = env['CONDUCTOR_AGENT_ROOT'];
+    final agentBin = env['CONDUCTOR_CLIENT_AGENT_BIN'];
+    final audioInput = env['CONDUCTOR_AUDIO_INPUT'];
+    final approval = env['CONDUCTOR_INTERACTIVE_APPROVAL'];
+
+    if (serverUrl == null &&
+        agentToken == null &&
+        agentName == null &&
+        agentRoot == null &&
+        agentBin == null &&
+        audioInput == null &&
+        approval == null) {
+      return;
+    }
+
+    setState(() {
+      if (serverUrl != null && serverUrl.trim().isNotEmpty) {
+        _serverUrl.text = serverUrl.trim();
+      }
+      if (agentToken != null) _agentToken.text = agentToken;
+      if (agentName != null) _agentName.text = agentName.trim();
+      if (agentRoot != null) _agentRoot.text = agentRoot.trim();
+      if (agentBin != null && agentBin.trim().isNotEmpty) {
+        _agentBin.text = agentBin.trim();
+      }
+      if (audioInput != null) _audioInput.text = audioInput.trim();
+      if (approval != null) {
+        _interactiveApproval = envFlag('CONDUCTOR_INTERACTIVE_APPROVAL');
+      }
+    });
   }
 
   Future<void> _saveSettings() async {
@@ -707,6 +756,11 @@ File settingsFile() {
       Platform.environment[Platform.isWindows ? 'USERPROFILE' : 'HOME'];
   final base = home == null || home.isEmpty ? Directory.current.path : home;
   return File(pathJoin(base, '.conductor-client', 'settings.json'));
+}
+
+bool envFlag(String key) {
+  final value = Platform.environment[key]?.trim().toLowerCase();
+  return value == '1' || value == 'true' || value == 'yes' || value == 'on';
 }
 
 String pathJoin(String first, String second, [String? third, String? fourth]) {
