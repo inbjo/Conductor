@@ -63,6 +63,9 @@ jobs:
       - name: Test client evidence summary verifier
         run: ./scripts/test-client-evidence-summary.sh
 
+      - name: Test platform smoke evidence verifiers
+        run: ./scripts/test-platform-smoke-evidence.sh
+
       - name: Test client archive checksum verifier
         run: ./scripts/test-client-archive-checksum.sh
 
