@@ -713,21 +713,11 @@ async fn create_session(
         .ok_or(ApiError::DeviceOffline)?
         .tx
         .clone();
-    if active_session_for_device(&state.db, &req.device_id)
-        .await?
-        .is_some()
-    {
-        return Err(ApiError::SessionBusy);
-    }
     let session_id = Uuid::new_v4().to_string();
     let now = Utc::now().to_rfc3339();
-    sqlx::query("INSERT INTO sessions (session_id, device_id, status, created_at) VALUES (?, ?, 'pending', ?)")
-        .bind(&session_id)
-        .bind(&req.device_id)
-        .bind(&now)
-        .execute(&state.db)
-        .await
-        .map_err(db_err)?;
+    if !insert_pending_session(&state.db, &session_id, &req.device_id, &now).await? {
+        return Err(ApiError::SessionBusy);
+    }
     audit(
         &state,
         &user.username,
@@ -812,17 +802,27 @@ async fn get_session_by_id(db: &SqlitePool, id: &str) -> Result<SessionRow, ApiE
         .ok_or(ApiError::NotFound)
 }
 
-async fn active_session_for_device(
+async fn insert_pending_session(
     db: &SqlitePool,
+    session_id: &str,
     device_id: &str,
-) -> Result<Option<SessionRow>, ApiError> {
-    sqlx::query_as::<_, SessionRow>(
-        "SELECT * FROM sessions WHERE device_id = ? AND status IN ('pending', 'active') ORDER BY created_at DESC LIMIT 1",
+    created_at: &str,
+) -> Result<bool, ApiError> {
+    let result = sqlx::query(
+        "INSERT INTO sessions (session_id, device_id, status, created_at)
+         SELECT ?, ?, 'pending', ?
+         WHERE NOT EXISTS (
+           SELECT 1 FROM sessions WHERE device_id = ? AND status IN ('pending', 'active')
+         )",
     )
+    .bind(session_id)
     .bind(device_id)
-    .fetch_optional(db)
+    .bind(created_at)
+    .bind(device_id)
+    .execute(db)
     .await
-    .map_err(db_err)
+    .map_err(db_err)?;
+    Ok(result.rows_affected() == 1)
 }
 
 async fn list_messages(
@@ -1974,6 +1974,37 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(status, "closed");
+    }
+
+    #[tokio::test]
+    async fn pending_session_insert_enforces_one_open_session_per_device() {
+        let db = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        sqlx::query(
+            "INSERT INTO devices (device_id, hostname, os, arch, username, agent_version, local_ip, online, created_at, updated_at) VALUES ('device-1', 'host', 'test', 'test', 'user', 'test', '127.0.0.1', 1, 'now', 'now')",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+
+        assert!(insert_pending_session(&db, "session-1", "device-1", "now")
+            .await
+            .unwrap());
+        assert!(!insert_pending_session(&db, "session-2", "device-1", "now")
+            .await
+            .unwrap());
+
+        sqlx::query("UPDATE sessions SET status = 'closed', closed_at = 'now' WHERE session_id = 'session-1'")
+            .execute(&db)
+            .await
+            .unwrap();
+        assert!(insert_pending_session(&db, "session-3", "device-1", "now")
+            .await
+            .unwrap());
     }
 
     #[tokio::test]
