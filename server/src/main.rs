@@ -1796,10 +1796,7 @@ async fn close_active_sessions_for_device(state: &AppState, device_id: &str, sta
     .await
     .unwrap_or_default();
     for (session_id,) in rows {
-        if mark_session_closed(state, &session_id, status)
-            .await
-            .is_ok()
-        {
+        if matches!(mark_session_closed(state, &session_id, status).await, Ok(true)) {
             audit(
                 state,
                 "system",
