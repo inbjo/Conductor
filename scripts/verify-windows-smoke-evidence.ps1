@@ -122,5 +122,8 @@ $LogText = Get-Content $LogPath -Raw
 if ($LogText -notmatch "Windows client flow smoke passed") {
     Write-Error "Windows smoke transcript does not contain the success marker."
 }
+if ($LogText -notmatch "Agent config log observed") {
+    Write-Error "Windows smoke transcript does not prove client-to-agent runtime config propagation."
+}
 
 Write-Host "Windows smoke evidence verified: $EvidenceFullPath"

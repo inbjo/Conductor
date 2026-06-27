@@ -149,5 +149,9 @@ if ! grep -q "Linux client flow smoke passed" "$log_path"; then
   echo "Linux smoke transcript does not contain the success marker." >&2
   exit 1
 fi
+if ! grep -q "Agent config log observed" "$log_path"; then
+  echo "Linux smoke transcript does not prove client-to-agent runtime config propagation." >&2
+  exit 1
+fi
 
 echo "Linux smoke evidence verified: $evidence_dir"
