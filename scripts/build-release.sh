@@ -52,6 +52,7 @@ Built at UTC: $(date -u '+%Y-%m-%dT%H:%M:%SZ')
 Contents:
 - bin/conductor-server$SUFFIX
 - bin/conductor-agent$SUFFIX
+- SHA256SUMS
 - docs/demo.md
 - docs/plan.md
 - scripts/smoke-release.sh
@@ -60,6 +61,18 @@ Contents:
 Smoke test:
   ./scripts/smoke-release.sh .
 EOF
+(
+  cd "$STAGE_DIR"
+  sha256sum \
+    "bin/conductor-server$SUFFIX" \
+    "bin/conductor-agent$SUFFIX" \
+    README.md \
+    RELEASE.txt \
+    docs/demo.md \
+    docs/plan.md \
+    scripts/smoke-release.sh \
+    > SHA256SUMS
+)
 
 echo "[4/4] Creating archive"
 tar -czf "$ROOT_DIR/release/conductor-$LABEL.tar.gz" -C "$ROOT_DIR/release" "conductor-$LABEL"

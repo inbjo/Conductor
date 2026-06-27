@@ -14,6 +14,7 @@
 - `bin/conductor-agent`
 - `README.md`
 - `RELEASE.txt`
+- `SHA256SUMS`
 - `docs/demo.md`
 - `docs/plan.md`
 - `scripts/smoke-release.sh`
