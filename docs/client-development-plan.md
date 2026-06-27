@@ -126,7 +126,7 @@ cargo test
 Windows runner 或真机运行：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-client-flow.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\validate-windows-client.ps1
 ```
 
 macOS runner 或真机运行：
