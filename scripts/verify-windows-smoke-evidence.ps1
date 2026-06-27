@@ -163,6 +163,9 @@ $AgentLogText = Get-Content $AgentE2eAgentLog -Raw
 if ($AgentLogText -notmatch "agent config ") {
     Write-Error "Windows bundled agent e2e log does not contain the agent config line."
 }
+if ($AgentLogText -notmatch "agent config .*server_url=ws://127\.0\.0\.1:\d+/ws/agent") {
+    Write-Error "Windows bundled agent e2e log does not prove normalized serverUrl handling."
+}
 $ClientLogText = Get-Content $ClientE2eClientLog -Raw
 if ($ClientLogText -notmatch "agent config ") {
     Write-Error "Windows client e2e log does not contain the agent config line."

@@ -203,7 +203,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-client-flow.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\verify-windows-smoke-evidence.ps1 -EvidenceDir .\artifacts\windows-client-smoke
 ```
 
-校验脚本会确认工具链字段不是 `not found`、`result=passed`、transcript 包含成功标记和 `Agent config log observed` 配置传递标记，并要求 `logs/agent-e2e/`、`logs/client-e2e/` 原始日志存在且包含 Agent 配置日志，`client-settings.json` 包含规范化后的 `serverUrl`、`agentToken`、`agentName`、`agentRoot`、`audioInput` 和 `interactiveApproval=false`。Smoke evidence 目录必须包含归档 `.sha256` sidecar，校验脚本会确认 sidecar 与 `archive_sha256` 一致；归档仍存在时还会复算归档本体 SHA256。
+校验脚本会确认工具链字段不是 `not found`、`result=passed`、transcript 包含成功标记和 `Agent config log observed` 配置传递标记，并要求 `logs/agent-e2e/`、`logs/client-e2e/` 原始日志存在且包含 Agent 配置日志。Windows Agent E2E 会用 `http://127.0.0.1:<port>` 作为输入，并要求 Agent 日志记录规范化后的 `server_url=ws://127.0.0.1:<port>/ws/agent`；`client-settings.json` 也必须包含规范化后的 `serverUrl`、`agentToken`、`agentName`、`agentRoot`、`audioInput` 和 `interactiveApproval=false`。Smoke evidence 目录必须包含归档 `.sha256` sidecar，校验脚本会确认 sidecar 与 `archive_sha256` 一致；归档仍存在时还会复算归档本体 SHA256。
 Linux/Windows 归档校验会确认 `.sha256` sidecar 与归档匹配，并确认 Flutter runtime 数据文件 `data/icudtl.dat` 和 `data/flutter_assets` 下的关键 manifest 存在。Linux/macOS 归档校验还会确认客户端主程序和包内 `conductor-agent` 保留可执行位；macOS 归档还会确认 `.app` 的 `Info.plist` 包含麦克风权限说明，并检查 `App.framework`、`FlutterMacOS.framework` 和 `App.framework/Resources/flutter_assets` 下的关键 manifest。
 所有 Windows smoke evidence 都必须记录 commit。CI 中会额外传入 `-RequireCiFields -ExpectedCommit $env:GITHUB_SHA`，要求 evidence 中存在 runner OS 和 runner arch，并确认 evidence 的 commit 与当前 workflow commit 一致；手工真机验收会用 `git rev-parse HEAD` 记录 commit，但默认不要求 runner OS/arch 这些 CI 专属字段。
 
@@ -217,7 +217,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-client-e2e.ps1 
 powershell -ExecutionPolicy Bypass -File .\scripts\smoke-client-launch.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
 ```
 
-Agent smoke 会解压 zip，从解包目录启动 `conductor-agent.exe`，确认它可以进入连接/重连循环且不会立刻崩溃。Agent E2E smoke 会启动本地 `conductor-server.exe`，再启动包内 Agent，通过 `/api/devices` 确认设备上线，并检查 `agent config` 日志证明环境配置已被读取。Client E2E smoke 会启动 `conductor_client.exe`，通过 `CONDUCTOR_CLIENT_AUTOSTART=1` 让 Flutter 壳自动启动包内 Agent，并确认设备上线，同时通过 `CONDUCTOR_CLIENT_AUTOCOMMANDS=/diagnostics` 验证客户端可以向 Agent stdin 发送本地诊断命令。Client launch smoke 会启动 `conductor_client.exe`，等待数秒确认 GUI 入口没有立刻退出，然后主动结束进程。它们用于发现缺 DLL、入口程序无法启动、归档目录错误、客户端无法拉起 Agent 或 Agent 无法注册到 Server。
+Agent smoke 会解压 zip，从解包目录启动 `conductor-agent.exe`，使用 HTTP/Base URL 配置确认它可以进入连接/重连循环且不会立刻崩溃。Agent E2E smoke 会启动本地 `conductor-server.exe`，再用 `http://127.0.0.1:<port>` 启动包内 Agent，通过 `/api/devices` 确认设备上线，并检查 `agent config` 日志证明环境配置已被读取且 Server URL 已规范化为 WebSocket 地址。Client E2E smoke 会启动 `conductor_client.exe`，通过 `CONDUCTOR_CLIENT_AUTOSTART=1` 让 Flutter 壳自动启动包内 Agent，并确认设备上线，同时通过 `CONDUCTOR_CLIENT_AUTOCOMMANDS=/diagnostics` 验证客户端可以向 Agent stdin 发送本地诊断命令。Client launch smoke 会启动 `conductor_client.exe`，等待数秒确认 GUI 入口没有立刻退出，然后主动结束进程。它们用于发现缺 DLL、入口程序无法启动、归档目录错误、客户端无法拉起 Agent 或 Agent 无法注册到 Server。
 
 客户端启动 Agent 后，可在主界面的 `Agent Command` 输入 `/diagnostics`。Agent 会输出平台、文件根目录、本地审批状态、音频输入、屏幕捕获后端和 `ffmpeg`/`ffplay` 依赖探测结果，便于 Windows/macOS 真机定位权限或缺依赖问题。
 

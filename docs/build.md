@@ -558,7 +558,7 @@ macOS runner 或真机还应运行：
   --write-summary artifacts/client-smoke-evidence-verified
 ```
 
-三端 smoke evidence 除 `validation-summary.txt` 和 `smoke-*-client-flow.log` 外，还会保留归档 `.sha256` sidecar、e2e 原始日志和 `client-settings.json`：Linux/macOS 在 `logs/client-e2e/`，Windows 在 `logs/agent-e2e/` 和 `logs/client-e2e/`。证据校验会要求这些文件存在，并检查 summary 中的归档 SHA256、evidence 内的 `.sha256` sidecar、原始归档 sidecar、HTTP Server URL 输入记录、Agent 配置传递日志中的规范化 `server_url`、`/diagnostics` 输出，以及 Settings 中规范化后的 `serverUrl`、`agentToken`、`agentName`、`agentRoot`、`audioInput` 和 `interactiveApproval=false`。
+三端 smoke evidence 除 `validation-summary.txt` 和 `smoke-*-client-flow.log` 外，还会保留归档 `.sha256` sidecar、e2e 原始日志和 `client-settings.json`：Linux/macOS 在 `logs/client-e2e/`，Windows 在 `logs/agent-e2e/` 和 `logs/client-e2e/`。证据校验会要求这些文件存在，并检查 summary 中的归档 SHA256、evidence 内的 `.sha256` sidecar、原始归档 sidecar、HTTP Server URL 输入记录、Agent 独立 e2e 与客户端 e2e 日志中的规范化 `server_url`、`/diagnostics` 输出，以及 Settings 中规范化后的 `serverUrl`、`agentToken`、`agentName`、`agentRoot`、`audioInput` 和 `interactiveApproval=false`。
 
 Release smoke test：
 

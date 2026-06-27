@@ -101,7 +101,7 @@ if curl -fsSI "$BASE_URL/api/not-real" >/dev/null 2>&1; then
 fi
 
 echo "[4/8] Starting release agent"
-CONDUCTOR_SERVER_URL="ws://127.0.0.1:$PORT/ws/agent" \
+CONDUCTOR_SERVER_URL="$BASE_URL" \
 CONDUCTOR_AGENT_TOKEN="$AGENT_TOKEN" \
 CONDUCTOR_AGENT_NAME="$AGENT_NAME" \
 CONDUCTOR_AGENT_ROOT="$AGENT_ROOT" \
@@ -132,6 +132,18 @@ if [[ -z "$device_id" ]]; then
   echo "Agent did not appear in device list: $devices" >&2
   exit 1
 fi
+
+agent_config_log="$(grep "agent config .*agent_name=$AGENT_NAME" "$AGENT_LOG" | tail -n 1 || true)"
+if [[ -z "$agent_config_log" ]]; then
+  echo "Agent log does not contain expected config line for $AGENT_NAME." >&2
+  tail -n 80 "$AGENT_LOG" >&2 2>/dev/null || true
+  exit 1
+fi
+if [[ "$agent_config_log" != *"server_url=ws://127.0.0.1:$PORT/ws/agent"* ]]; then
+  echo "Agent config log does not prove normalized server URL: $agent_config_log" >&2
+  exit 1
+fi
+echo "Agent config log observed: $agent_config_log"
 
 echo "[7/8] Checking session, files, and chat"
 session_body="$(curl -fsS -X POST "$BASE_URL/api/sessions" \

@@ -158,7 +158,7 @@ try {
         -WorkingDirectory $TempDir `
         -LogPath $AgentLog `
         -Environment @{
-            CONDUCTOR_SERVER_URL = "ws://127.0.0.1:$Port/ws/agent"
+            CONDUCTOR_SERVER_URL = $BaseUrl
             CONDUCTOR_AGENT_TOKEN = $AgentToken
             CONDUCTOR_AGENT_NAME = $AgentName
             CONDUCTOR_AGENT_ROOT = $AgentRoot
@@ -201,6 +201,9 @@ try {
             Get-Content $AgentLog -Tail 80
         }
         Write-Error "Agent log does not contain expected config line for $AgentName."
+    }
+    if ($AgentConfigLog -notmatch "server_url=ws://127\.0\.0\.1:$Port/ws/agent") {
+        Write-Error "Agent config log does not prove normalized server URL: $AgentConfigLog"
     }
     Write-Host "Agent config log observed: $AgentConfigLog"
 

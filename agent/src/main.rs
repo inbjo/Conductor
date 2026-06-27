@@ -255,6 +255,7 @@ impl Config {
     async fn load() -> anyhow::Result<Self> {
         let server_url = std::env::var("CONDUCTOR_SERVER_URL")
             .unwrap_or_else(|_| "ws://127.0.0.1:8080/ws/agent".to_string());
+        let server_url = normalize_agent_server_url(&server_url)?;
         let dirs = ProjectDirs::from("dev", "conductor", "agent")
             .ok_or_else(|| anyhow!("cannot resolve project config directory"))?;
         tokio::fs::create_dir_all(dirs.config_dir()).await?;

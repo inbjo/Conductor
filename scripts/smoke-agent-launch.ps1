@@ -33,7 +33,7 @@ try {
     $StartInfo.UseShellExecute = $false
     $StartInfo.RedirectStandardOutput = $true
     $StartInfo.RedirectStandardError = $true
-    $StartInfo.Environment["CONDUCTOR_SERVER_URL"] = "ws://127.0.0.1:9/ws/agent"
+    $StartInfo.Environment["CONDUCTOR_SERVER_URL"] = "http://127.0.0.1:9"
     $StartInfo.Environment["CONDUCTOR_AGENT_TOKEN"] = "smoke-agent-token"
     $StartInfo.Environment["CONDUCTOR_AGENT_NAME"] = "windows-agent-smoke"
     $StartInfo.Environment["CONDUCTOR_AGENT_ROOT"] = $AgentRoot
