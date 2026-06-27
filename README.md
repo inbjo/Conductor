@@ -52,8 +52,9 @@
 ### 当前验证状态
 
 - Linux `x86_64-unknown-linux-gnu` release 包已完成本机 smoke test，覆盖 Server 启动、Agent 注册、登录、设备列表、远控会话、文件列表、聊天和会话关闭。
-- Windows/macOS 的代码路径已保留截图和输入适配，但当前提交物还没有在对应真实系统上完成 release smoke test。
-- Windows/macOS 构建需要本机安装对应 Rust target、链接器和平台 SDK 后再执行 `./scripts/build-release.sh <target>` 验证。
+- Linux Flutter 被控客户端已完成本机构建、归档校验、GUI 启动 smoke、客户端拉起包内 Agent 注册和 Settings evidence 校验。
+- Windows/macOS Flutter 被控客户端构建脚本、CI job、归档校验、GUI 启动 smoke 和客户端 e2e evidence 校验已经纳入仓库；当前仍需要对应真实 runner 或真机产出通过记录。
+- Windows/macOS 的截图、输入和音频代码路径已保留平台适配，但真实远控/输入/语音能力还需要在对应系统权限环境下回归。
 
 ## 运行环境
 
@@ -135,7 +136,7 @@ GitHub Actions 会构建并上传服务端 Linux release 包，以及 Linux、Wi
 
 ## 构建提交包
 
-当前提交物以 Linux Server 部署演示为目标。构建当前 Linux 平台的前端、Server、Agent 和压缩提交包：
+Server release 包当前以 Linux 部署演示为主。构建当前 Linux 平台的前端、Server、Agent 和压缩提交包：
 
 ```sh
 ./scripts/build-release.sh
@@ -147,7 +148,7 @@ GitHub Actions 会构建并上传服务端 Linux release 包，以及 Linux、Wi
 ./scripts/build-release.sh x86_64-unknown-linux-gnu
 ```
 
-Windows/macOS Agent 代码路径保留给后续适配验证；如果要构建对应 target，需要先安装 Rust target、链接器和平台 SDK，再自行执行 `./scripts/build-release.sh <target>`。
+Windows/macOS 被控客户端请使用上文的 Flutter client 构建脚本；`build-release.sh <target>` 仅用于 Server/Agent release 包，需要对应 Rust target、链接器和平台 SDK。
 
 产物位于 `release/conductor-<target>.tar.gz`，旁边会生成 `release/conductor-<target>.tar.gz.sha256` 用于校验整个归档。包内 `RELEASE.txt` 会记录 target、commit、构建时间和 smoke test 命令，`SHA256SUMS` 会记录二进制和关键文档校验和。解包后可以先运行 release smoke test：
 

@@ -202,7 +202,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-client-flow.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\verify-windows-smoke-evidence.ps1 -EvidenceDir .\artifacts\windows-client-smoke
 ```
 
-校验脚本会确认工具链字段不是 `not found`、`result=passed`、transcript 包含成功标记和 `Agent config log observed` 配置传递标记，并要求 `logs/agent-e2e/`、`logs/client-e2e/` 原始日志存在且包含 Agent 配置日志，`client-settings.json` 包含规范化后的 `serverUrl`；归档仍存在时会复算 `archive_sha256`。
+校验脚本会确认工具链字段不是 `not found`、`result=passed`、transcript 包含成功标记和 `Agent config log observed` 配置传递标记，并要求 `logs/agent-e2e/`、`logs/client-e2e/` 原始日志存在且包含 Agent 配置日志，`client-settings.json` 包含规范化后的 `serverUrl`、`agentToken`、`agentName`、`agentRoot`、`audioInput` 和 `interactiveApproval=false`；归档仍存在时会复算 `archive_sha256`。
 Linux/Windows 归档校验会确认 Flutter runtime 数据文件 `data/icudtl.dat` 和 `data/flutter_assets` 下的关键 manifest 存在。Linux/macOS 归档校验还会确认客户端主程序和包内 `conductor-agent` 保留可执行位；macOS 归档还会确认 `.app` 的 `Info.plist` 包含麦克风权限说明，并检查 `App.framework`、`FlutterMacOS.framework` 和 `App.framework/Resources/flutter_assets` 下的关键 manifest。
 所有 Windows smoke evidence 都必须记录 commit。CI 中会额外传入 `-RequireCiFields -ExpectedCommit $env:GITHUB_SHA`，要求 evidence 中存在 runner OS 和 runner arch，并确认 evidence 的 commit 与当前 workflow commit 一致；手工真机验收会用 `git rev-parse HEAD` 记录 commit，但默认不要求 runner OS/arch 这些 CI 专属字段。
 
@@ -226,7 +226,7 @@ Agent smoke 会解压 zip，从解包目录启动 `conductor-agent.exe`，确认
 - `CONDUCTOR_CLIENT_AGENT_BIN`：覆盖客户端要启动的 Agent 路径。
 - `CONDUCTOR_CLIENT_SETTINGS_FILE`：覆盖 Settings JSON 保存路径，smoke/CI 中用于隔离用户配置。
 - `CONDUCTOR_CLIENT_AUTOCOMMANDS`：客户端启动 Agent 后自动发送的命令，支持换行或分号分隔；CI 用 `/diagnostics` 验证 stdin 命令链路。
-- `CONDUCTOR_SERVER_URL`、`CONDUCTOR_AGENT_TOKEN`、`CONDUCTOR_AGENT_NAME`、`CONDUCTOR_AGENT_ROOT`：预填客户端表单，并传给 Agent。
+- `CONDUCTOR_SERVER_URL`、`CONDUCTOR_AGENT_TOKEN`、`CONDUCTOR_AGENT_NAME`、`CONDUCTOR_AGENT_ROOT`、`CONDUCTOR_AUDIO_INPUT`、`CONDUCTOR_INTERACTIVE_APPROVAL`：预填客户端表单，并传给 Agent。
 
 运行 `conductor_client.exe`，在 Settings 页确认 Server 地址、Token、Agent Name、文件根目录、音频输入和本地审批开关后，点击 `Start Agent`。后台设备列表出现该 Windows 终端后，再进入远控页验证屏幕、输入、文件和聊天流程。上述配置也可以通过 `scripts/build-client.ps1` 的构建参数写入默认值。
 
