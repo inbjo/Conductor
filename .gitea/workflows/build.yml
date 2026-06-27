@@ -1,0 +1,146 @@
+name: Build
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  server-release:
+    name: Server release package
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Run Rust tests
+        run: cargo test
+
+      - name: Build server release package
+        run: ./scripts/build-release.sh x86_64-unknown-linux-gnu
+
+      - name: Upload server release package
+        uses: actions/upload-artifact@v4
+        with:
+          name: conductor-server-linux-x64
+          path: |
+            release/conductor-x86_64-unknown-linux-gnu.tar.gz
+            release/conductor-x86_64-unknown-linux-gnu.tar.gz.sha256
+          if-no-files-found: error
+
+  client-linux:
+    name: Linux controlled client
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Check Flutter client
+        working-directory: client
+        run: |
+          flutter config --enable-linux-desktop
+          flutter analyze
+          flutter test
+
+      - name: Build Linux client
+        run: FLUTTER_BIN="$(command -v flutter)" ./scripts/build-client.sh
+
+      - name: Verify Linux client archive
+        run: ./scripts/verify-client-archive.sh linux release/conductor-client-linux-x64.tar.gz
+
+      - name: Upload Linux client
+        uses: actions/upload-artifact@v4
+        with:
+          name: conductor-client-linux-x64
+          path: release/conductor-client-linux-x64.tar.gz
+          if-no-files-found: error
+
+  client-windows:
+    name: Windows controlled client
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build Windows client
+        shell: pwsh
+        run: |
+          flutter config --enable-windows-desktop
+          $env:FLUTTER_BIN = (Get-Command flutter).Source
+          & .\scripts\build-client.ps1
+
+      - name: Verify Windows client archive
+        shell: pwsh
+        run: .\scripts\verify-client-archive.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
+
+      - name: Upload Windows client
+        uses: actions/upload-artifact@v4
+        with:
+          name: conductor-client-windows-x64
+          path: release/conductor-client-windows-x64.zip
+          if-no-files-found: error
+
+  client-macos:
+    name: macOS controlled client
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build macOS client
+        run: |
+          flutter config --enable-macos-desktop
+          FLUTTER_BIN="$(command -v flutter)" ./scripts/build-client.sh
+
+      - name: Verify macOS client archive
+        run: ./scripts/verify-client-archive.sh macos release/conductor-client-macos.tar.gz
+
+      - name: Upload macOS client
+        uses: actions/upload-artifact@v4
+        with:
+          name: conductor-client-macos
+          path: release/conductor-client-macos.tar.gz
+          if-no-files-found: error

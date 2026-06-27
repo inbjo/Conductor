@@ -430,9 +430,14 @@ release/conductor-<target>.tar.gz.sha256
 
 注意：`build-release.sh` 当前会拒绝 tracked dirty worktree。构建正式提交包前需要先提交或暂存 tracked 改动。
 
-## 12. GitHub Actions 构建
+## 12. GitHub/Gitea Actions 构建
 
-仓库提供 `.github/workflows/build.yml`，触发方式：
+仓库提供两份内容一致的 Actions workflow：
+
+- `.github/workflows/build.yml`：GitHub Actions 使用。
+- `.gitea/workflows/build.yml`：Gitea/Forgejo Actions 兼容入口，适配 `git.sina.dev` 这类自建 Git 服务。
+
+触发方式：
 
 - push 到 `master` 或 `main`
 - pull request
@@ -461,6 +466,8 @@ CI 构建流程：
 - Linux 客户端：安装 GTK/clang 依赖，执行 `scripts/build-client.sh`。
 - Windows 客户端：安装 Rust/Flutter，执行 `scripts/build-client.ps1`。
 - macOS 客户端：安装 Rust/Flutter，执行 `scripts/build-client.sh`。
+
+注意：Windows 和 macOS 任务需要 CI 平台提供对应系统 runner。自建 Gitea/Forgejo Actions 如果没有 `windows-2022` 或 `macos-14` runner，只会创建任务配置，不能真正产出对应平台包。
 
 ## 13. 验证命令
 
