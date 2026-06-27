@@ -224,14 +224,14 @@ Agent smoke 会解压 zip，从解包目录启动 `conductor-agent.exe`，确认
 - `CONDUCTOR_CLIENT_AGENT_BIN`：覆盖客户端要启动的 Agent 路径。
 - `CONDUCTOR_SERVER_URL`、`CONDUCTOR_AGENT_TOKEN`、`CONDUCTOR_AGENT_NAME`、`CONDUCTOR_AGENT_ROOT`：预填客户端表单，并传给 Agent。
 
-运行 `conductor_client.exe`，填写 Server 地址和 Token，点击 `Start Agent`。后台设备列表出现该 Windows 终端后，再进入远控页验证屏幕、输入、文件和聊天流程。
+运行 `conductor_client.exe`，在 Settings 页确认 Server 地址、Token、Agent Name、文件根目录、音频输入和本地审批开关后，点击 `Start Agent`。后台设备列表出现该 Windows 终端后，再进入远控页验证屏幕、输入、文件和聊天流程。上述配置也可以通过 `scripts/build-client.ps1` 的构建参数写入默认值。
 
 Windows 首次跑通建议：
 
 1. 在 Server 机器启动 `conductor-server`，确认 Windows 能访问 `http://<server-ip>:8080`。
-2. Windows 客户端填写 `ws://<server-ip>:8080/ws/agent`；也可以填写 `http://<server-ip>:8080` 或 `<server-ip>:8080`，客户端会自动转换。
-3. Token 与 Server 的 `CONDUCTOR_AGENT_TOKEN` 保持一致。
-4. `Agent Name` 填写容易识别的名称，例如 `win-client-01`。
+2. Windows 客户端在 Settings 页填写 `ws://<server-ip>:8080/ws/agent`；也可以填写 `http://<server-ip>:8080` 或 `<server-ip>:8080`，客户端会自动转换。
+3. Settings 页中的 Token 与 Server 的 `CONDUCTOR_AGENT_TOKEN` 保持一致。
+4. Settings 页中的 `Agent Name` 填写容易识别的名称，例如 `win-client-01`。
 5. 点击 `Start Agent`，确认日志没有鉴权失败或连接失败。
 6. 后台设备列表出现 `win-client-01` 后，再验证文件列表和远控会话。
 7. 如果开启了 `Require local approval`，在 `Agent Command` 中发送 `/requests` 查看会话 ID，再发送 `/session accept <session_id>`。

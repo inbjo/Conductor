@@ -20,7 +20,9 @@ Flutter 客户端不重写远控能力。它只把用户输入转换为 `conduct
 - Windows `scripts/build-client.ps1` 构建脚本。
 - 客户端 release 归档校验脚本。
 - GitHub Actions 和 Gitea/Forgejo Actions 兼容 workflow。
+- RustDesk 风格的主界面/Settings 页分离：主界面只保留状态、启动/停止、命令输入和日志；Server URL、Agent Token、Agent Name、文件根目录、音频输入和本地审批开关都在 Settings 页配置。
 - Flutter 客户端 URL 规范化：支持裸地址、HTTP/HTTPS 和自定义 WebSocket 路径。
+- Linux/macOS `scripts/build-client.sh` 和 Windows `scripts/build-client.ps1` 支持通过构建参数写入客户端默认配置；未传参数时使用内置默认值，运行后仍可在 Settings 页修改。
 - Linux 本机 Flutter analyze、test、bundle 构建和 archive 校验。
 
 当前平台状态：
@@ -44,7 +46,7 @@ Flutter 客户端不重写远控能力。它只把用户输入转换为 `conduct
 
 当前缺口：
 
-- Windows 需要真实 Windows 环境执行 `scripts/build-client.ps1`，再运行 `scripts/verify-client-archive.ps1`、`scripts/smoke-agent-launch.ps1`、`scripts/smoke-windows-agent-e2e.ps1`、`scripts/smoke-windows-client-e2e.ps1` 和 `scripts/smoke-client-launch.ps1`。
+- Windows 需要真实 Windows 环境执行 `scripts/validate-windows-client.ps1`。该脚本会统一调用构建、归档校验、Agent 启动 smoke、Agent E2E、客户端 E2E、GUI 入口 smoke 和 evidence 校验；分步脚本只作为排错入口。
 - macOS 需要真实 macOS 环境执行 `scripts/build-client.sh` 并运行 `scripts/verify-client-archive.sh macos ...`。
 - 自建 Gitea/Forgejo Actions 需要配置 `windows-2022` 和 `macos-14` 对应 runner，否则只能验证 workflow 配置，不能产出平台包。
 
@@ -55,10 +57,10 @@ Windows 是核心客户端目标。优先验证的不是边界能力，而是端
 Windows 首次验收步骤：
 
 1. 在 Server 机器启动 `conductor-server`，设置非默认 `CONDUCTOR_AGENT_TOKEN`。
-2. 在 Windows 主机运行 `scripts/build-client.ps1`。
+2. 在 Windows 主机运行 `scripts/validate-windows-client.ps1` 完成构建、归档校验、基础 smoke 和 evidence 校验；如需保留证据，传入 `-EvidenceDir .\artifacts\windows-client-smoke`。
 3. 解压或直接运行 `client\build\windows\x64\runner\Release\conductor_client.exe`。
-4. 填写 `http://<server-ip>:8080` 或 `<server-ip>:8080`，确认客户端自动转换为 `ws://<server-ip>:8080/ws/agent`。
-5. 填写正确 Token 和 `Agent Name=win-client-01`。
+4. 打开 Settings 页，填写 `http://<server-ip>:8080` 或 `<server-ip>:8080`，确认客户端自动转换为 `ws://<server-ip>:8080/ws/agent`；也可以在构建时通过 `-ServerUrl` 写入默认值。
+5. 在 Settings 页填写正确 Token 和 `Agent Name=win-client-01`；也可以在构建时通过 `-AgentToken`、`-AgentName`、`-AgentRoot`、`-AudioInput`、`-InteractiveApproval` 写入默认值。
 6. 点击 `Start Agent`，确认日志没有鉴权失败、WebSocket 连接失败或 agent binary 缺失。
 7. 管理后台设备列表出现 `win-client-01`。
 8. 验证文件列表、聊天、远控会话创建和关闭。
