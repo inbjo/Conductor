@@ -134,6 +134,9 @@ if ($LogText -notmatch "Windows client flow smoke passed") {
 if ($LogText -notmatch "Agent config log observed") {
     Write-Error "Windows smoke transcript does not prove client-to-agent runtime config propagation."
 }
+if ($LogText -notmatch "Agent diagnostics observed") {
+    Write-Error "Windows smoke transcript does not prove diagnostics command execution."
+}
 
 $AgentLogText = Get-Content $AgentE2eAgentLog -Raw
 if ($AgentLogText -notmatch "agent config ") {
@@ -142,6 +145,9 @@ if ($AgentLogText -notmatch "agent config ") {
 $ClientLogText = Get-Content $ClientE2eClientLog -Raw
 if ($ClientLogText -notmatch "agent config ") {
     Write-Error "Windows client e2e log does not contain the agent config line."
+}
+if ($ClientLogText -notmatch "\[diagnostics\] conductor-agent") {
+    Write-Error "Windows client e2e log does not contain diagnostics output."
 }
 
 Write-Host "Windows smoke evidence verified: $EvidenceFullPath"

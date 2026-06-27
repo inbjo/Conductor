@@ -243,6 +243,7 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
       });
       _streamLines(process.stdout, 'out');
       _streamLines(process.stderr, 'err');
+      unawaited(_sendStartupCommands());
       unawaited(
         process.exitCode.then((code) {
           if (!mounted) return;
@@ -258,6 +259,15 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
         _starting = false;
       });
       _appendLog('start failed: $error');
+    }
+  }
+
+  Future<void> _sendStartupCommands() async {
+    final commands = startupCommandsFromEnv(Platform.environment);
+    if (commands.isEmpty) return;
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    for (final command in commands) {
+      await _sendAgentCommand(command);
     }
   }
 
@@ -991,6 +1001,16 @@ bool envFlag(String key) {
 bool flagValue(String? value) {
   final text = value?.trim().toLowerCase();
   return text == '1' || text == 'true' || text == 'yes' || text == 'on';
+}
+
+List<String> startupCommandsFromEnv(Map<String, String> environment) {
+  final value = environment['CONDUCTOR_CLIENT_AUTOCOMMANDS'];
+  if (value == null || value.trim().isEmpty) return const [];
+  return value
+      .split(RegExp(r'[\r\n;]+'))
+      .map((command) => command.trim())
+      .where((command) => command.isNotEmpty)
+      .toList(growable: false);
 }
 
 String pathJoin(String first, String second, [String? third, String? fourth]) {

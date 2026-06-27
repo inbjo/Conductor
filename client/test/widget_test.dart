@@ -67,6 +67,16 @@ void main() {
     );
   });
 
+  test('startup commands are parsed from smoke environment', () {
+    expect(startupCommandsFromEnv({}), isEmpty);
+    expect(
+      startupCommandsFromEnv({
+        'CONDUCTOR_CLIENT_AUTOCOMMANDS': ' /diagnostics ; /requests\n/help ',
+      }),
+      ['/diagnostics', '/requests', '/help'],
+    );
+  });
+
   testWidgets('shows the agent launcher', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1200, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));

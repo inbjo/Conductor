@@ -178,6 +178,7 @@ try {
             CONDUCTOR_CLIENT_AUTOSTART = "1"
             CONDUCTOR_CLIENT_AGENT_BIN = $AgentExe
             CONDUCTOR_CLIENT_SETTINGS_FILE = $ClientSettings
+            CONDUCTOR_CLIENT_AUTOCOMMANDS = "/diagnostics"
             CONDUCTOR_SERVER_URL = "ws://127.0.0.1:$Port/ws/agent"
             CONDUCTOR_AGENT_TOKEN = $AgentToken
             CONDUCTOR_AGENT_NAME = $AgentName
@@ -223,6 +224,27 @@ try {
         Write-Error "Client log does not contain expected agent config line for $AgentName."
     }
     Write-Host "Agent config log observed: $AgentConfigLog"
+
+    $AgentDiagnosticsLog = $null
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        $AgentDiagnosticsLog = Get-Content $ClientLog -ErrorAction SilentlyContinue |
+            Where-Object { $_ -like "*[diagnostics] conductor-agent*" } |
+            Select-Object -Last 1
+        if (![string]::IsNullOrWhiteSpace($AgentDiagnosticsLog)) {
+            break
+        }
+        Start-Sleep -Milliseconds 250
+    } while ((Get-Date) -lt $deadline)
+
+    if ([string]::IsNullOrWhiteSpace($AgentDiagnosticsLog)) {
+        if (Test-Path $ClientLog) {
+            Write-Host "Client log:"
+            Get-Content $ClientLog -Tail 120
+        }
+        Write-Error "Client log does not contain expected diagnostics output."
+    }
+    Write-Host "Agent diagnostics observed: $AgentDiagnosticsLog"
 
     $Failed = $false
     Write-Host "Windows client e2e smoke passed. Device: $($device.device_id)"

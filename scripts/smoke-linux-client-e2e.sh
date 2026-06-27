@@ -125,6 +125,7 @@ echo "[2/4] Starting client autostart smoke"
 CONDUCTOR_CLIENT_AUTOSTART=1 \
 CONDUCTOR_CLIENT_AGENT_BIN="$agent_bin" \
 CONDUCTOR_CLIENT_SETTINGS_FILE="$client_settings" \
+CONDUCTOR_CLIENT_AUTOCOMMANDS="/diagnostics" \
 CONDUCTOR_SERVER_URL="ws://127.0.0.1:$port/ws/agent" \
 CONDUCTOR_AGENT_TOKEN="$agent_token" \
 CONDUCTOR_AGENT_NAME="$agent_name" \
@@ -170,5 +171,20 @@ if [[ -z "$agent_config_log" ]]; then
   exit 1
 fi
 echo "Agent config log observed: $agent_config_log"
+
+diagnostics_log=""
+for _ in {1..40}; do
+  diagnostics_log="$(grep "\[diagnostics\] conductor-agent" "$client_log" | tail -n 1 || true)"
+  if [[ -n "$diagnostics_log" ]]; then
+    break
+  fi
+  sleep 0.25
+done
+if [[ -z "$diagnostics_log" ]]; then
+  echo "Client log does not contain expected diagnostics output." >&2
+  tail -n 120 "$client_log" >&2 2>/dev/null || true
+  exit 1
+fi
+echo "Agent diagnostics observed: $diagnostics_log"
 
 echo "Linux client e2e smoke passed. Agent name: $agent_name"

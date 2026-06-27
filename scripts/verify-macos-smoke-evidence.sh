@@ -164,8 +164,16 @@ if ! grep -q "Agent config log observed" "$log_path"; then
   echo "macOS smoke transcript does not prove client-to-agent runtime config propagation." >&2
   exit 1
 fi
+if ! grep -q "Agent diagnostics observed" "$log_path"; then
+  echo "macOS smoke transcript does not prove diagnostics command execution." >&2
+  exit 1
+fi
 if ! grep -q "agent config " "$e2e_client_log"; then
   echo "macOS client e2e client log does not contain the agent config line." >&2
+  exit 1
+fi
+if ! grep -q "\[diagnostics\] conductor-agent" "$e2e_client_log"; then
+  echo "macOS client e2e client log does not contain diagnostics output." >&2
   exit 1
 fi
 

@@ -216,7 +216,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-client-e2e.ps1 
 powershell -ExecutionPolicy Bypass -File .\scripts\smoke-client-launch.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
 ```
 
-Agent smoke 会解压 zip，从解包目录启动 `conductor-agent.exe`，确认它可以进入连接/重连循环且不会立刻崩溃。Agent E2E smoke 会启动本地 `conductor-server.exe`，再启动包内 Agent，通过 `/api/devices` 确认设备上线，并检查 `agent config` 日志证明环境配置已被读取。Client E2E smoke 会启动 `conductor_client.exe`，通过 `CONDUCTOR_CLIENT_AUTOSTART=1` 让 Flutter 壳自动启动包内 Agent，并确认设备上线。Client launch smoke 会启动 `conductor_client.exe`，等待数秒确认 GUI 入口没有立刻退出，然后主动结束进程。它们用于发现缺 DLL、入口程序无法启动、归档目录错误、客户端无法拉起 Agent 或 Agent 无法注册到 Server。
+Agent smoke 会解压 zip，从解包目录启动 `conductor-agent.exe`，确认它可以进入连接/重连循环且不会立刻崩溃。Agent E2E smoke 会启动本地 `conductor-server.exe`，再启动包内 Agent，通过 `/api/devices` 确认设备上线，并检查 `agent config` 日志证明环境配置已被读取。Client E2E smoke 会启动 `conductor_client.exe`，通过 `CONDUCTOR_CLIENT_AUTOSTART=1` 让 Flutter 壳自动启动包内 Agent，并确认设备上线，同时通过 `CONDUCTOR_CLIENT_AUTOCOMMANDS=/diagnostics` 验证客户端可以向 Agent stdin 发送本地诊断命令。Client launch smoke 会启动 `conductor_client.exe`，等待数秒确认 GUI 入口没有立刻退出，然后主动结束进程。它们用于发现缺 DLL、入口程序无法启动、归档目录错误、客户端无法拉起 Agent 或 Agent 无法注册到 Server。
 
 客户端启动 Agent 后，可在主界面的 `Agent Command` 输入 `/diagnostics`。Agent 会输出平台、文件根目录、本地审批状态、音频输入、屏幕捕获后端和 `ffmpeg`/`ffplay` 依赖探测结果，便于 Windows/macOS 真机定位权限或缺依赖问题。
 
@@ -225,6 +225,7 @@ Agent smoke 会解压 zip，从解包目录启动 `conductor-agent.exe`，确认
 - `CONDUCTOR_CLIENT_AUTOSTART=1`：客户端启动后自动调用 `Start Agent`。
 - `CONDUCTOR_CLIENT_AGENT_BIN`：覆盖客户端要启动的 Agent 路径。
 - `CONDUCTOR_CLIENT_SETTINGS_FILE`：覆盖 Settings JSON 保存路径，smoke/CI 中用于隔离用户配置。
+- `CONDUCTOR_CLIENT_AUTOCOMMANDS`：客户端启动 Agent 后自动发送的命令，支持换行或分号分隔；CI 用 `/diagnostics` 验证 stdin 命令链路。
 - `CONDUCTOR_SERVER_URL`、`CONDUCTOR_AGENT_TOKEN`、`CONDUCTOR_AGENT_NAME`、`CONDUCTOR_AGENT_ROOT`：预填客户端表单，并传给 Agent。
 
 运行 `conductor_client.exe`，在 Settings 页确认 Server 地址、Token、Agent Name、文件根目录、音频输入和本地审批开关后，点击 `Start Agent`。后台设备列表出现该 Windows 终端后，再进入远控页验证屏幕、输入、文件和聊天流程。上述配置也可以通过 `scripts/build-client.ps1` 的构建参数写入默认值。

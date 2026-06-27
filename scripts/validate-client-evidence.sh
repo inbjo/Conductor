@@ -214,6 +214,10 @@ verify_text_evidence() {
     echo "$label smoke transcript does not prove client-to-agent runtime config propagation." >&2
     exit 1
   fi
+  if ! grep -q "Agent diagnostics observed" "$log_path"; then
+    echo "$label smoke transcript does not prove diagnostics command execution." >&2
+    exit 1
+  fi
 
 }
 
@@ -269,6 +273,7 @@ verify_windows() {
   require_file "Windows client e2e client log" "$client_e2e_client_log"
   require_grep "Windows agent e2e agent log" "agent config " "$agent_e2e_agent_log"
   require_grep "Windows client e2e client log" "agent config " "$client_e2e_client_log"
+  require_grep "Windows client e2e client log" "\[diagnostics\] conductor-agent" "$client_e2e_client_log"
 
   echo "Windows smoke evidence verified: $evidence_dir"
 }
