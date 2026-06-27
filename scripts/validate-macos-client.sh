@@ -75,6 +75,14 @@ append_command_summary() {
   done <<<"$output"
 }
 
+current_commit() {
+  if [[ -n "${GITHUB_SHA:-}" ]]; then
+    printf '%s\n' "$GITHUB_SHA"
+    return
+  fi
+  git -C "$root_dir" rev-parse HEAD 2>/dev/null || true
+}
+
 write_result() {
   if [[ "$result_written" -eq 0 ]]; then
     append_summary "result=$1"
@@ -97,7 +105,7 @@ mkdir -p "$evidence_dir"
   printf 'archive=%s\n' "$archive_path"
   printf 'skip_client_build=%s\n' "$skip_client_build"
   printf 'skip_server_build=%s\n' "$skip_server_build"
-  printf 'commit=%s\n' "${GITHUB_SHA:-}"
+  printf 'commit=%s\n' "$(current_commit)"
   printf 'runner_os=%s\n' "${RUNNER_OS:-}"
   printf 'runner_arch=%s\n' "${RUNNER_ARCH:-}"
   printf 'uname=%s\n' "$(uname -a)"

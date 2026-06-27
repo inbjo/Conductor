@@ -60,6 +60,20 @@ function Add-ExecutableSummary($Path, $Label, $Executable, $Arguments) {
     }
 }
 
+function Get-CurrentCommit {
+    if (![string]::IsNullOrWhiteSpace($env:GITHUB_SHA)) {
+        return $env:GITHUB_SHA
+    }
+    try {
+        $commit = git -C $RootDir rev-parse HEAD 2>$null
+        if (![string]::IsNullOrWhiteSpace($commit)) {
+            return $commit.Trim()
+        }
+    } catch {
+    }
+    return ""
+}
+
 Push-Location $RootDir
 try {
     if ($null -ne $EvidenceFullPath) {
@@ -70,7 +84,7 @@ try {
         Add-SummaryLine $SummaryPath "archive=$ArchiveFullPath"
         Add-SummaryLine $SummaryPath "skip_client_build=$SkipClientBuild"
         Add-SummaryLine $SummaryPath "skip_server_build=$SkipServerBuild"
-        Add-SummaryLine $SummaryPath "commit=$env:GITHUB_SHA"
+        Add-SummaryLine $SummaryPath "commit=$(Get-CurrentCommit)"
         Add-SummaryLine $SummaryPath "runner_os=$env:RUNNER_OS"
         Add-SummaryLine $SummaryPath "runner_arch=$env:RUNNER_ARCH"
         Add-SummaryLine $SummaryPath "powershell=$($PSVersionTable.PSVersion)"
