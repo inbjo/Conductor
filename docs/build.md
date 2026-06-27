@@ -523,8 +523,7 @@ Flutter client：
 macOS runner 或真机还应运行：
 
 ```sh
-./scripts/smoke-client-launch.sh macos release/conductor-client-macos.tar.gz
-./scripts/smoke-macos-client-e2e.sh release/conductor-client-macos.tar.gz
+./scripts/validate-macos-client.sh
 ```
 
 Release smoke test：

@@ -183,20 +183,22 @@ jobs:
           flutter config --enable-macos-desktop
           FLUTTER_BIN="$(command -v flutter)" ./scripts/build-client.sh
 
-      - name: Verify macOS client archive
-        run: ./scripts/verify-client-archive.sh macos release/conductor-client-macos.tar.gz
-
-      - name: Smoke launch macOS client
-        run: ./scripts/smoke-client-launch.sh macos release/conductor-client-macos.tar.gz
-
       - name: Build macOS smoke server
         run: |
           npm --prefix web ci
           npm --prefix web run build
           cargo build -p conductor-server
 
-      - name: Smoke register via macOS client
-        run: ./scripts/smoke-macos-client-e2e.sh release/conductor-client-macos.tar.gz
+      - name: Validate macOS client flow
+        run: ./scripts/validate-macos-client.sh --skip-client-build --skip-server-build --evidence-dir artifacts/macos-client-smoke --require-ci-fields --expected-commit "$GITHUB_SHA"
+
+      - name: Upload macOS smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-client-smoke-evidence
+          path: artifacts/macos-client-smoke
+          if-no-files-found: ignore
 
       - name: Upload macOS client
         uses: actions/upload-artifact@v4

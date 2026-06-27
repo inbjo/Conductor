@@ -282,12 +282,10 @@ conductor_client.app/Contents/MacOS/conductor-agent
 
 macOS 已纳入 CI 构建目标，真实屏幕、输入、语音能力仍需真机验证。
 
-归档结构和启动 smoke：
+归档结构、启动 smoke、Client e2e 和 evidence：
 
 ```sh
-./scripts/verify-client-archive.sh macos release/conductor-client-macos.tar.gz
-./scripts/smoke-client-launch.sh macos release/conductor-client-macos.tar.gz
-./scripts/smoke-macos-client-e2e.sh release/conductor-client-macos.tar.gz
+./scripts/validate-macos-client.sh
 ```
 
-macOS e2e smoke 会启动本地 `conductor-server`，再通过 `CONDUCTOR_CLIENT_AUTOSTART=1` 启动 `.app` 内的 Flutter 客户端，验证客户端能自动拉起包内 `conductor-agent` 并注册到本地 smoke server。运行前需要先构建 Web 静态资源并执行 `cargo build -p conductor-server`。
+`validate-macos-client.sh` 会构建客户端包、构建 Web 静态资源和 smoke server、校验 tar.gz、启动 `.app` GUI 入口 smoke，再通过 `CONDUCTOR_CLIENT_AUTOSTART=1` 启动 `.app` 内的 Flutter 客户端，验证客户端能自动拉起包内 `conductor-agent` 并注册到本地 smoke server。脚本会写出 `artifacts/macos-client-smoke/validation-summary.txt` 和 `smoke-macos-client-flow.log`，CI 会上传为 `macos-client-smoke-evidence`。

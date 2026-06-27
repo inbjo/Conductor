@@ -47,7 +47,7 @@ Flutter 客户端不重写远控能力。它只把用户输入转换为 `conduct
 当前缺口：
 
 - Windows 需要真实 Windows 环境执行 `scripts/validate-windows-client.ps1`。该脚本会统一调用构建、归档校验、Agent 启动 smoke、Agent E2E、客户端 E2E、GUI 入口 smoke 和 evidence 校验；分步脚本只作为排错入口。
-- macOS 需要真实 macOS 环境执行 `scripts/build-client.sh`、`scripts/verify-client-archive.sh macos ...`、`scripts/smoke-client-launch.sh macos ...` 和 `scripts/smoke-macos-client-e2e.sh ...`。
+- macOS 需要真实 macOS 环境执行 `scripts/validate-macos-client.sh`，并保留 `macos-client-smoke-evidence` 作为构建、归档校验、GUI 启动和 Client e2e 注册证据。
 - 自建 Gitea/Forgejo Actions 需要配置 `windows-2022` 和 `macos-14` 对应 runner，否则只能验证 workflow 配置，不能产出平台包。
 
 ## 4. P1：跑通 Windows 首次连接流程
@@ -134,8 +134,5 @@ powershell -ExecutionPolicy Bypass -File .\scripts\validate-windows-client.ps1
 macOS runner 或真机运行：
 
 ```sh
-./scripts/build-client.sh
-./scripts/verify-client-archive.sh macos release/conductor-client-macos.tar.gz
-./scripts/smoke-client-launch.sh macos release/conductor-client-macos.tar.gz
-./scripts/smoke-macos-client-e2e.sh release/conductor-client-macos.tar.gz
+./scripts/validate-macos-client.sh
 ```
