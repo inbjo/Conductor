@@ -1522,6 +1522,10 @@ function FilesPage() {
       const res = await fetch(`/api/devices/${id}/files/download?path=${encodeURIComponent(target)}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
+      if (res.status === 401) {
+        useAuth.getState().setToken(null);
+        throw new Error('登录已过期');
+      }
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: res.statusText }));
         throw new Error(body.error || res.statusText);
