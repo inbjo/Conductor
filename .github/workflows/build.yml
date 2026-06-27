@@ -69,6 +69,9 @@ jobs:
       - name: Build Linux client
         run: FLUTTER_BIN="$(command -v flutter)" ./scripts/build-client.sh
 
+      - name: Verify Linux client archive
+        run: ./scripts/verify-client-archive.sh linux release/conductor-client-linux-x64.tar.gz
+
       - name: Upload Linux client
         uses: actions/upload-artifact@v4
         with:
@@ -98,6 +101,10 @@ jobs:
           $env:FLUTTER_BIN = (Get-Command flutter).Source
           powershell -ExecutionPolicy Bypass -File .\scripts\build-client.ps1
 
+      - name: Verify Windows client archive
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File .\scripts\verify-client-archive.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
+
       - name: Upload Windows client
         uses: actions/upload-artifact@v4
         with:
@@ -123,6 +130,9 @@ jobs:
 
       - name: Build macOS client
         run: FLUTTER_BIN="$(command -v flutter)" ./scripts/build-client.sh
+
+      - name: Verify macOS client archive
+        run: ./scripts/verify-client-archive.sh macos release/conductor-client-macos.tar.gz
 
       - name: Upload macOS client
         uses: actions/upload-artifact@v4
