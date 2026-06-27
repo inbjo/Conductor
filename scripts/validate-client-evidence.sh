@@ -94,6 +94,25 @@ sha256_file() {
   fi
 }
 
+require_file() {
+  local label="$1"
+  local path="$2"
+  if [[ ! -f "$path" ]]; then
+    echo "Missing $label file: $path" >&2
+    exit 1
+  fi
+}
+
+require_grep() {
+  local label="$1"
+  local pattern="$2"
+  local path="$3"
+  if ! grep -q "$pattern" "$path"; then
+    echo "$label does not contain required marker: $pattern" >&2
+    exit 1
+  fi
+}
+
 platform_evidence_dir() {
   local platform_name="$1"
   local path_dir="$evidence_root/$platform_name-client-smoke"
@@ -196,7 +215,6 @@ verify_text_evidence() {
     exit 1
   fi
 
-  echo "$label smoke evidence verified: $evidence_dir"
 }
 
 verify_linux() {
@@ -239,6 +257,20 @@ verify_windows() {
     rustc \
     cargo \
     flutter
+
+  local agent_e2e_server_log="$evidence_dir/logs/agent-e2e/server.log"
+  local agent_e2e_agent_log="$evidence_dir/logs/agent-e2e/agent.log"
+  local client_e2e_server_log="$evidence_dir/logs/client-e2e/server.log"
+  local client_e2e_client_log="$evidence_dir/logs/client-e2e/client.log"
+
+  require_file "Windows agent e2e server log" "$agent_e2e_server_log"
+  require_file "Windows agent e2e agent log" "$agent_e2e_agent_log"
+  require_file "Windows client e2e server log" "$client_e2e_server_log"
+  require_file "Windows client e2e client log" "$client_e2e_client_log"
+  require_grep "Windows agent e2e agent log" "agent config " "$agent_e2e_agent_log"
+  require_grep "Windows client e2e client log" "agent config " "$client_e2e_client_log"
+
+  echo "Windows smoke evidence verified: $evidence_dir"
 }
 
 case "$platform" in
