@@ -486,7 +486,7 @@ CI 会构建并上传以下 artifact：
 
 | Job | Runner | 产物 |
 | --- | --- | --- |
-| `static-checks` | `ubuntu-24.04` | 不产出包；检查 workflow 镜像、shell 脚本语法、客户端 helper usage 和 macOS metadata。 |
+| `static-checks` | `ubuntu-24.04` | 不产出包；检查 workflow 镜像、shell 脚本语法、客户端 helper usage、synthetic evidence 聚合摘要和 macOS metadata。 |
 | `powershell-static-checks` | `windows-2022` | 不产出包；检查 Windows PowerShell 脚本语法。 |
 | `server-release` | `ubuntu-24.04` | `conductor-server-linux-x64` |
 | `client-linux` | `ubuntu-24.04` | `conductor-client-linux-x64` |
@@ -504,7 +504,7 @@ CI 会构建并上传以下 artifact：
 
 CI 构建流程：
 
-- 静态检查：确认 GitHub/Gitea workflow 内容一致、shell 脚本可解析、客户端 helper usage 入口可执行，并检查 macOS `Info.plist`/entitlements 的麦克风、网络和沙箱配置。
+- 静态检查：确认 GitHub/Gitea workflow 内容一致、shell 脚本可解析、客户端 helper usage 入口可执行，运行 synthetic evidence 聚合摘要测试，并检查 macOS `Info.plist`/entitlements 的麦克风、网络和沙箱配置。
 - PowerShell 静态检查：在 Windows runner 上解析 `scripts/*.ps1`，提前发现语法错误。
 - 服务端：安装 Rust/Node，执行 `scripts/build-release.sh x86_64-unknown-linux-gnu`。
 - Linux 客户端：安装 GTK/clang 依赖，执行 `scripts/build-client.sh`，校验归档并做客户端启动/e2e smoke；e2e evidence 会验证 Server URL、Agent Token、Agent Name、File Root、Audio Input 和本地审批开关都写入 settings 并传给包内 Agent。

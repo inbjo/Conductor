@@ -60,6 +60,9 @@ jobs:
           ./scripts/verify-linux-smoke-evidence.sh --help
           ./scripts/verify-macos-smoke-evidence.sh --help
 
+      - name: Test client evidence summary verifier
+        run: ./scripts/test-client-evidence-summary.sh
+
       - name: Check macOS client metadata
         run: python3 scripts/check-macos-client-metadata.py
 
