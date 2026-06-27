@@ -173,6 +173,21 @@ grep -q '^windows_result=passed$' "$verified/aggregate-summary.txt"
 grep -q '^macos_result=passed$' "$verified/aggregate-summary.txt"
 grep -q "^windows_archive_sha256=$windows_archive_sha256$" "$verified/aggregate-summary.txt"
 
+mv \
+  "$artifacts/windows-client-smoke-evidence/windows.zip.sha256" \
+  "$artifacts/windows-client-smoke-evidence/windows.zip.sha256.bak"
+if "$root_dir/scripts/validate-client-evidence.sh" \
+  --evidence-root "$artifacts" \
+  --platform windows \
+  --expected-commit "$commit" >"$tmp_dir/evidence-missing-sidecar.log" 2>&1; then
+  echo "Expected missing smoke evidence archive sidecar to fail." >&2
+  exit 1
+fi
+grep -q "Windows smoke evidence archive checksum sidecar" "$tmp_dir/evidence-missing-sidecar.log"
+mv \
+  "$artifacts/windows-client-smoke-evidence/windows.zip.sha256.bak" \
+  "$artifacts/windows-client-smoke-evidence/windows.zip.sha256"
+
 sed -i 's/^commit=.*/commit=other-test-client-evidence-commit/' \
   "$artifacts/windows-client-smoke-evidence/validation-summary.txt"
 if "$root_dir/scripts/validate-client-evidence.sh" \
