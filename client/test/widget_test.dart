@@ -87,6 +87,32 @@ void main() {
     );
   });
 
+  test('partial settings preserve existing build defaults', () {
+    final settings = <String, dynamic>{
+      'serverUrl': 'ws://saved/ws/agent',
+      'interactiveApproval': false,
+    };
+
+    expect(
+      settingsStringValue(settings, 'serverUrl', 'ws://default'),
+      'ws://saved/ws/agent',
+    );
+    expect(
+      settingsStringValue(settings, 'agentName', 'built-agent'),
+      'built-agent',
+    );
+    expect(
+      settingsStringValue(settings, 'agentRoot', '/built/root'),
+      '/built/root',
+    );
+    expect(
+      settingsStringValue(settings, 'audioInput', 'built-audio'),
+      'built-audio',
+    );
+    expect(settingsBoolValue(settings, 'interactiveApproval', true), isFalse);
+    expect(settingsBoolValue(settings, 'missingApproval', true), isTrue);
+  });
+
   testWidgets('shows the agent launcher', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1200, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));

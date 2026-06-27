@@ -116,13 +116,37 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
           jsonDecode(await file.readAsString()) as Map<String, dynamic>;
       if (!mounted) return;
       setState(() {
-        _serverUrl.text = value.stringValue('serverUrl') ?? _serverUrl.text;
-        _agentToken.text = value.stringValue('agentToken') ?? _agentToken.text;
-        _agentName.text = value.stringValue('agentName') ?? '';
-        _agentRoot.text = value.stringValue('agentRoot') ?? '';
-        _agentBin.text = value.stringValue('agentBin') ?? _agentBin.text;
-        _audioInput.text = value.stringValue('audioInput') ?? '';
-        _interactiveApproval = value['interactiveApproval'] == true;
+        _serverUrl.text = settingsStringValue(
+          value,
+          'serverUrl',
+          _serverUrl.text,
+        );
+        _agentToken.text = settingsStringValue(
+          value,
+          'agentToken',
+          _agentToken.text,
+        );
+        _agentName.text = settingsStringValue(
+          value,
+          'agentName',
+          _agentName.text,
+        );
+        _agentRoot.text = settingsStringValue(
+          value,
+          'agentRoot',
+          _agentRoot.text,
+        );
+        _agentBin.text = settingsStringValue(value, 'agentBin', _agentBin.text);
+        _audioInput.text = settingsStringValue(
+          value,
+          'audioInput',
+          _audioInput.text,
+        );
+        _interactiveApproval = settingsBoolValue(
+          value,
+          'interactiveApproval',
+          _interactiveApproval,
+        );
       });
     } catch (error) {
       _appendLog('settings load failed: $error');
@@ -935,6 +959,23 @@ extension on Map<String, dynamic> {
     final value = this[key];
     return value is String ? value : null;
   }
+}
+
+String settingsStringValue(
+  Map<String, dynamic> settings,
+  String key,
+  String currentValue,
+) {
+  return settings.stringValue(key) ?? currentValue;
+}
+
+bool settingsBoolValue(
+  Map<String, dynamic> settings,
+  String key,
+  bool currentValue,
+) {
+  if (!settings.containsKey(key)) return currentValue;
+  return settings[key] == true;
 }
 
 String defaultAgentBinary() {
