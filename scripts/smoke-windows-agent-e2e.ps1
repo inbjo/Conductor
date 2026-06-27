@@ -146,7 +146,7 @@ try {
 
     Write-Host "[3/4] Logging in"
     $loginBody = @{ username = "admin"; password = $AdminPassword } | ConvertTo-Json
-    $login = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/auth/login" -ContentType "application/json" -Body $loginBody
+    $login = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/auth/login" -ContentType "application/json" -Body $loginBody -TimeoutSec 5
     $headers = @{ Authorization = "Bearer $($login.token)" }
 
     Write-Host "[4/4] Waiting for agent registration: $AgentName"
@@ -156,7 +156,7 @@ try {
         if ($AgentProcess['Process'].HasExited) {
             Write-Error "Bundled agent exited before registration. Exit code: $($AgentProcess['Process'].ExitCode)"
         }
-        $devices = @(Invoke-RestMethod -Method Get -Uri "$BaseUrl/api/devices" -Headers $headers)
+        $devices = @(Invoke-RestMethod -Method Get -Uri "$BaseUrl/api/devices" -Headers $headers -TimeoutSec 5)
         $device = $devices | Where-Object { $_.hostname -eq $AgentName -and $_.online -eq 1 } | Select-Object -First 1
         if ($null -ne $device) {
             break
@@ -165,7 +165,7 @@ try {
     } while ((Get-Date) -lt $deadline)
 
     if ($null -eq $device) {
-        $devices = Invoke-RestMethod -Method Get -Uri "$BaseUrl/api/devices" -Headers $headers
+        $devices = Invoke-RestMethod -Method Get -Uri "$BaseUrl/api/devices" -Headers $headers -TimeoutSec 5
         Write-Host "Current devices:"
         Write-Host ($devices | ConvertTo-Json -Depth 4)
         Write-Error "Bundled Windows agent did not register within $TimeoutSeconds seconds."
