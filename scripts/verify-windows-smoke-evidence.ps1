@@ -170,6 +170,9 @@ if ($ClientLogText -notmatch "agent config ") {
 if ($ClientLogText -notmatch "agent config .*root=.*agent-root .*audio_input=smoke-audio-input") {
     Write-Error "Windows client e2e log does not prove file root and audio input propagation."
 }
+if ($ClientLogText -notmatch "agent config .*server_url=ws://127\.0\.0\.1:\d+/ws/agent") {
+    Write-Error "Windows client e2e log does not prove normalized serverUrl propagation."
+}
 if ($ClientLogText -notmatch "\[diagnostics\] conductor-agent") {
     Write-Error "Windows client e2e log does not contain diagnostics output."
 }

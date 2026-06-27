@@ -70,10 +70,10 @@ Agent config log observed
 Agent diagnostics observed
 "@
     Write-TextFile (Join-Path $EvidenceDir "logs\agent-e2e\server.log") "server"
-    Write-TextFile (Join-Path $EvidenceDir "logs\agent-e2e\agent.log") "agent config root=$TempDir\agent-root agent_name=windows-client-e2e-test audio_input=smoke-audio-input"
+    Write-TextFile (Join-Path $EvidenceDir "logs\agent-e2e\agent.log") "agent config server_url=ws://127.0.0.1:18081/ws/agent root=$TempDir\agent-root agent_name=windows-client-e2e-test audio_input=smoke-audio-input"
     Write-TextFile (Join-Path $EvidenceDir "logs\client-e2e\server.log") "server"
     Write-TextFile (Join-Path $EvidenceDir "logs\client-e2e\client.log") @"
-agent config root=$TempDir\agent-root agent_name=windows-client-e2e-test audio_input=smoke-audio-input
+agent config server_url=ws://127.0.0.1:18081/ws/agent root=$TempDir\agent-root agent_name=windows-client-e2e-test audio_input=smoke-audio-input
 [diagnostics] conductor-agent
 "@
     @{

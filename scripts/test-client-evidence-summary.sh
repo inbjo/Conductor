@@ -64,7 +64,7 @@ cat > "$artifacts/linux-client-smoke-evidence/logs/client-e2e/server.log" <<'EOF
 server
 EOF
 cat > "$artifacts/linux-client-smoke-evidence/logs/client-e2e/client.log" <<'EOF'
-agent config root=/tmp/linux/agent-root agent_name=linux-client-e2e-agent-demo audio_input=smoke-audio-input
+agent config server_url=ws://127.0.0.1:18082/ws/agent root=/tmp/linux/agent-root agent_name=linux-client-e2e-agent-demo audio_input=smoke-audio-input
 [diagnostics] conductor-agent
 EOF
 cat > "$artifacts/linux-client-smoke-evidence/logs/client-e2e/client-settings.json" <<'EOF'
@@ -99,13 +99,13 @@ cat > "$artifacts/windows-client-smoke-evidence/logs/agent-e2e/server.log" <<'EO
 server
 EOF
 cat > "$artifacts/windows-client-smoke-evidence/logs/agent-e2e/agent.log" <<'EOF'
-agent config root=C:\Temp\agent-root agent_name=windows-client-e2e-demo audio_input=smoke-audio-input
+agent config server_url=ws://127.0.0.1:18081/ws/agent root=C:\Temp\agent-root agent_name=windows-client-e2e-demo audio_input=smoke-audio-input
 EOF
 cat > "$artifacts/windows-client-smoke-evidence/logs/client-e2e/server.log" <<'EOF'
 server
 EOF
 cat > "$artifacts/windows-client-smoke-evidence/logs/client-e2e/client.log" <<'EOF'
-agent config root=C:\Temp\agent-root agent_name=windows-client-e2e-demo audio_input=smoke-audio-input
+agent config server_url=ws://127.0.0.1:18081/ws/agent root=C:\Temp\agent-root agent_name=windows-client-e2e-demo audio_input=smoke-audio-input
 [diagnostics] conductor-agent
 EOF
 cat > "$artifacts/windows-client-smoke-evidence/logs/client-e2e/client-settings.json" <<'EOF'
@@ -141,7 +141,7 @@ cat > "$artifacts/macos-client-smoke-evidence/logs/client-e2e/server.log" <<'EOF
 server
 EOF
 cat > "$artifacts/macos-client-smoke-evidence/logs/client-e2e/client.log" <<'EOF'
-agent config root=/tmp/macos/agent-root agent_name=macos-client-e2e-agent-demo audio_input=smoke-audio-input
+agent config server_url=ws://127.0.0.1:18083/ws/agent root=/tmp/macos/agent-root agent_name=macos-client-e2e-agent-demo audio_input=smoke-audio-input
 [diagnostics] conductor-agent
 EOF
 cat > "$artifacts/macos-client-smoke-evidence/logs/client-e2e/client-settings.json" <<'EOF'

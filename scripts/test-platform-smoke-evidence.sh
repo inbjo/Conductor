@@ -47,7 +47,7 @@ EOF
 server
 EOF
   cat > "$evidence_dir/logs/client-e2e/client.log" <<EOF
-agent config root=/tmp/$platform/agent-root agent_name=$agent_name_prefix-demo audio_input=smoke-audio-input
+agent config server_url=ws://127.0.0.1:18082/ws/agent root=/tmp/$platform/agent-root agent_name=$agent_name_prefix-demo audio_input=smoke-audio-input
 [diagnostics] conductor-agent
 EOF
   cat > "$evidence_dir/logs/client-e2e/client-settings.json" <<EOF

@@ -204,6 +204,10 @@ if ! grep -q "agent config .*root=.*agent-root .*audio_input=smoke-audio-input" 
   echo "Linux client e2e client log does not prove file root and audio input propagation." >&2
   exit 1
 fi
+if ! grep -q "agent config .*server_url=ws://127\.0\.0\.1:.*/ws/agent" "$e2e_client_log"; then
+  echo "Linux client e2e client log does not prove normalized serverUrl propagation." >&2
+  exit 1
+fi
 if ! grep -q "\[diagnostics\] conductor-agent" "$e2e_client_log"; then
   echo "Linux client e2e client log does not contain diagnostics output." >&2
   exit 1
