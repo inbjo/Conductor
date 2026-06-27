@@ -120,6 +120,7 @@ cargo test
 ./scripts/build-client.sh
 ./scripts/verify-client-archive.sh linux release/conductor-client-linux-x64.tar.gz
 ./scripts/smoke-client-launch.sh linux release/conductor-client-linux-x64.tar.gz
+./scripts/smoke-linux-client-e2e.sh release/conductor-client-linux-x64.tar.gz
 ```
 
 Windows runner 或真机运行：

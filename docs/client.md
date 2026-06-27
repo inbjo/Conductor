@@ -107,9 +107,10 @@ Linux 已验证命令：
 ./scripts/build-client.sh
 ./scripts/verify-client-archive.sh linux release/conductor-client-linux-x64.tar.gz
 ./scripts/smoke-client-launch.sh linux release/conductor-client-linux-x64.tar.gz
+./scripts/smoke-linux-client-e2e.sh release/conductor-client-linux-x64.tar.gz
 ```
 
-启动 smoke 会解包 release tar.gz，启动 `conductor_client`，等待数秒确认 GUI 入口没有立刻退出，然后通过 `timeout` 主动结束进程。无图形会话时需要安装 `xvfb`，脚本会自动使用 `xvfb-run`。
+启动 smoke 会解包 release tar.gz，启动 `conductor_client`，等待数秒确认 GUI 入口没有立刻退出，然后通过 `timeout` 主动结束进程。E2E smoke 会启动本地 Server，再启动 Flutter 客户端并通过 `CONDUCTOR_CLIENT_AUTOSTART=1` 自动拉起包内 Agent，最后确认设备上线。无图形会话时需要安装 `xvfb`，脚本会自动使用 `xvfb-run`。
 
 ## Windows 构建
 
