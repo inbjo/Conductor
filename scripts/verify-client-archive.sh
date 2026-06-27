@@ -75,6 +75,15 @@ case "$platform" in
       'conductor_client.app/Contents/Info.plist' \
       'NSMicrophoneUsageDescription'
     require_entry '^conductor_client\.app/Contents/Frameworks/'
+    require_entry '^conductor_client\.app/Contents/Frameworks/App\.framework/App$'
+    require_executable_entry '^conductor_client\.app/Contents/Frameworks/App\.framework/App$'
+    require_entry '^conductor_client\.app/Contents/Frameworks/App\.framework/Resources/flutter_assets/'
+    require_entry '^conductor_client\.app/Contents/Frameworks/App\.framework/Resources/flutter_assets/AssetManifest\.bin$'
+    require_entry '^conductor_client\.app/Contents/Frameworks/App\.framework/Resources/flutter_assets/FontManifest\.json$'
+    require_entry '^conductor_client\.app/Contents/Frameworks/App\.framework/Resources/flutter_assets/NativeAssetsManifest\.json$'
+    require_entry '^conductor_client\.app/Contents/Frameworks/App\.framework/Resources/flutter_assets/version\.json$'
+    require_entry '^conductor_client\.app/Contents/Frameworks/FlutterMacOS\.framework/FlutterMacOS$'
+    require_executable_entry '^conductor_client\.app/Contents/Frameworks/FlutterMacOS\.framework/FlutterMacOS$'
     require_entry '^conductor_client\.app/Contents/Resources/'
     ;;
   *)
