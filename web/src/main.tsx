@@ -807,6 +807,7 @@ function RemotePage() {
   const awaitingApproval = sessionStatus === 'pending' && !closeReason;
   const rejected = sessionStatus === 'rejected';
   const [localVoiceStream, setLocalVoiceStream] = useState<MediaStream | null>(null);
+  const smokeMode = new URLSearchParams(location.search).get('smoke') === '1';
   const rtcVoiceStream = voice
     && ['accepted', 'muted'].includes(voice.status)
     && !voice.muted
@@ -817,7 +818,7 @@ function RemotePage() {
   }, []);
   const rtc = useSessionRtc({
     sessionId,
-    enabled: interactiveEnabled,
+    enabled: interactiveEnabled && !smokeMode,
     send,
     signals,
     localAudioStream: rtcVoiceStream,

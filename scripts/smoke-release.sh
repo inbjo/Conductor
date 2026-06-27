@@ -12,6 +12,7 @@ AGENT_ROOT="${CONDUCTOR_SMOKE_AGENT_ROOT:-/tmp/conductor-smoke-agent-root-$PORT}
 ADMIN_PASSWORD="${CONDUCTOR_SMOKE_ADMIN_PASSWORD:-admin123}"
 JWT_SECRET="${CONDUCTOR_SMOKE_JWT_SECRET:-demo-smoke-secret}"
 AGENT_TOKEN="${CONDUCTOR_SMOKE_AGENT_TOKEN:-demo-smoke-token}"
+AGENT_NAME="${CONDUCTOR_SMOKE_AGENT_NAME:-demo-smoke-agent}"
 SERVER_LOG="${CONDUCTOR_SMOKE_SERVER_LOG:-/tmp/conductor-smoke-server-$PORT.log}"
 AGENT_LOG="${CONDUCTOR_SMOKE_AGENT_LOG:-/tmp/conductor-smoke-agent-$PORT.log}"
 UPLOAD_FILE="/tmp/conductor-smoke-upload-$PORT.txt"
@@ -102,7 +103,7 @@ fi
 echo "[4/8] Starting release agent"
 CONDUCTOR_SERVER_URL="ws://127.0.0.1:$PORT/ws/agent" \
 CONDUCTOR_AGENT_TOKEN="$AGENT_TOKEN" \
-CONDUCTOR_AGENT_NAME="demo-smoke-agent" \
+CONDUCTOR_AGENT_NAME="$AGENT_NAME" \
 CONDUCTOR_AGENT_ROOT="$AGENT_ROOT" \
 "$AGENT_BIN" >"$AGENT_LOG" 2>&1 &
 agent_pid="$!"
@@ -121,12 +122,12 @@ echo "[6/8] Waiting for agent registration"
 devices=""
 for _ in {1..50}; do
   devices="$(curl -fsS "$BASE_URL/api/devices" -H "Authorization: Bearer $token")"
-  if printf '%s' "$devices" | grep -q '"hostname":"demo-smoke-agent"'; then
+  if printf '%s' "$devices" | grep -q "\"hostname\":\"$AGENT_NAME\""; then
     break
   fi
   sleep 0.2
 done
-device_id="$(printf '%s' "$devices" | sed -n 's/.*"device_id":"\([^"]*\)".*"hostname":"demo-smoke-agent".*/\1/p')"
+device_id="$(printf '%s' "$devices" | sed -n "s/.*\"device_id\":\"\\([^\"]*\\)\".*\"hostname\":\"$AGENT_NAME\".*/\\1/p")"
 if [[ -z "$device_id" ]]; then
   echo "Agent did not appear in device list: $devices" >&2
   exit 1
@@ -180,6 +181,14 @@ curl -fsS -X POST "$BASE_URL/api/sessions/$session_id/messages" \
 echo "[8/8] Closing session"
 curl -fsS -X POST "$BASE_URL/api/sessions/$session_id/close" \
   -H "Authorization: Bearer $token" | grep -q '"status":"closed"'
+
+if [[ "${CONDUCTOR_SMOKE_BROWSER:-0}" == "1" ]]; then
+  echo "[browser] Checking web console flow"
+  CONDUCTOR_SMOKE_BASE_URL="$BASE_URL" \
+  CONDUCTOR_SMOKE_ADMIN_PASSWORD="$ADMIN_PASSWORD" \
+  CONDUCTOR_SMOKE_AGENT_NAME="$AGENT_NAME" \
+  node "$RELEASE_DIR/scripts/smoke-web.mjs"
+fi
 
 echo "Release smoke test passed for $RELEASE_DIR"
 echo "Server log: $SERVER_LOG"

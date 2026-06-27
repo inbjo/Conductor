@@ -123,6 +123,14 @@ cd release/conductor-<target>
 
 该检查会先校验包内 `SHA256SUMS`，再临时启动 release 包内的 Server 和 Agent，并自动验证健康接口、前端路由、登录、设备上线、远控会话、文件列表、聊天和会话关闭。默认使用 `127.0.0.1:18080`，端口被占用时可指定 `CONDUCTOR_SMOKE_PORT=18081 ./scripts/smoke-release.sh .`。完整比赛演示步骤见 `docs/demo.md`。
 
+如果演示机安装了 Chromium，可追加浏览器级后台页面检查：
+
+```sh
+CONDUCTOR_SMOKE_BROWSER=1 ./scripts/smoke-release.sh .
+```
+
+该模式会用 headless Chromium 登录后台，并检查设备列表、设备详情、远控页和文件页主流程。
+
 Agent 控制台聊天命令：
 
 - `/help`

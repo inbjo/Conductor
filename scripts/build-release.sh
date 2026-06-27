@@ -42,6 +42,7 @@ cp "$ROOT_DIR/README.md" "$STAGE_DIR/"
 cp "$ROOT_DIR/docs/demo.md" "$STAGE_DIR/docs/"
 cp "$ROOT_DIR/docs/plan.md" "$STAGE_DIR/docs/"
 cp "$ROOT_DIR/scripts/smoke-release.sh" "$STAGE_DIR/scripts/"
+cp "$ROOT_DIR/scripts/smoke-web.mjs" "$STAGE_DIR/scripts/"
 git -C "$ROOT_DIR" archive HEAD | tar -x -C "$STAGE_DIR/source"
 cat >"$STAGE_DIR/RELEASE.txt" <<EOF
 Conductor release
@@ -57,10 +58,12 @@ Contents:
 - docs/demo.md
 - docs/plan.md
 - scripts/smoke-release.sh
+- scripts/smoke-web.mjs
 - source/
 
 Smoke test:
   ./scripts/smoke-release.sh .
+  CONDUCTOR_SMOKE_BROWSER=1 ./scripts/smoke-release.sh .
 EOF
 (
   cd "$STAGE_DIR"
@@ -72,6 +75,7 @@ EOF
     docs/demo.md \
     docs/plan.md \
     scripts/smoke-release.sh \
+    scripts/smoke-web.mjs \
     > SHA256SUMS
 )
 

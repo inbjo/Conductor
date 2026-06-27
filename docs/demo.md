@@ -40,6 +40,14 @@ cd ..
 
 该脚本会先校验包内 `SHA256SUMS`，再临时启动 release 包内的 Server 和 Agent，自动检查健康接口、前端深层路由、登录、设备上线、远控会话、文件列表、聊天和会话关闭。
 
+演示机安装 Chromium 时，可以追加浏览器级后台检查：
+
+```sh
+CONDUCTOR_SMOKE_BROWSER=1 ./scripts/smoke-release.sh .
+```
+
+该模式会使用 headless Chromium 登录后台，检查设备列表、设备详情、远控页和文件页主流程。
+
 脚本默认使用 `127.0.0.1:18080`。如果端口被占用，可改用：
 
 ```sh
