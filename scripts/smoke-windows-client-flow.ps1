@@ -81,7 +81,7 @@ try {
         } else {
             Add-CommandSummary $SummaryPath "flutter" @("--version")
         }
-        Start-Transcript -Path (Join-Path $EvidenceFullPath "smoke-windows-client-flow.log")
+        Start-Transcript -Path (Join-Path $EvidenceFullPath "smoke-windows-client-flow.log") -Force
         $TranscriptStarted = $true
     }
 

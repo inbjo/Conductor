@@ -51,6 +51,12 @@ foreach ($key in $RequiredKeys) {
     }
 }
 
+foreach ($key in @("rustc", "cargo", "flutter")) {
+    if ($Summary[$key] -eq "not found") {
+        Write-Error "Windows smoke evidence reports missing tool: $key"
+    }
+}
+
 $Result = $Summary["result"]
 if ($Result -ne "passed") {
     Write-Error "Windows smoke evidence result is not passed: $Result"
@@ -59,6 +65,16 @@ if ($Result -ne "passed") {
 $ArchiveSha256 = $Summary["archive_sha256"]
 if ($ArchiveSha256 -notmatch "^[a-f0-9]{64}$") {
     Write-Error "Windows smoke evidence archive_sha256 is invalid: $ArchiveSha256"
+}
+
+$ArchivePath = $Summary["archive"]
+if (Test-Path $ArchivePath) {
+    $ActualArchiveSha256 = (Get-FileHash -Algorithm SHA256 -Path $ArchivePath).Hash.ToLowerInvariant()
+    if ($ActualArchiveSha256 -ne $ArchiveSha256) {
+        Write-Error "Windows smoke evidence archive hash mismatch. Summary: $ArchiveSha256 Actual: $ActualArchiveSha256"
+    }
+} else {
+    Write-Host "Windows smoke archive is not present for hash recheck: $ArchivePath"
 }
 
 $LogText = Get-Content $LogPath -Raw

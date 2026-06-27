@@ -184,6 +184,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-client-flow.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\verify-windows-smoke-evidence.ps1 -EvidenceDir .\artifacts\windows-client-smoke
 ```
 
+校验脚本会确认工具链字段不是 `not found`、`result=passed`、日志包含成功标记，并在归档仍存在时复算 `archive_sha256`。
+
 分步排错时可分别运行：
 
 ```powershell
