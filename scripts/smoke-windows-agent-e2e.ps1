@@ -173,6 +173,18 @@ try {
         Write-Error "Bundled Windows agent did not register within $TimeoutSeconds seconds."
     }
 
+    $AgentConfigLog = Get-Content $AgentLog -ErrorAction SilentlyContinue |
+        Where-Object { $_ -match "agent config " -and $_ -like "*agent_name=$AgentName*" } |
+        Select-Object -Last 1
+    if ([string]::IsNullOrWhiteSpace($AgentConfigLog)) {
+        if (Test-Path $AgentLog) {
+            Write-Host "Agent log:"
+            Get-Content $AgentLog -Tail 80
+        }
+        Write-Error "Agent log does not contain expected config line for $AgentName."
+    }
+    Write-Host "Agent config log observed: $AgentConfigLog"
+
     $Failed = $false
     Write-Host "Windows bundled agent e2e smoke passed. Device: $($device.device_id)"
 } finally {

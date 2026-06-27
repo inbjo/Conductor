@@ -216,7 +216,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\smoke-windows-client-e2e.ps1 
 powershell -ExecutionPolicy Bypass -File .\scripts\smoke-client-launch.ps1 -ArchivePath .\release\conductor-client-windows-x64.zip
 ```
 
-Agent smoke 会解压 zip，从解包目录启动 `conductor-agent.exe`，确认它可以进入连接/重连循环且不会立刻崩溃。Agent E2E smoke 会启动本地 `conductor-server.exe`，再启动包内 Agent 并通过 `/api/devices` 确认设备上线。Client E2E smoke 会启动 `conductor_client.exe`，通过 `CONDUCTOR_CLIENT_AUTOSTART=1` 让 Flutter 壳自动启动包内 Agent，并确认设备上线。Client launch smoke 会启动 `conductor_client.exe`，等待数秒确认 GUI 入口没有立刻退出，然后主动结束进程。它们用于发现缺 DLL、入口程序无法启动、归档目录错误、客户端无法拉起 Agent 或 Agent 无法注册到 Server。
+Agent smoke 会解压 zip，从解包目录启动 `conductor-agent.exe`，确认它可以进入连接/重连循环且不会立刻崩溃。Agent E2E smoke 会启动本地 `conductor-server.exe`，再启动包内 Agent，通过 `/api/devices` 确认设备上线，并检查 `agent config` 日志证明环境配置已被读取。Client E2E smoke 会启动 `conductor_client.exe`，通过 `CONDUCTOR_CLIENT_AUTOSTART=1` 让 Flutter 壳自动启动包内 Agent，并确认设备上线。Client launch smoke 会启动 `conductor_client.exe`，等待数秒确认 GUI 入口没有立刻退出，然后主动结束进程。它们用于发现缺 DLL、入口程序无法启动、归档目录错误、客户端无法拉起 Agent 或 Agent 无法注册到 Server。
 
 自动化 smoke 可用的客户端环境变量：
 
