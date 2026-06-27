@@ -95,6 +95,10 @@ jobs:
         shell: pwsh
         run: .\scripts\test-windows-client-archive-checksum.ps1
 
+      - name: Test Windows smoke evidence verifier
+        shell: pwsh
+        run: .\scripts\test-windows-smoke-evidence.ps1
+
   server-release:
     name: Server release package
     runs-on: ubuntu-24.04

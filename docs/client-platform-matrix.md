@@ -226,7 +226,7 @@ CI job 覆盖：
 | Job | Runner | 覆盖 |
 | --- | --- | --- |
 | `static-checks` | `ubuntu-24.04` | GitHub/Gitea workflow 镜像检查、shell 脚本语法检查、客户端 helper usage 检查、macOS metadata 检查。 |
-| `powershell-static-checks` | `windows-2022` | Windows PowerShell 脚本语法解析检查。 |
+| `powershell-static-checks` | `windows-2022` | Windows PowerShell 脚本语法解析检查，并运行 Windows 归档校验和 smoke evidence 合成测试。 |
 | `server-release` | `ubuntu-24.04` | Rust test、Web build、Linux server release 包。 |
 | `client-linux` | `ubuntu-24.04` | Flutter analyze/test、Linux client build、归档校验、GUI smoke、client e2e 注册和 smoke evidence。 |
 | `client-windows` | `windows-2022` | Windows client build、归档校验、Agent smoke、Agent e2e、Client e2e、GUI smoke。 |
