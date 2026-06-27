@@ -1363,38 +1363,137 @@ async fn agent_socket(state: AppState, socket: WebSocket) {
                     let _ = reply.send(result);
                 }
             }
-            Ok(AgentToServer::ChatMessage(msg)) => {
+            Ok(AgentToServer::ChatMessage(mut msg)) => {
+                let Some(registered_id) = device_id.as_deref() else {
+                    warn!("ignored chat message before agent registration");
+                    continue;
+                };
+                if !agent_owns_session(
+                    &state.db,
+                    registered_id,
+                    &msg.session_id,
+                    &["pending", "active"],
+                )
+                .await
+                {
+                    warn!(
+                        "ignored chat message for foreign or closed session={} device={}",
+                        msg.session_id, registered_id
+                    );
+                    continue;
+                }
+                msg.device_id = registered_id.to_string();
+                msg.sender = "agent".into();
                 if save_chat(&state, &msg).await.is_ok() {
                     let _ = state.admin_events.send(AdminEvent::ChatMessage(msg));
                 }
             }
             Ok(AgentToServer::ScreenFrame(frame)) => {
+                let Some(registered_id) = device_id.as_deref() else {
+                    warn!("ignored screen frame before agent registration");
+                    continue;
+                };
+                if !agent_owns_session(&state.db, registered_id, &frame.session_id, &["active"])
+                    .await
+                {
+                    warn!(
+                        "ignored screen frame for foreign or inactive session={} device={}",
+                        frame.session_id, registered_id
+                    );
+                    continue;
+                }
                 let _ = state.admin_events.send(AdminEvent::ScreenFrame(frame));
             }
             Ok(AgentToServer::SessionAccept { session_id }) => {
+                let Some(registered_id) = device_id.as_deref() else {
+                    warn!("ignored session accept before agent registration");
+                    continue;
+                };
+                if !agent_owns_session(&state.db, registered_id, &session_id, &["pending"]).await {
+                    warn!("ignored session accept for foreign session={session_id} device={registered_id}");
+                    continue;
+                }
                 update_session_status(&state, &session_id, "active").await;
             }
             Ok(AgentToServer::SessionReject { session_id, reason }) => {
+                let Some(registered_id) = device_id.as_deref() else {
+                    warn!("ignored session reject before agent registration");
+                    continue;
+                };
+                if !agent_owns_session(&state.db, registered_id, &session_id, &["pending"]).await {
+                    warn!("ignored session reject for foreign session={session_id} device={registered_id}");
+                    continue;
+                }
                 update_session_status(&state, &session_id, "rejected").await;
                 warn!("session rejected: {session_id}: {reason}");
             }
             Ok(AgentToServer::WebrtcOffer { session_id, sdp }) => {
+                let Some(registered_id) = device_id.as_deref() else {
+                    warn!("ignored WebRTC offer before agent registration");
+                    continue;
+                };
+                if !agent_owns_session(&state.db, registered_id, &session_id, &["active"]).await {
+                    warn!("ignored WebRTC offer for foreign session={session_id} device={registered_id}");
+                    continue;
+                }
                 signal(&state, session_id, "offer", json!({ "sdp": sdp }))
             }
             Ok(AgentToServer::WebrtcAnswer { session_id, sdp }) => {
+                let Some(registered_id) = device_id.as_deref() else {
+                    warn!("ignored WebRTC answer before agent registration");
+                    continue;
+                };
+                if !agent_owns_session(&state.db, registered_id, &session_id, &["active"]).await {
+                    warn!("ignored WebRTC answer for foreign session={session_id} device={registered_id}");
+                    continue;
+                }
                 signal(&state, session_id, "answer", json!({ "sdp": sdp }))
             }
             Ok(AgentToServer::WebrtcIceCandidate {
                 session_id,
                 candidate,
-            }) => signal(&state, session_id, "ice_candidate", candidate),
+            }) => {
+                let Some(registered_id) = device_id.as_deref() else {
+                    warn!("ignored WebRTC candidate before agent registration");
+                    continue;
+                };
+                if !agent_owns_session(&state.db, registered_id, &session_id, &["active"]).await {
+                    warn!("ignored WebRTC candidate for foreign session={session_id} device={registered_id}");
+                    continue;
+                }
+                signal(&state, session_id, "ice_candidate", candidate)
+            }
             Ok(AgentToServer::VoiceAccept { session_id }) => {
+                let Some(registered_id) = device_id.as_deref() else {
+                    warn!("ignored voice accept before agent registration");
+                    continue;
+                };
+                if !agent_owns_session(&state.db, registered_id, &session_id, &["active"]).await {
+                    warn!("ignored voice accept for foreign session={session_id} device={registered_id}");
+                    continue;
+                }
                 voice_status(&state, &session_id, "accepted", None, None).await;
             }
             Ok(AgentToServer::VoiceReject { session_id, reason }) => {
+                let Some(registered_id) = device_id.as_deref() else {
+                    warn!("ignored voice reject before agent registration");
+                    continue;
+                };
+                if !agent_owns_session(&state.db, registered_id, &session_id, &["active"]).await {
+                    warn!("ignored voice reject for foreign session={session_id} device={registered_id}");
+                    continue;
+                }
                 voice_status(&state, &session_id, "rejected", None, Some(reason)).await;
             }
             Ok(AgentToServer::VoiceHangup { session_id }) => {
+                let Some(registered_id) = device_id.as_deref() else {
+                    warn!("ignored voice hangup before agent registration");
+                    continue;
+                };
+                if !agent_owns_session(&state.db, registered_id, &session_id, &["active"]).await {
+                    warn!("ignored voice hangup for foreign session={session_id} device={registered_id}");
+                    continue;
+                }
                 voice_status(&state, &session_id, "hangup", None, None).await;
             }
             Ok(AgentToServer::Error { message }) => warn!("agent error: {message}"),
@@ -1541,6 +1640,28 @@ async fn mark_device_offline_if_heartbeat(
     .execute(db)
     .await?;
     Ok(result.rows_affected() == 1)
+}
+
+async fn agent_owns_session(
+    db: &SqlitePool,
+    device_id: &str,
+    session_id: &str,
+    allowed_statuses: &[&str],
+) -> bool {
+    let status = sqlx::query_as::<_, (String,)>(
+        "SELECT status FROM sessions WHERE session_id = ? AND device_id = ?",
+    )
+    .bind(session_id)
+    .bind(device_id)
+    .fetch_optional(db)
+    .await
+    .ok()
+    .flatten();
+    status.is_some_and(|(status,)| {
+        allowed_statuses
+            .iter()
+            .any(|allowed| *allowed == status)
+    })
 }
 
 async fn update_session_status(state: &AppState, session_id: &str, status: &str) {
@@ -1823,5 +1944,52 @@ mod tests {
         assert!(mark_device_offline_if_heartbeat(&db, "device-1", "old-heartbeat")
             .await
             .unwrap());
+    }
+
+    #[tokio::test]
+    async fn agent_events_are_bound_to_session_device_and_status() {
+        let db = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        for device_id in ["device-1", "device-2"] {
+            sqlx::query(
+                "INSERT INTO devices (device_id, hostname, os, arch, username, agent_version, local_ip, online, created_at, updated_at) VALUES (?, 'host', 'test', 'test', 'user', 'test', '127.0.0.1', 1, 'now', 'now')",
+            )
+            .bind(device_id)
+            .execute(&db)
+            .await
+            .unwrap();
+        }
+        sqlx::query(
+            "INSERT INTO sessions (session_id, device_id, status, created_at) VALUES ('session-1', 'device-1', 'active', 'now')",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+
+        assert!(agent_owns_session(
+            &db,
+            "device-1",
+            "session-1",
+            &["active"]
+        )
+        .await);
+        assert!(!agent_owns_session(
+            &db,
+            "device-2",
+            "session-1",
+            &["active"]
+        )
+        .await);
+        assert!(!agent_owns_session(
+            &db,
+            "device-1",
+            "session-1",
+            &["pending"]
+        )
+        .await);
     }
 }
