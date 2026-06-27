@@ -30,13 +30,14 @@
 - 浏览器侧媒体接收：声明接收远端视频/音频轨，有真实 MediaStream 时优先渲染，否则回退截图帧
 - Agent WebRTC 屏幕视频：把实际 PNG 截图编码为 VP8 视频帧并发送到浏览器，当前为 1 FPS 演示帧率
 - 浏览器语音发送：Agent 接受语音请求后，把浏览器麦克风轨挂载到 WebRTC 音频 sender；静音、挂断时及时移除
+- Agent 语音播放：接收浏览器 Opus 音频轨，封装为 Ogg Opus 流并通过无界面 `ffplay` 播放
 - 审计日志记录与查询
 
 ### 当前仍是占位/演示实现
 
 - Agent 会优先尝试真实屏幕采集：Linux 依次尝试 `grim`、`gnome-screenshot`、`import`，macOS 使用 `screencapture`，Windows 使用 PowerShell 截图；当图形会话、截图工具或权限条件不满足时，回退到动态演示帧
 - 真实鼠标键盘输入依赖本机图形会话与系统权限，无法建立输入连接时会保留日志告警
-- 语音沟通已完成浏览器麦克风采集和 WebRTC 发送，Agent 端音频接收播放与回传仍未接入
+- 语音沟通已完成浏览器麦克风采集、WebRTC 发送和 Agent 播放；Agent 麦克风回传仍未接入
 - WebRTC 屏幕视频编码依赖 Agent 所在机器提供带 `libvpx` 编码器的 `ffmpeg`；不可用时仍可通过 WebSocket 截图帧展示
 - 浏览器与 Agent 已可交换 WebRTC offer/answer/ICE、屏幕视频和 DataChannel 控制事件；真实音频轨仍未接入
 
@@ -47,7 +48,7 @@
 - Rust stable
 - Node.js 20+
 - npm 10+
-- `ffmpeg`（Agent WebRTC VP8 屏幕视频所需，必须包含 `libvpx` 编码器）
+- `ffmpeg`（Agent WebRTC VP8 屏幕视频所需，必须包含 `libvpx` 编码器）和 `ffplay`（Agent 播放远端语音所需）
 
 ## 快速运行
 
@@ -183,7 +184,7 @@ WebSocket：
 - 只支持单管理员模型
 - Agent 当前默认把文件访问根目录限制在用户 Home
 - WebRTC 屏幕视频当前为 1 FPS，且依赖系统截图工具和带 `libvpx` 的 `ffmpeg`
-- 真实输入注入依赖图形会话权限；真实音频尚未接入
+- 真实输入注入依赖图形会话权限；Agent 端麦克风采集与音频回传尚未接入
 - 未提供 Windows/macOS/Linux 安装包与系统服务包装
 
 ## 与计划的对应关系

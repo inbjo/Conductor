@@ -29,9 +29,10 @@ use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
 use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::peer_connection::RTCPeerConnection;
-use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
+use webrtc::rtp_transceiver::rtp_codec::{RTCRtpCodecCapability, RTPCodecType};
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 use webrtc::track::track_local::TrackLocal;
+use webrtc::track::track_remote::TrackRemote;
 use webrtc::{api::media_engine::MIME_TYPE_VP8, media::Sample};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -533,6 +534,29 @@ async fn ensure_rtc_session(
         })
     }));
 
+    let audio_session = session_id.to_string();
+    pc.on_track(Box::new(move |track, _, _| {
+        let audio_session = audio_session.clone();
+        Box::pin(async move {
+            if track.kind() != RTPCodecType::Audio {
+                return;
+            }
+            let codec = track.codec().capability.mime_type;
+            if !codec.eq_ignore_ascii_case("audio/opus") {
+                warn!(
+                    "unsupported rtc audio codec session={} codec={}",
+                    audio_session, codec
+                );
+                return;
+            }
+            tokio::spawn(async move {
+                if let Err(err) = play_remote_opus(track, &audio_session).await {
+                    warn!("rtc audio playback failed session={audio_session}: {err}");
+                }
+            });
+        })
+    }));
+
     let video_track = Arc::new(TrackLocalStaticSample::new(
         RTCRtpCodecCapability {
             mime_type: MIME_TYPE_VP8.to_owned(),
@@ -636,6 +660,132 @@ fn parse_single_ivf_frame(ivf: &[u8]) -> anyhow::Result<Vec<u8>> {
         .filter(|end| *end <= ivf.len())
         .ok_or_else(|| anyhow!("truncated IVF frame"))?;
     Ok(ivf[start..end].to_vec())
+}
+
+async fn play_remote_opus(track: Arc<TrackRemote>, session_id: &str) -> anyhow::Result<()> {
+    let mut child = Command::new("ffplay")
+        .args([
+            "-nodisp",
+            "-autoexit",
+            "-loglevel",
+            "error",
+            "-f",
+            "ogg",
+            "-i",
+            "pipe:0",
+        ])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .context("start ffplay for rtc audio")?;
+    let mut stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| anyhow!("ffplay stdin unavailable"))?;
+    let serial = Uuid::new_v4().as_u128() as u32;
+    stdin
+        .write_all(&ogg_opus_headers(serial))
+        .await
+        .context("write Ogg Opus headers")?;
+    let mut sequence = 2_u32;
+    let mut first_timestamp = None;
+    info!("rtc audio playback started session={session_id}");
+
+    while let Ok((packet, _)) = track.read_rtp().await {
+        if packet.payload.is_empty() {
+            continue;
+        }
+        let origin = *first_timestamp.get_or_insert(packet.header.timestamp);
+        let granule = packet.header.timestamp.wrapping_sub(origin) as u64 + 960;
+        let page = build_ogg_page(serial, sequence, granule, 0, &packet.payload);
+        stdin
+            .write_all(&page)
+            .await
+            .context("write remote Opus packet")?;
+        sequence = sequence.wrapping_add(1);
+    }
+
+    drop(stdin);
+    let output = child.wait_with_output().await.context("wait for ffplay")?;
+    if !output.status.success() {
+        return Err(anyhow!(
+            "ffplay exited with {}: {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    Ok(())
+}
+
+fn ogg_opus_headers(serial: u32) -> Vec<u8> {
+    let mut opus_head = Vec::with_capacity(19);
+    opus_head.extend_from_slice(b"OpusHead");
+    opus_head.push(1);
+    opus_head.push(2);
+    opus_head.extend_from_slice(&0_u16.to_le_bytes());
+    opus_head.extend_from_slice(&48_000_u32.to_le_bytes());
+    opus_head.extend_from_slice(&0_i16.to_le_bytes());
+    opus_head.push(0);
+
+    let vendor = b"Conductor";
+    let mut opus_tags = Vec::with_capacity(20 + vendor.len());
+    opus_tags.extend_from_slice(b"OpusTags");
+    opus_tags.extend_from_slice(&(vendor.len() as u32).to_le_bytes());
+    opus_tags.extend_from_slice(vendor);
+    opus_tags.extend_from_slice(&0_u32.to_le_bytes());
+
+    let mut headers = build_ogg_page(serial, 0, 0, 2, &opus_head);
+    headers.extend_from_slice(&build_ogg_page(serial, 1, 0, 0, &opus_tags));
+    headers
+}
+
+fn build_ogg_page(
+    serial: u32,
+    sequence: u32,
+    granule_position: u64,
+    header_type: u8,
+    packet: &[u8],
+) -> Vec<u8> {
+    let full_segments = packet.len() / 255;
+    let needs_terminator = packet.len() % 255 == 0;
+    let segment_count = full_segments + 1;
+    assert!(segment_count <= u8::MAX as usize, "Ogg packet too large");
+
+    let mut page = Vec::with_capacity(27 + segment_count + packet.len());
+    page.extend_from_slice(b"OggS");
+    page.push(0);
+    page.push(header_type);
+    page.extend_from_slice(&granule_position.to_le_bytes());
+    page.extend_from_slice(&serial.to_le_bytes());
+    page.extend_from_slice(&sequence.to_le_bytes());
+    page.extend_from_slice(&0_u32.to_le_bytes());
+    page.push(segment_count as u8);
+    page.extend(std::iter::repeat(255).take(full_segments));
+    if needs_terminator {
+        page.push(0);
+    } else {
+        page.push((packet.len() % 255) as u8);
+    }
+    page.extend_from_slice(packet);
+    let checksum = ogg_crc(&page);
+    page[22..26].copy_from_slice(&checksum.to_le_bytes());
+    page
+}
+
+fn ogg_crc(bytes: &[u8]) -> u32 {
+    let mut crc = 0_u32;
+    for byte in bytes {
+        crc ^= (*byte as u32) << 24;
+        for _ in 0..8 {
+            crc = if crc & 0x8000_0000 != 0 {
+                (crc << 1) ^ 0x04c1_1db7
+            } else {
+                crc << 1
+            };
+        }
+    }
+    crc
 }
 
 async fn apply_browser_offer(pc: &RTCPeerConnection, sdp: &str) -> anyhow::Result<String> {
@@ -1678,6 +1828,30 @@ mod tests {
         ivf[..4].copy_from_slice(b"DKIF");
         ivf[32..36].copy_from_slice(&8_u32.to_le_bytes());
         assert!(parse_single_ivf_frame(&ivf).is_err());
+    }
+
+    #[test]
+    fn ogg_page_uses_terminating_lace_for_exact_segment() {
+        let page = build_ogg_page(7, 2, 960, 0, &[0; 255]);
+        assert_eq!(&page[..4], b"OggS");
+        assert_eq!(page[26], 2);
+        assert_eq!(&page[27..29], &[255, 0]);
+    }
+
+    #[test]
+    fn ogg_page_contains_valid_checksum() {
+        let mut page = build_ogg_page(7, 2, 960, 0, b"opus packet");
+        let stored = u32::from_le_bytes(page[22..26].try_into().unwrap());
+        page[22..26].fill(0);
+        assert_eq!(stored, ogg_crc(&page));
+    }
+
+    #[test]
+    fn opus_headers_include_identification_and_tags_pages() {
+        let headers = ogg_opus_headers(42);
+        assert_eq!(&headers[..4], b"OggS");
+        assert!(headers.windows(8).any(|window| window == b"OpusHead"));
+        assert!(headers.windows(8).any(|window| window == b"OpusTags"));
     }
 }
 
