@@ -23,6 +23,12 @@ function Invoke-Step($Name, [scriptblock] $Command) {
 
 Push-Location $RootDir
 try {
+    Write-Host "Windows client flow smoke"
+    Write-Host "Repository: $RootDir"
+    Write-Host "Archive: $ArchiveFullPath"
+    Write-Host "SkipClientBuild: $SkipClientBuild"
+    Write-Host "SkipServerBuild: $SkipServerBuild"
+
     if (!$SkipClientBuild) {
         Invoke-Step "Build Windows client package" {
             & .\scripts\build-client.ps1
@@ -37,6 +43,13 @@ try {
         Invoke-Step "Build smoke server" {
             cargo build -p conductor-server
         }
+    }
+
+    if (!(Test-Path $ArchiveFullPath)) {
+        Write-Error "Windows client archive not found: $ArchiveFullPath. Run without -SkipClientBuild or build the package first."
+    }
+    if (!(Test-Path ".\target\debug\conductor-server.exe")) {
+        Write-Error "Smoke server not found: .\target\debug\conductor-server.exe. Run without -SkipServerBuild or build the server first."
     }
 
     Invoke-Step "Verify Windows client archive" {
