@@ -24,7 +24,8 @@ Default file root baked into the client.
 Default audio input baked into the client.
 
 .PARAMETER InteractiveApproval
-Default local approval setting baked into the client.
+Default local approval setting baked into the client. Accepted values:
+1, 0, true, false, yes, no, on, off.
 
 .EXAMPLE
 powershell -ExecutionPolicy Bypass -File .\scripts\build-client.ps1
@@ -59,6 +60,17 @@ function Require-Command($Name, $InstallHint) {
     if (!(Get-Command $Name -ErrorAction SilentlyContinue)) {
         Write-Error "$Name not found. $InstallHint"
     }
+}
+
+function Test-BoolText($Value) {
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $true
+    }
+    return $Value.Trim().ToLowerInvariant() -in @("1", "0", "true", "false", "yes", "no", "on", "off")
+}
+
+if (!(Test-BoolText $InteractiveApproval)) {
+    Write-Error "Invalid InteractiveApproval value: $InteractiveApproval. Use one of: 1, 0, true, false, yes, no, on, off."
 }
 
 if (!(Test-Path $FlutterBin)) {

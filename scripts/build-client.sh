@@ -23,7 +23,7 @@ Options:
   --agent-name <name>            Default Agent Name baked into the client.
   --agent-root <path>            Default file root baked into the client.
   --audio-input <input>          Default audio input baked into the client.
-  --interactive-approval <bool>  Default local approval setting.
+  --interactive-approval <bool>  Default local approval setting: 1/0, true/false, yes/no, on/off.
   -h, --help                     Show this help.
 
 Environment:
@@ -40,6 +40,20 @@ require_value() {
     usage
     exit 2
   fi
+}
+
+validate_bool() {
+  local option="$1"
+  local value="$2"
+  case "${value,,}" in
+    1|0|true|false|yes|no|on|off)
+      ;;
+    *)
+      echo "Invalid value for $option: $value" >&2
+      echo "Use one of: 1, 0, true, false, yes, no, on, off." >&2
+      exit 2
+      ;;
+  esac
 }
 
 while [[ $# -gt 0 ]]; do
@@ -71,6 +85,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --interactive-approval)
       require_value "$1" "${2:-}"
+      validate_bool "$1" "${2:-}"
       DEFAULT_INTERACTIVE_APPROVAL="${2:-}"
       shift 2
       ;;
@@ -85,6 +100,10 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ -n "$DEFAULT_INTERACTIVE_APPROVAL" ]]; then
+  validate_bool "CONDUCTOR_DEFAULT_INTERACTIVE_APPROVAL" "$DEFAULT_INTERACTIVE_APPROVAL"
+fi
 
 if [[ ! -x "$FLUTTER_BIN" ]]; then
   echo "Flutter executable not found: $FLUTTER_BIN" >&2
