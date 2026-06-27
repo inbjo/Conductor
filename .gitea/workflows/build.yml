@@ -105,6 +105,10 @@ jobs:
         shell: pwsh
         run: .\scripts\test-windows-smoke-evidence.ps1
 
+      - name: Test Windows client build defaults
+        shell: pwsh
+        run: .\scripts\test-windows-build-client-defaults.ps1
+
   server-release:
     name: Server release package
     runs-on: ubuntu-24.04
