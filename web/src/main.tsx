@@ -792,6 +792,10 @@ function RemotePage() {
     signals,
     addEvent: (line) => setEvents((v) => [line, ...v].slice(0, 8)),
   });
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const hasRtcVideo = Boolean(rtc.remoteStream?.getVideoTracks().length);
+  const hasRtcAudio = Boolean(rtc.remoteStream?.getAudioTracks().length);
   const sendControl = (event: Omit<ControlEventPayload, 'type' | 'session_id' | 'created_at'>) => {
     if (!interactiveEnabled) return;
     const payload: ControlEventPayload = {
@@ -817,6 +821,14 @@ function RemotePage() {
     window.addEventListener('pagehide', closeOnPageHide);
     return () => window.removeEventListener('pagehide', closeOnPageHide);
   }, [sessionId]);
+  useEffect(() => {
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = hasRtcVideo ? rtc.remoteStream : null;
+    }
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = hasRtcAudio ? rtc.remoteStream : null;
+    }
+  }, [hasRtcAudio, hasRtcVideo, rtc.remoteStream]);
 
   return (
     <section className="remote-page">
@@ -883,7 +895,15 @@ function RemotePage() {
             if (interactiveEnabled) sendControl({ kind: 'key_down', key: e.key });
           }}
         >
-          {frame ? (
+          {hasRtcVideo ? (
+            <video
+              ref={remoteVideoRef}
+              className="screen-frame"
+              autoPlay
+              playsInline
+              muted
+            />
+          ) : frame ? (
             <img className="screen-frame" src={frame.image_data_url} alt="Agent screen frame" />
           ) : (
             <div className="screen-inner">
@@ -897,6 +917,7 @@ function RemotePage() {
               <span>{awaitingApproval ? '等待确认' : closeReason || rejected ? '会话不可用' : '连接中'}</span>
             </div>
           )}
+          <audio ref={remoteAudioRef} autoPlay />
         </div>
         <aside className="side-panel">
           <SessionSummary
@@ -908,6 +929,7 @@ function RemotePage() {
             wsStatus={wsStatus}
             rtcStatus={rtc.status}
             rtcDetail={rtc.detail}
+            mediaStatus={hasRtcVideo ? 'remote_video' : hasRtcAudio ? 'remote_audio' : frame ? 'fallback_frame' : 'waiting_media'}
           />
           <SessionTools deviceId={session.data?.device_id || ''} />
           <ChatPanel
@@ -939,6 +961,7 @@ function SessionSummary({
   wsStatus,
   rtcStatus,
   rtcDetail,
+  mediaStatus,
 }: {
   sessionId: string;
   sessionStatus: string;
@@ -948,6 +971,7 @@ function SessionSummary({
   wsStatus: string;
   rtcStatus: string;
   rtcDetail?: string;
+  mediaStatus: string;
 }) {
   return (
     <div className="tool-panel">
@@ -958,6 +982,7 @@ function SessionSummary({
         <Info label="终端" value={device?.hostname || device?.device_id || '-'} />
         <Info label="网络" value={wsStatus} />
         <Info label="信令" value={rtcDetail ? `${rtcStatus} / ${rtcDetail}` : rtcStatus} />
+        <Info label="媒体" value={mediaStatus} />
         <Info label="语音" value={voiceStatus} />
         <Info label="最近帧" value={formatTime(frameTime)} />
       </div>
@@ -984,6 +1009,7 @@ function useSessionRtc({
   const answerTimer = useRef<number | null>(null);
   const [status, setStatus] = useState('idle');
   const [detail, setDetail] = useState('');
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
 
   useEffect(() => {
     if (!enabled || !send || !sessionId) {
@@ -995,6 +1021,7 @@ function useSessionRtc({
       peerRef.current = null;
       controlChannelRef.current = null;
       processedSignalCount.current = 0;
+      setRemoteStream(null);
       setStatus(enabled ? 'ready' : 'idle');
       setDetail('');
       return;
@@ -1011,6 +1038,9 @@ function useSessionRtc({
       setStatus(next);
       setDetail(nextDetail);
     };
+
+    peer.addTransceiver('video', { direction: 'recvonly' });
+    peer.addTransceiver('audio', { direction: 'recvonly' });
 
     const controlChannel = peer.createDataChannel('control');
     controlChannelRef.current = controlChannel;
@@ -1041,6 +1071,22 @@ function useSessionRtc({
     };
     peer.onsignalingstatechange = () => {
       update('signaling', peer.signalingState);
+    };
+    peer.ontrack = (event) => {
+      addEvent(`rtc track ${event.track.kind}`);
+      if (event.streams[0]) {
+        setRemoteStream(event.streams[0]);
+        update('media', event.track.kind);
+        return;
+      }
+      setRemoteStream((current) => {
+        const stream = current ? new MediaStream(current.getTracks()) : new MediaStream();
+        if (!stream.getTracks().find((track) => track.id === event.track.id)) {
+          stream.addTrack(event.track);
+        }
+        return stream;
+      });
+      update('media', event.track.kind);
     };
 
     void (async () => {
@@ -1074,6 +1120,7 @@ function useSessionRtc({
       if (peerRef.current === peer) peerRef.current = null;
       if (controlChannelRef.current === controlChannel) controlChannelRef.current = null;
       processedSignalCount.current = 0;
+      setRemoteStream(null);
     };
   }, [addEvent, enabled, send, sessionId]);
 
@@ -1128,7 +1175,7 @@ function useSessionRtc({
     return true;
   };
 
-  return { status, detail, sendControl };
+  return { status, detail, sendControl, remoteStream };
 }
 
 function SessionTools({ deviceId }: { deviceId: string }) {
