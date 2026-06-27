@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     path::{Component, Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -14,9 +14,10 @@ use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sysinfo::System;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{error, info, warn};
 use uuid::Uuid;
@@ -33,7 +34,10 @@ use webrtc::rtp_transceiver::rtp_codec::{RTCRtpCodecCapability, RTPCodecType};
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 use webrtc::track::track_local::TrackLocal;
 use webrtc::track::track_remote::TrackRemote;
-use webrtc::{api::media_engine::MIME_TYPE_VP8, media::Sample};
+use webrtc::{
+    api::media_engine::{MIME_TYPE_OPUS, MIME_TYPE_VP8},
+    media::Sample,
+};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -198,6 +202,21 @@ struct ScreenFramePayload {
 struct RtcSession {
     peer_connection: Arc<RTCPeerConnection>,
     video_track: Arc<TrackLocalStaticSample>,
+    audio_track: Arc<TrackLocalStaticSample>,
+}
+
+struct AudioCaptureTask(JoinHandle<()>);
+
+impl AudioCaptureTask {
+    fn is_finished(&self) -> bool {
+        self.0.is_finished()
+    }
+}
+
+impl Drop for AudioCaptureTask {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
 }
 
 #[tokio::main]
@@ -265,6 +284,8 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
     let (rtc_tx, mut rtc_rx) = mpsc::unbounded_channel::<AgentToServer>();
     let (rtc_control_tx, mut rtc_control_rx) = mpsc::unbounded_channel::<ControlEventPayload>();
     let mut rtc_sessions = HashMap::<String, Arc<RtcSession>>::new();
+    let mut voice_sessions = HashSet::<String>::new();
+    let mut audio_capture_tasks = HashMap::<String, AudioCaptureTask>::new();
     let mut session_frames = HashMap::<String, (u32, u32)>::new();
     let mut input = InputController::new();
     let mut console = AgentConsole::new(cfg.device_id.clone(), cfg.interactive_approval);
@@ -325,10 +346,18 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                                 }
                                 ConsoleAction::AcceptVoice { session_id } => {
                                     console.mark_voice_resolved(&session_id);
+                                    voice_sessions.insert(session_id.clone());
+                                    start_audio_capture(
+                                        &session_id,
+                                        &rtc_sessions,
+                                        &mut audio_capture_tasks,
+                                    );
                                     send_json(&mut write, &AgentToServer::VoiceAccept { session_id }).await?;
                                 }
                                 ConsoleAction::RejectVoice { session_id, reason } => {
                                     console.mark_voice_resolved(&session_id);
+                                    voice_sessions.remove(&session_id);
+                                    stop_audio_capture(&session_id, &mut audio_capture_tasks);
                                     send_json(&mut write, &AgentToServer::VoiceReject { session_id, reason }).await?;
                                 }
                             }
@@ -384,6 +413,8 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                         if let Some(rtc) = rtc_sessions.remove(&session_id) {
                             let _ = rtc.peer_connection.close().await;
                         }
+                        voice_sessions.remove(&session_id);
+                        stop_audio_capture(&session_id, &mut audio_capture_tasks);
                         console.close_session(&session_id);
                     }
                     Ok(ServerToAgent::WebrtcOffer { session_id, sdp }) => {
@@ -395,6 +426,13 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                             rtc_control_tx.clone(),
                         )
                         .await?;
+                        if voice_sessions.contains(&session_id) {
+                            start_audio_capture(
+                                &session_id,
+                                &rtc_sessions,
+                                &mut audio_capture_tasks,
+                            );
+                        }
                         let answer_sdp = apply_browser_offer(&rtc.peer_connection, &sdp).await?;
                         send_json(&mut write, &AgentToServer::WebrtcAnswer {
                             session_id,
@@ -418,15 +456,32 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                         if cfg.interactive_approval {
                             console.queue_voice_request(&session_id);
                         } else {
-                            info!("voice requested for session {session_id}; accepting placeholder voice channel");
+                            info!("voice requested for session {session_id}; accepting voice channel");
+                            voice_sessions.insert(session_id.clone());
+                            start_audio_capture(
+                                &session_id,
+                                &rtc_sessions,
+                                &mut audio_capture_tasks,
+                            );
                             send_json(&mut write, &AgentToServer::VoiceAccept { session_id }).await?;
                         }
                     }
                     Ok(ServerToAgent::VoiceMute { session_id, muted }) => {
                         info!("voice mute changed for session {session_id}: {muted}");
+                        if muted {
+                            stop_audio_capture(&session_id, &mut audio_capture_tasks);
+                        } else if voice_sessions.contains(&session_id) {
+                            start_audio_capture(
+                                &session_id,
+                                &rtc_sessions,
+                                &mut audio_capture_tasks,
+                            );
+                        }
                     }
                     Ok(ServerToAgent::VoiceHangup { session_id }) => {
                         info!("voice hangup for session {session_id}");
+                        voice_sessions.remove(&session_id);
+                        stop_audio_capture(&session_id, &mut audio_capture_tasks);
                         send_json(&mut write, &AgentToServer::VoiceHangup { session_id }).await?;
                     }
                     Err(err) => {
@@ -571,9 +626,26 @@ async fn ensure_rtc_session(
         .with_context(|| format!("add rtc screen track for session {session_id}"))?;
     tokio::spawn(async move { while sender.read_rtcp().await.is_ok() {} });
 
+    let audio_track = Arc::new(TrackLocalStaticSample::new(
+        RTCRtpCodecCapability {
+            mime_type: MIME_TYPE_OPUS.to_owned(),
+            clock_rate: 48_000,
+            channels: 2,
+            ..Default::default()
+        },
+        "microphone".to_string(),
+        "conductor-agent".to_string(),
+    ));
+    let audio_sender = pc
+        .add_track(Arc::clone(&audio_track) as Arc<dyn TrackLocal + Send + Sync>)
+        .await
+        .with_context(|| format!("add rtc microphone track for session {session_id}"))?;
+    tokio::spawn(async move { while audio_sender.read_rtcp().await.is_ok() {} });
+
     let rtc = Arc::new(RtcSession {
         peer_connection: pc,
         video_track,
+        audio_track,
     });
     sessions.insert(session_id.to_string(), Arc::clone(&rtc));
     Ok(rtc)
@@ -718,6 +790,165 @@ async fn play_remote_opus(track: Arc<TrackRemote>, session_id: &str) -> anyhow::
     Ok(())
 }
 
+fn start_audio_capture(
+    session_id: &str,
+    rtc_sessions: &HashMap<String, Arc<RtcSession>>,
+    tasks: &mut HashMap<String, AudioCaptureTask>,
+) {
+    if tasks
+        .get(session_id)
+        .is_some_and(|task| !task.is_finished())
+    {
+        return;
+    }
+    tasks.remove(session_id);
+    let Some(rtc) = rtc_sessions.get(session_id) else {
+        info!("rtc microphone waiting for peer connection session={session_id}");
+        return;
+    };
+    let track = Arc::clone(&rtc.audio_track);
+    let task_session = session_id.to_string();
+    let log_session = task_session.clone();
+    let task = tokio::spawn(async move {
+        if let Err(err) = capture_microphone_to_rtc(track, &task_session).await {
+            warn!("rtc microphone capture failed session={task_session}: {err}");
+        }
+    });
+    tasks.insert(log_session, AudioCaptureTask(task));
+}
+
+fn stop_audio_capture(session_id: &str, tasks: &mut HashMap<String, AudioCaptureTask>) {
+    if tasks.remove(session_id).is_some() {
+        info!("rtc microphone capture stopped session={session_id}");
+    }
+}
+
+async fn capture_microphone_to_rtc(
+    track: Arc<TrackLocalStaticSample>,
+    session_id: &str,
+) -> anyhow::Result<()> {
+    let mut command = microphone_ffmpeg_command();
+    let mut child = command
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .kill_on_drop(true)
+        .spawn()
+        .context("start ffmpeg microphone capture")?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| anyhow!("ffmpeg microphone output unavailable"))?;
+    let mut reader = OggPacketReader::new(stdout);
+    info!("rtc microphone capture started session={session_id}");
+    while let Some(packet) = reader.next_packet().await? {
+        if packet.starts_with(b"OpusHead") || packet.starts_with(b"OpusTags") {
+            continue;
+        }
+        track
+            .write_sample(&Sample {
+                data: packet.into(),
+                duration: Duration::from_millis(20),
+                ..Default::default()
+            })
+            .await
+            .context("write microphone Opus sample")?;
+    }
+    let status = child.wait().await.context("wait for microphone ffmpeg")?;
+    if !status.success() {
+        return Err(anyhow!("microphone ffmpeg exited with {status}"));
+    }
+    Ok(())
+}
+
+fn microphone_ffmpeg_command() -> Command {
+    let input = std::env::var("CONDUCTOR_AUDIO_INPUT").ok();
+    let mut command = Command::new("ffmpeg");
+    command.args(["-loglevel", "error"]);
+    if cfg!(target_os = "linux") {
+        command.args(["-f", "pulse", "-i", input.as_deref().unwrap_or("default")]);
+    } else if cfg!(target_os = "macos") {
+        command.args(["-f", "avfoundation", "-i", input.as_deref().unwrap_or(":0")]);
+    } else if cfg!(target_os = "windows") {
+        command.args([
+            "-f",
+            "dshow",
+            "-i",
+            &format!("audio={}", input.as_deref().unwrap_or("default")),
+        ]);
+    }
+    command.args([
+        "-vn",
+        "-ac",
+        "2",
+        "-ar",
+        "48000",
+        "-c:a",
+        "libopus",
+        "-application",
+        "voip",
+        "-frame_duration",
+        "20",
+        "-f",
+        "ogg",
+        "pipe:1",
+    ]);
+    command
+}
+
+struct OggPacketReader<R> {
+    reader: R,
+    partial: Vec<u8>,
+    queued: VecDeque<Vec<u8>>,
+}
+
+impl<R: AsyncRead + Unpin> OggPacketReader<R> {
+    fn new(reader: R) -> Self {
+        Self {
+            reader,
+            partial: Vec::new(),
+            queued: VecDeque::new(),
+        }
+    }
+
+    async fn next_packet(&mut self) -> anyhow::Result<Option<Vec<u8>>> {
+        loop {
+            if let Some(packet) = self.queued.pop_front() {
+                return Ok(Some(packet));
+            }
+            let mut header = [0_u8; 27];
+            match self.reader.read_exact(&mut header).await {
+                Ok(_) => {}
+                Err(err) if err.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(None),
+                Err(err) => return Err(err).context("read Ogg page header"),
+            }
+            if &header[..4] != b"OggS" || header[4] != 0 {
+                return Err(anyhow!("invalid Ogg page from microphone encoder"));
+            }
+            let mut laces = vec![0_u8; header[26] as usize];
+            self.reader
+                .read_exact(&mut laces)
+                .await
+                .context("read Ogg segment table")?;
+            let body_len = laces.iter().map(|lace| *lace as usize).sum();
+            let mut body = vec![0_u8; body_len];
+            self.reader
+                .read_exact(&mut body)
+                .await
+                .context("read Ogg page body")?;
+            let mut offset = 0;
+            for lace in laces {
+                let end = offset + lace as usize;
+                self.partial.extend_from_slice(&body[offset..end]);
+                offset = end;
+                if lace < 255 {
+                    self.queued.push_back(std::mem::take(&mut self.partial));
+                }
+            }
+        }
+    }
+}
+
 fn ogg_opus_headers(serial: u32) -> Vec<u8> {
     let mut opus_head = Vec::with_capacity(19);
     opus_head.extend_from_slice(b"OpusHead");
@@ -748,7 +979,7 @@ fn build_ogg_page(
     packet: &[u8],
 ) -> Vec<u8> {
     let full_segments = packet.len() / 255;
-    let needs_terminator = packet.len() % 255 == 0;
+    let needs_terminator = packet.len().is_multiple_of(255);
     let segment_count = full_segments + 1;
     assert!(segment_count <= u8::MAX as usize, "Ogg packet too large");
 
@@ -761,7 +992,7 @@ fn build_ogg_page(
     page.extend_from_slice(&sequence.to_le_bytes());
     page.extend_from_slice(&0_u32.to_le_bytes());
     page.push(segment_count as u8);
-    page.extend(std::iter::repeat(255).take(full_segments));
+    page.extend(std::iter::repeat_n(255, full_segments));
     if needs_terminator {
         page.push(0);
     } else {
@@ -1852,6 +2083,24 @@ mod tests {
         assert_eq!(&headers[..4], b"OggS");
         assert!(headers.windows(8).any(|window| window == b"OpusHead"));
         assert!(headers.windows(8).any(|window| window == b"OpusTags"));
+    }
+
+    #[tokio::test]
+    async fn ogg_packet_reader_extracts_opus_header_packets() {
+        let mut reader = OggPacketReader::new(std::io::Cursor::new(ogg_opus_headers(42)));
+        assert!(reader
+            .next_packet()
+            .await
+            .unwrap()
+            .unwrap()
+            .starts_with(b"OpusHead"));
+        assert!(reader
+            .next_packet()
+            .await
+            .unwrap()
+            .unwrap()
+            .starts_with(b"OpusTags"));
+        assert!(reader.next_packet().await.unwrap().is_none());
     }
 }
 

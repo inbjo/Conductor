@@ -23,7 +23,7 @@
 - 会话内双向文字沟通
 - Agent 本地 CLI 聊天回复：支持 `/sessions`、`/use <session_id>`、`/reply <session_id> <text>`
 - Agent 可选交互审批：支持远控请求接受/拒绝、语音请求接受/拒绝
-- 语音沟通控制面板与占位协议
+- 双向语音控制面板、审批协议和 WebRTC 音频传输
 - 浏览器侧 WebRTC 起始信令：会话进入 `active` 后自动发送 offer/ICE，并在远控页展示信令状态
 - Agent 侧 WebRTC 应答信令：接收浏览器 offer、返回 answer，并回传本地 ICE candidate
 - 远控控制通道：浏览器优先通过 WebRTC DataChannel 发送鼠标键盘事件，未就绪时回退到 WebSocket
@@ -31,15 +31,16 @@
 - Agent WebRTC 屏幕视频：把实际 PNG 截图编码为 VP8 视频帧并发送到浏览器，当前为 1 FPS 演示帧率
 - 浏览器语音发送：Agent 接受语音请求后，把浏览器麦克风轨挂载到 WebRTC 音频 sender；静音、挂断时及时移除
 - Agent 语音播放：接收浏览器 Opus 音频轨，封装为 Ogg Opus 流并通过无界面 `ffplay` 播放
+- Agent 语音回传：接受语音请求后通过 `ffmpeg` 采集麦克风并把 Opus 音频轨发送到浏览器
 - 审计日志记录与查询
 
 ### 当前仍是占位/演示实现
 
 - Agent 会优先尝试真实屏幕采集：Linux 依次尝试 `grim`、`gnome-screenshot`、`import`，macOS 使用 `screencapture`，Windows 使用 PowerShell 截图；当图形会话、截图工具或权限条件不满足时，回退到动态演示帧
 - 真实鼠标键盘输入依赖本机图形会话与系统权限，无法建立输入连接时会保留日志告警
-- 语音沟通已完成浏览器麦克风采集、WebRTC 发送和 Agent 播放；Agent 麦克风回传仍未接入
+- Agent 音频采集和播放依赖系统音频设备、权限及 `ffmpeg`/`ffplay`，设备不可用时会记录告警
 - WebRTC 屏幕视频编码依赖 Agent 所在机器提供带 `libvpx` 编码器的 `ffmpeg`；不可用时仍可通过 WebSocket 截图帧展示
-- 浏览器与 Agent 已可交换 WebRTC offer/answer/ICE、屏幕视频和 DataChannel 控制事件；真实音频轨仍未接入
+- 浏览器与 Agent 已可交换 WebRTC offer/answer/ICE、屏幕与双向音频轨和 DataChannel 控制事件
 
 这意味着当前版本已经可以完整演示“后台管理、终端在线、会话、文件、聊天、审计、控制链路”，但还不是最终的真实远控产品。
 
@@ -140,6 +141,7 @@ Agent 控制台聊天命令：
 - `CONDUCTOR_SERVER_URL`：Agent WebSocket 地址，默认 `ws://127.0.0.1:8080/ws/agent`
 - `CONDUCTOR_AGENT_NAME`：覆盖 Agent 上报主机名
 - `CONDUCTOR_INTERACTIVE_APPROVAL`：设为 `1`/`true` 后，Agent 本地 CLI 需要显式接受或拒绝远控/语音请求
+- `CONDUCTOR_AUDIO_INPUT`：覆盖 Agent 的 `ffmpeg` 音频输入设备；Linux 默认 `default`，macOS 默认 `:0`，Windows 默认 `default`
 
 ## 数据持久化
 
@@ -184,11 +186,11 @@ WebSocket：
 - 只支持单管理员模型
 - Agent 当前默认把文件访问根目录限制在用户 Home
 - WebRTC 屏幕视频当前为 1 FPS，且依赖系统截图工具和带 `libvpx` 的 `ffmpeg`
-- 真实输入注入依赖图形会话权限；Agent 端麦克风采集与音频回传尚未接入
+- 真实输入和双向语音依赖图形/音频会话、设备和系统权限
 - 未提供 Windows/macOS/Linux 安装包与系统服务包装
 
 ## 与计划的对应关系
 
 - P0：登录、Agent 在线、设备列表/详情、远控会话、WebRTC 屏幕画面、基础控制链路、README 已覆盖
 - P1：文件管理、双向文字沟通、会话状态清理、审计日志 已覆盖
-- P2：真实语音、TURN、多管理员、安装包 尚未完成
+- P2：真实语音已覆盖；TURN、多管理员、安装包 尚未完成
