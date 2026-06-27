@@ -42,6 +42,15 @@ require_executable_entry() {
   fi
 }
 
+require_archive_text() {
+  local entry="$1"
+  local pattern="$2"
+  if ! tar -xOzf "$archive" "$entry" | grep -q "$pattern"; then
+    echo "Archive entry $entry does not contain required text: $pattern" >&2
+    exit 1
+  fi
+}
+
 case "$platform" in
   linux)
     require_entry '(^|^\./)conductor_client$'
@@ -56,6 +65,10 @@ case "$platform" in
     require_entry '^conductor_client\.app/Contents/MacOS/conductor-agent$'
     require_executable_entry '^conductor_client\.app/Contents/MacOS/conductor_client$'
     require_executable_entry '^conductor_client\.app/Contents/MacOS/conductor-agent$'
+    require_entry '^conductor_client\.app/Contents/Info\.plist$'
+    require_archive_text \
+      'conductor_client.app/Contents/Info.plist' \
+      'NSMicrophoneUsageDescription'
     require_entry '^conductor_client\.app/Contents/Frameworks/'
     require_entry '^conductor_client\.app/Contents/Resources/'
     ;;
