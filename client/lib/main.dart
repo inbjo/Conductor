@@ -951,9 +951,14 @@ String normalizeAgentServerUrl(String value) {
   return uri.toString();
 }
 
-File settingsFile() {
-  final home =
-      Platform.environment[Platform.isWindows ? 'USERPROFILE' : 'HOME'];
+File settingsFile([Map<String, String>? environment]) {
+  final env = environment ?? Platform.environment;
+  final overridePath = env['CONDUCTOR_CLIENT_SETTINGS_FILE'];
+  if (overridePath != null && overridePath.trim().isNotEmpty) {
+    return File(overridePath.trim());
+  }
+
+  final home = env[Platform.isWindows ? 'USERPROFILE' : 'HOME'];
   final base = home == null || home.isEmpty ? Directory.current.path : home;
   return File(pathJoin(base, '.conductor-client', 'settings.json'));
 }

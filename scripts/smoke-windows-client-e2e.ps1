@@ -23,6 +23,7 @@ $AgentRoot = Join-Path $TempDir "agent-root"
 $DbPath = Join-Path $TempDir "conductor.sqlite3"
 $ServerLog = Join-Path $TempDir "server.log"
 $ClientLog = Join-Path $TempDir "client.log"
+$ClientSettings = Join-Path $TempDir "client-settings.json"
 $BaseUrl = "http://127.0.0.1:$Port"
 $AgentName = "windows-client-e2e-" + [System.Guid]::NewGuid().ToString("N").Substring(0, 8)
 $AdminPassword = "admin123"
@@ -157,6 +158,7 @@ try {
         -Environment @{
             CONDUCTOR_CLIENT_AUTOSTART = "1"
             CONDUCTOR_CLIENT_AGENT_BIN = $AgentExe
+            CONDUCTOR_CLIENT_SETTINGS_FILE = $ClientSettings
             CONDUCTOR_SERVER_URL = "ws://127.0.0.1:$Port/ws/agent"
             CONDUCTOR_AGENT_TOKEN = $AgentToken
             CONDUCTOR_AGENT_NAME = $AgentName

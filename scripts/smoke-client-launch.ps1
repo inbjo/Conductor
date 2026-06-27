@@ -12,6 +12,7 @@ if (!(Test-Path $ArchivePath)) {
 }
 
 $TempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("conductor-client-launch-" + [System.Guid]::NewGuid().ToString("N"))
+$ClientSettings = Join-Path $TempDir "client-settings.json"
 $Process = $null
 New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
 
@@ -29,7 +30,12 @@ try {
     }
 
     Write-Host "Launching client smoke process: $ClientExe"
-    $Process = Start-Process -FilePath $ClientExe -WorkingDirectory $TempDir -PassThru
+    $StartInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $StartInfo.FileName = $ClientExe
+    $StartInfo.WorkingDirectory = $TempDir
+    $StartInfo.UseShellExecute = $false
+    $StartInfo.Environment["CONDUCTOR_CLIENT_SETTINGS_FILE"] = $ClientSettings
+    $Process = [System.Diagnostics.Process]::Start($StartInfo)
     Start-Sleep -Seconds $Seconds
 
     if ($Process.HasExited) {

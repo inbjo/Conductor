@@ -70,7 +70,7 @@ elif [[ "$platform" == "linux" && -z "${DISPLAY:-}" ]]; then
 fi
 
 set +e
-"${run_client[@]}" &
+CONDUCTOR_CLIENT_SETTINGS_FILE="$tmp_dir/client-settings.json" "${run_client[@]}" &
 client_pid="$!"
 sleep "$seconds"
 if kill -0 "$client_pid" 2>/dev/null; then

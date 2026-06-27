@@ -22,6 +22,20 @@ void main() {
     );
   });
 
+  test('settings file can be isolated by environment override', () {
+    expect(
+      settingsFile({
+        'CONDUCTOR_CLIENT_SETTINGS_FILE': '/tmp/conductor-test/settings.json',
+        'HOME': '/home/example',
+      }).path,
+      '/tmp/conductor-test/settings.json',
+    );
+    expect(
+      settingsFile({'HOME': '/home/example'}).path,
+      pathJoin('/home/example', '.conductor-client', 'settings.json'),
+    );
+  });
+
   testWidgets('shows the agent launcher', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1200, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -40,6 +54,10 @@ void main() {
     expect(find.text('Agent Configuration'), findsOneWidget);
     expect(find.text('Server URL'), findsOneWidget);
     expect(find.text('Agent Token'), findsOneWidget);
+    expect(find.text('Agent Name'), findsOneWidget);
+    expect(find.text('File Root'), findsOneWidget);
+    expect(find.text('Audio Input'), findsOneWidget);
+    expect(find.text('Require local approval'), findsOneWidget);
   });
 
   testWidgets('settings page only applies draft on save', (tester) async {
@@ -89,9 +107,28 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.widgetWithText(TextField, 'Server URL'), 'new');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Agent Token'),
+      'new-token',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Agent Name'),
+      'new-agent',
+    );
+    await tester.enterText(find.widgetWithText(TextField, 'File Root'), '/tmp');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Audio Input'),
+      'default',
+    );
+    await tester.tap(find.text('Require local approval'));
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
     expect(saved?.serverUrl, 'new');
+    expect(saved?.agentToken, 'new-token');
+    expect(saved?.agentName, 'new-agent');
+    expect(saved?.agentRoot, '/tmp');
+    expect(saved?.audioInput, 'default');
+    expect(saved?.interactiveApproval, isTrue);
   });
 }

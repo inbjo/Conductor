@@ -29,6 +29,7 @@ agent_root="$tmp_dir/agent-root"
 db_path="$tmp_dir/conductor.sqlite3"
 server_log="$tmp_dir/server.log"
 client_log="$tmp_dir/client.log"
+client_settings="$tmp_dir/client-settings.json"
 server_pid=""
 client_pid=""
 agent_bin=""
@@ -100,6 +101,7 @@ curl -fsS "$base_url/health" | grep -q '"ok":true'
 echo "[2/4] Starting client autostart smoke"
 CONDUCTOR_CLIENT_AUTOSTART=1 \
 CONDUCTOR_CLIENT_AGENT_BIN="$agent_bin" \
+CONDUCTOR_CLIENT_SETTINGS_FILE="$client_settings" \
 CONDUCTOR_SERVER_URL="ws://127.0.0.1:$port/ws/agent" \
 CONDUCTOR_AGENT_TOKEN="$agent_token" \
 CONDUCTOR_AGENT_NAME="$agent_name" \

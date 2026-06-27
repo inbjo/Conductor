@@ -222,6 +222,7 @@ Agent smoke 会解压 zip，从解包目录启动 `conductor-agent.exe`，确认
 
 - `CONDUCTOR_CLIENT_AUTOSTART=1`：客户端启动后自动调用 `Start Agent`。
 - `CONDUCTOR_CLIENT_AGENT_BIN`：覆盖客户端要启动的 Agent 路径。
+- `CONDUCTOR_CLIENT_SETTINGS_FILE`：覆盖 Settings JSON 保存路径，smoke/CI 中用于隔离用户配置。
 - `CONDUCTOR_SERVER_URL`、`CONDUCTOR_AGENT_TOKEN`、`CONDUCTOR_AGENT_NAME`、`CONDUCTOR_AGENT_ROOT`：预填客户端表单，并传给 Agent。
 
 运行 `conductor_client.exe`，在 Settings 页确认 Server 地址、Token、Agent Name、文件根目录、音频输入和本地审批开关后，点击 `Start Agent`。后台设备列表出现该 Windows 终端后，再进入远控页验证屏幕、输入、文件和聊天流程。上述配置也可以通过 `scripts/build-client.ps1` 的构建参数写入默认值。
