@@ -19,6 +19,7 @@ try {
         "conductor_client.exe",
         "conductor-agent.exe",
         "flutter_windows.dll",
+        "data\icudtl.dat",
         "data\flutter_assets"
     )
 

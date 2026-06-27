@@ -57,6 +57,7 @@ case "$platform" in
     require_entry '(^|^\./)conductor-agent$'
     require_executable_entry '(^|^\./)conductor_client$'
     require_executable_entry '(^|^\./)conductor-agent$'
+    require_entry '(^|^\./)data/icudtl\.dat$'
     require_entry '(^|^\./)data/flutter_assets/'
     require_entry '(^|^\./)lib/libflutter_linux_gtk\.so$'
     ;;
