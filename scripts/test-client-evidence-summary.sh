@@ -34,6 +34,13 @@ mkdir -p \
 printf 'synthetic windows archive\n' > "$tmp_dir/windows.zip"
 write_sha256 "$tmp_dir/windows.zip"
 windows_archive_sha256="$(awk '{print $1; exit}' "$tmp_dir/windows.zip.sha256")"
+cp "$tmp_dir/windows.zip.sha256" "$artifacts/windows-client-smoke-evidence/windows.zip.sha256"
+cat > "$artifacts/linux-client-smoke-evidence/missing-linux.tar.gz.sha256" <<'EOF'
+1111111111111111111111111111111111111111111111111111111111111111  missing-linux.tar.gz
+EOF
+cat > "$artifacts/macos-client-smoke-evidence/missing-macos.tar.gz.sha256" <<'EOF'
+3333333333333333333333333333333333333333333333333333333333333333  missing-macos.tar.gz
+EOF
 
 cat > "$artifacts/linux-client-smoke-evidence/validation-summary.txt" <<EOF
 timestamp=2026-06-27T00:00:00Z

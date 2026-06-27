@@ -207,6 +207,15 @@ verify_text_evidence() {
 
   local archive_path
   archive_path="$(summary_value "$summary_path" archive)"
+  local archive_sidecar_name
+  archive_sidecar_name="$(basename "$archive_path").sha256"
+  require_file "$label smoke evidence archive checksum sidecar" "$evidence_dir/$archive_sidecar_name"
+  local evidence_sidecar_sha256
+  evidence_sidecar_sha256="$(awk '{print $1; exit}' "$evidence_dir/$archive_sidecar_name")"
+  if [[ "$evidence_sidecar_sha256" != "$archive_sha256" ]]; then
+    echo "$label smoke evidence archive sidecar hash mismatch. Summary: $archive_sha256 Sidecar: $evidence_sidecar_sha256" >&2
+    exit 1
+  fi
   if [[ -f "$archive_path" ]]; then
     local actual_sha256
     actual_sha256="$(sha256_file "$archive_path")"
@@ -221,7 +230,7 @@ verify_text_evidence() {
     local sidecar_sha256
     sidecar_sha256="$(awk '{print $1; exit}' "$archive_path.sha256")"
     if [[ "$sidecar_sha256" != "$archive_sha256" ]]; then
-      echo "$label smoke evidence archive sidecar hash mismatch. Summary: $archive_sha256 Sidecar: $sidecar_sha256" >&2
+      echo "$label smoke archive sidecar hash mismatch. Summary: $archive_sha256 Sidecar: $sidecar_sha256" >&2
       exit 1
     fi
   else

@@ -150,6 +150,17 @@ if [[ ! "$archive_sha256" =~ ^[a-f0-9]{64}$ ]]; then
 fi
 
 archive_path="$(summary_value archive)"
+archive_sidecar_name="$(basename "$archive_path").sha256"
+evidence_archive_sidecar="$evidence_dir/$archive_sidecar_name"
+if [[ ! -f "$evidence_archive_sidecar" ]]; then
+  echo "Linux smoke evidence archive checksum sidecar is missing: $evidence_archive_sidecar" >&2
+  exit 1
+fi
+evidence_sidecar_sha256="$(awk '{print $1; exit}' "$evidence_archive_sidecar")"
+if [[ "$evidence_sidecar_sha256" != "$archive_sha256" ]]; then
+  echo "Linux smoke evidence archive sidecar hash mismatch. Summary: $archive_sha256 Sidecar: $evidence_sidecar_sha256" >&2
+  exit 1
+fi
 if [[ -f "$archive_path" ]]; then
   actual_sha256="$(shasum -a 256 "$archive_path" | awk '{print $1}')"
   if [[ "$actual_sha256" != "$archive_sha256" ]]; then
@@ -162,7 +173,7 @@ if [[ -f "$archive_path" ]]; then
   fi
   sidecar_sha256="$(awk '{print $1; exit}' "$archive_path.sha256")"
   if [[ "$sidecar_sha256" != "$archive_sha256" ]]; then
-    echo "Linux smoke evidence archive sidecar hash mismatch. Summary: $archive_sha256 Sidecar: $sidecar_sha256" >&2
+    echo "Linux smoke archive sidecar hash mismatch. Summary: $archive_sha256 Sidecar: $sidecar_sha256" >&2
     exit 1
   fi
 else

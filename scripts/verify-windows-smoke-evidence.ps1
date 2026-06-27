@@ -119,6 +119,15 @@ if ($ArchiveSha256 -notmatch "^[a-f0-9]{64}$") {
 }
 
 $ArchivePath = $Summary["archive"]
+$ArchiveSidecarName = (Split-Path -Leaf $ArchivePath) + ".sha256"
+$EvidenceArchiveSidecar = Join-Path $EvidenceFullPath $ArchiveSidecarName
+if (!(Test-Path $EvidenceArchiveSidecar)) {
+    Write-Error "Windows smoke evidence archive checksum sidecar is missing: $EvidenceArchiveSidecar"
+}
+$EvidenceSidecarSha256 = ((Get-Content $EvidenceArchiveSidecar -ErrorAction Stop | Select-Object -First 1) -split "\s+")[0].ToLowerInvariant()
+if ($EvidenceSidecarSha256 -ne $ArchiveSha256) {
+    Write-Error "Windows smoke evidence archive sidecar hash mismatch. Summary: $ArchiveSha256 Sidecar: $EvidenceSidecarSha256"
+}
 if (Test-Path $ArchivePath) {
     $ActualArchiveSha256 = (Get-FileHash -Algorithm SHA256 -Path $ArchivePath).Hash.ToLowerInvariant()
     if ($ActualArchiveSha256 -ne $ArchiveSha256) {
@@ -130,7 +139,7 @@ if (Test-Path $ArchivePath) {
     }
     $SidecarSha256 = ((Get-Content $ArchiveChecksumPath -ErrorAction Stop | Select-Object -First 1) -split "\s+")[0].ToLowerInvariant()
     if ($SidecarSha256 -ne $ArchiveSha256) {
-        Write-Error "Windows smoke evidence archive sidecar hash mismatch. Summary: $ArchiveSha256 Sidecar: $SidecarSha256"
+        Write-Error "Windows smoke archive sidecar hash mismatch. Summary: $ArchiveSha256 Sidecar: $SidecarSha256"
     }
 } else {
     Write-Host "Windows smoke archive is not present for hash recheck: $ArchivePath"

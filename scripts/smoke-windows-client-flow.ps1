@@ -159,6 +159,7 @@ try {
     if ($null -ne $SummaryPath) {
         $archiveHash = Get-FileHash -Algorithm SHA256 -Path $ArchiveFullPath
         Add-SummaryLine $SummaryPath "archive_sha256=$($archiveHash.Hash.ToLowerInvariant())"
+        Copy-Item -Force -Path "$ArchiveFullPath.sha256" -Destination (Join-Path $EvidenceFullPath ((Split-Path -Leaf $ArchiveFullPath) + ".sha256"))
     }
 
     Invoke-Step "Verify Windows client archive" {

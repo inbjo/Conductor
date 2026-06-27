@@ -200,6 +200,7 @@ fi
 
 archive_sha256="$(shasum -a 256 "$archive_path" | awk '{print $1}')"
 append_summary "archive_sha256=$archive_sha256"
+cp "$archive_path.sha256" "$evidence_dir/$(basename "$archive_path").sha256"
 
 echo ""
 echo "==> Verify macOS client archive"
