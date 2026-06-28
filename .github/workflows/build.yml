@@ -16,7 +16,7 @@ on:
       client_server_url:
         description: "Default controlled client Server URL"
         required: false
-        default: ""
+        default: "https://conductor.moyu.ge"
       client_agent_token:
         description: "Default controlled client Agent Token"
         required: false
@@ -36,19 +36,19 @@ on:
       client_interactive_approval:
         description: "Default controlled client local approval flag: 1/0, true/false, yes/no, on/off"
         required: false
-        default: ""
+        default: "off"
 
 permissions:
   actions: read
   contents: write
 
 env:
-  CONDUCTOR_DEFAULT_SERVER_URL: ${{ github.event.inputs.client_server_url }}
+  CONDUCTOR_DEFAULT_SERVER_URL: ${{ github.event.inputs.client_server_url || 'https://conductor.moyu.ge' }}
   CONDUCTOR_DEFAULT_AGENT_TOKEN: ${{ github.event.inputs.client_agent_token }}
   CONDUCTOR_DEFAULT_AGENT_NAME: ${{ github.event.inputs.client_agent_name }}
   CONDUCTOR_DEFAULT_AGENT_ROOT: ${{ github.event.inputs.client_agent_root }}
   CONDUCTOR_DEFAULT_AUDIO_INPUT: ${{ github.event.inputs.client_audio_input }}
-  CONDUCTOR_DEFAULT_INTERACTIVE_APPROVAL: ${{ github.event.inputs.client_interactive_approval }}
+  CONDUCTOR_DEFAULT_INTERACTIVE_APPROVAL: ${{ github.event.inputs.client_interactive_approval || 'off' }}
 
 jobs:
   static-checks:
