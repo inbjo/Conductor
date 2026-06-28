@@ -476,11 +476,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mapfile -t files < <(find dist -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.sha256' \) | sort)
+          mapfile -t files < <(find dist -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.deb' -o -name '*.sha256' \) | sort)
           if [[ "${#files[@]}" -eq 0 ]]; then
             echo "No release assets found in downloaded artifacts." >&2
             exit 1
           fi
+          delete_existing_assets() {
+            local tag="$1"
+            shift
+            local file name
+            for file in "$@"; do
+              name="$(basename "$file")"
+              gh release delete-asset "$tag" "$name" --yes >/dev/null 2>&1 || true
+            done
+          }
 
           if [[ "${GITHUB_EVENT_NAME}" == "schedule" ]]; then
             tag="nightly"
@@ -497,6 +506,7 @@ jobs:
             title="Conductor ${GITHUB_REF_NAME}"
             notes="Release build from ${GITHUB_SHA}."
             if gh release view "$tag" >/dev/null 2>&1; then
+              delete_existing_assets "$tag" "${files[@]}"
               gh release upload "$tag" "${files[@]}" --clobber
             else
               gh release create "$tag" "${files[@]}" --title "$title" --notes "$notes"
