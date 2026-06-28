@@ -27,6 +27,7 @@ dpkg-deb --extract "$DEB_PATH" "$EXTRACT_DIR"
 [[ -L "$EXTRACT_DIR/usr/bin/conductor-client" ]]
 [[ "$(readlink "$EXTRACT_DIR/usr/bin/conductor-client")" == "/opt/conductor-client/conductor_client" ]]
 [[ -f "$EXTRACT_DIR/usr/share/applications/conductor-client.desktop" ]]
+[[ "$(stat -c '%a' "$EXTRACT_DIR/usr/share/applications/conductor-client.desktop")" == "644" ]]
 [[ -f "$EXTRACT_DIR/usr/share/icons/hicolor/256x256/apps/conductor-client.png" ]]
 dpkg-deb --field "$DEB_PATH" Package | grep -qx 'conductor-client'
 dpkg-deb --field "$DEB_PATH" Architecture | grep -qx 'amd64'

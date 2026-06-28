@@ -73,8 +73,9 @@ Terminal=false
 Categories=Network;RemoteAccess;
 StartupNotify=true
 EOF
+chmod 0644 "$STAGE_DIR/usr/share/applications/conductor-client.desktop"
 
-INSTALLED_SIZE="$(du -sk "$STAGE_DIR/opt/conductor-client" | awk '{ print $1 }')"
+INSTALLED_SIZE="$(du -sk --apparent-size "$STAGE_DIR/opt/conductor-client" | awk '{ print $1 }')"
 cat >"$STAGE_DIR/DEBIAN/control" <<EOF
 Package: conductor-client
 Version: $PACKAGE_VERSION
@@ -88,6 +89,7 @@ Description: Conductor controlled desktop client
  Graphical Linux client and bundled agent for connecting a computer to a
  Conductor server.
 EOF
+chmod 0644 "$STAGE_DIR/DEBIAN/control"
 
 mkdir -p "$(dirname "$OUTPUT_DEB")"
 dpkg-deb --build --root-owner-group "$STAGE_DIR" "$OUTPUT_DEB"
