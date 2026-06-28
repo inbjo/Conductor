@@ -79,7 +79,8 @@ ln -s A "$macos_dir/Contents/Frameworks/FlutterMacOS.framework/Versions/Current"
 ln -s Versions/Current/FlutterMacOS "$macos_dir/Contents/Frameworks/FlutterMacOS.framework/FlutterMacOS"
 chmod +x \
   "$macos_dir/Contents/MacOS/conductor_client" \
-  "$macos_dir/Contents/MacOS/conductor-agent" \
+  "$macos_dir/Contents/MacOS/conductor-agent"
+chmod 0644 \
   "$macos_dir/Contents/Frameworks/App.framework/Versions/A/App" \
   "$macos_dir/Contents/Frameworks/FlutterMacOS.framework/Versions/A/FlutterMacOS"
 cat > "$macos_dir/Contents/Info.plist" <<'EOF'

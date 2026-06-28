@@ -208,6 +208,19 @@ fi
 echo "[4/5] Copying agent into client bundle"
 mkdir -p "$BUNDLE_DIR"
 cp "$AGENT_BIN" "$BUNDLE_DIR/$AGENT_BIN_NAME"
+if [[ "$PLATFORM" == "macos" ]]; then
+  if ! command -v codesign >/dev/null 2>&1; then
+    echo "codesign is required to package the macOS client." >&2
+    exit 1
+  fi
+  codesign --force --sign - "$BUNDLE_DIR/$AGENT_BIN_NAME"
+  codesign \
+    --force \
+    --sign - \
+    --entitlements "$ROOT_DIR/client/macos/Runner/Release.entitlements" \
+    "$APP_DIR"
+  codesign --verify --deep --strict --verbose=2 "$APP_DIR"
+fi
 
 echo "[5/5] Creating distributable archive"
 mkdir -p "$RELEASE_DIR"

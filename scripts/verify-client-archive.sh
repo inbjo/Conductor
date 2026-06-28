@@ -97,6 +97,15 @@ require_extracted_executable() {
   fi
 }
 
+require_extracted_nonempty_file() {
+  local entry="$1"
+  require_extracted_path "$entry"
+  if [[ ! -f "$extract_dir/$entry" || ! -s "$extract_dir/$entry" ]]; then
+    echo "Extracted archive path is not a non-empty file: $entry" >&2
+    exit 1
+  fi
+}
+
 case "$platform" in
   linux)
     require_entry '(^|^\./)conductor_client$'
@@ -126,12 +135,20 @@ case "$platform" in
     extract_archive
     require_extracted_executable 'conductor_client.app/Contents/MacOS/conductor_client'
     require_extracted_executable 'conductor_client.app/Contents/MacOS/conductor-agent'
-    require_extracted_executable 'conductor_client.app/Contents/Frameworks/App.framework/App'
+    require_extracted_nonempty_file 'conductor_client.app/Contents/Frameworks/App.framework/App'
     require_extracted_path 'conductor_client.app/Contents/Frameworks/App.framework/Resources/flutter_assets'
     require_extracted_path 'conductor_client.app/Contents/Frameworks/App.framework/Resources/flutter_assets/AssetManifest.bin'
     require_extracted_path 'conductor_client.app/Contents/Frameworks/App.framework/Resources/flutter_assets/FontManifest.json'
     require_extracted_path 'conductor_client.app/Contents/Frameworks/App.framework/Resources/flutter_assets/NativeAssetsManifest.json'
-    require_extracted_executable 'conductor_client.app/Contents/Frameworks/FlutterMacOS.framework/FlutterMacOS'
+    require_extracted_nonempty_file 'conductor_client.app/Contents/Frameworks/FlutterMacOS.framework/FlutterMacOS'
+    if command -v codesign >/dev/null 2>&1; then
+      codesign \
+        --verify \
+        --deep \
+        --strict \
+        --verbose=2 \
+        "$extract_dir/conductor_client.app"
+    fi
     ;;
   *)
     echo "Unsupported platform: $platform" >&2
