@@ -116,6 +116,12 @@ client/build/linux/x64/release/bundle/conductor_client
 ```
 
 脚本会同时生成 `release/conductor-client-linux-x64.tar.gz` 和 `.sha256` 校验文件。
+同时会生成可直接安装到 Ubuntu/Debian 的 `release/conductor-client-linux-amd64.deb`：
+
+```sh
+sudo apt install ./release/conductor-client-linux-amd64.deb
+conductor-client
+```
 
 Windows 主机：
 

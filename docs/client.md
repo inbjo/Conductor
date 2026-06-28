@@ -91,6 +91,15 @@ release/conductor-client-linux-x64.tar.gz.sha256
 client/build/linux/x64/release/bundle/conductor_client
 ```
 
+构建脚本也会生成 Ubuntu/Debian 安装包：
+
+```sh
+sudo apt install ./release/conductor-client-linux-amd64.deb
+conductor-client
+```
+
+安装后可以从桌面应用菜单打开 `Conductor Client`，或在图形桌面终端运行 `conductor-client`。远程纯 SSH/无桌面环境没有可用的 GTK display，无法显示图形界面。
+
 在界面中确认：
 
 - `Server URL`：在 Settings 页配置，公网测试默认是 `https://conductor.moyu.ge`；也可以填写 `ws://127.0.0.1:8080/ws/agent`、`http://127.0.0.1:8080` 或 `127.0.0.1:8080`，客户端会自动规范化。

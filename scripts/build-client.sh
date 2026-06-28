@@ -142,6 +142,7 @@ case "$(uname -s)" in
     AGENT_BIN_NAME="conductor-agent"
     BUNDLE_DIR="$ROOT_DIR/client/build/linux/x64/release/bundle"
     ARCHIVE_PATH="$RELEASE_DIR/conductor-client-linux-x64.tar.gz"
+    DEB_PATH="$RELEASE_DIR/conductor-client-linux-amd64.deb"
     ARCHIVE_CWD="$BUNDLE_DIR"
     ARCHIVE_ITEM="."
     ;;
@@ -226,8 +227,16 @@ echo "[5/5] Creating distributable archive"
 mkdir -p "$RELEASE_DIR"
 tar -czf "$ARCHIVE_PATH" -C "$ARCHIVE_CWD" "$ARCHIVE_ITEM"
 write_archive_checksum "$ARCHIVE_PATH"
+if [[ "$PLATFORM" == "linux" ]]; then
+  "$ROOT_DIR/scripts/build-linux-client-deb.sh" "$BUNDLE_DIR" "$DEB_PATH"
+  write_archive_checksum "$DEB_PATH"
+fi
 
 echo "Client bundle ready: $BUNDLE_DIR"
 echo "Agent binary copied to: $BUNDLE_DIR/$AGENT_BIN_NAME"
 echo "Archive ready: $ARCHIVE_PATH"
 echo "Archive checksum: $ARCHIVE_PATH.sha256"
+if [[ "$PLATFORM" == "linux" ]]; then
+  echo "Debian package: $DEB_PATH"
+  echo "Debian package checksum: $DEB_PATH.sha256"
+fi
