@@ -10,6 +10,7 @@
 - `client/`：Flutter 桌面被控客户端壳，用于配置、启动和监控 `conductor-agent`。
 - `docs/plan.md`：任务计划与验收标准。
 - `docs/build.md`：开发环境搭建、Linux/Windows/macOS 构建与验证说明。
+- `docs/deploy.md`：公网服务端部署、反向代理和 GitHub Actions 编译流程。
 - `docs/client.md`：Flutter 被控客户端运行、配置和平台说明。
 - `docs/client-development-plan.md`：三端被控客户端后续开发和验收路线。
 - `docs/client-platform-matrix.md`：三端客户端平台验证状态和真机验收记录模板。
@@ -65,6 +66,8 @@
 - `ffmpeg`（Agent WebRTC VP8 屏幕视频所需，必须包含 `libvpx` 编码器）和 `ffplay`（Agent 播放远端语音所需）
 
 完整开发环境搭建和三端构建说明见 `docs/build.md`；Flutter 被控客户端专项说明见 `docs/client.md`；平台验证状态见 `docs/client-platform-matrix.md`。
+
+公网测试域名为 `https://conductor.moyu.ge`。Flutter 被控客户端的内置默认 Server URL 已指向该域名；启动 Agent 时会自动规范化为 `wss://conductor.moyu.ge/ws/agent`。公网部署、反向代理和 GitHub Actions artifact 下载流程见 `docs/deploy.md`。
 
 ## 快速运行
 
@@ -133,6 +136,7 @@ macOS 主机：
 客户端会把 `conductor-agent` 或 `conductor-agent.exe` 放在可执行文件同目录。启动后主界面只显示状态、启动/停止和日志，Server URL、Agent Token、Agent Name、文件根目录、音频输入和本地审批开关在 Settings 页配置；也可以通过构建脚本参数写入默认值。详细说明见 `docs/client.md`。
 
 GitHub Actions 会构建并上传服务端 Linux release 包，以及 Linux、Windows、macOS 三端 Flutter 被控客户端包。工作流见 `.github/workflows/build.yml`。
+如果把仓库上传到 GitHub，直接启用 Actions 后 push 到 `master`/`main` 即会触发；手动运行 workflow 时也可通过 `client_server_url=https://conductor.moyu.ge` 覆盖客户端默认 Server URL。
 
 ## 构建提交包
 

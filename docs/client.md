@@ -1,6 +1,6 @@
 # 被控客户端开发与运行
 
-`client/` 是 Flutter 桌面被控客户端壳，当前用于启动和监控现有 Rust `conductor-agent`。真实远控、文件、聊天、语音能力仍由 `conductor-agent` 提供；Flutter 客户端负责图形化配置、启动/停止 Agent、展示日志。
+`client/` 是 Flutter 桌面被控客户端壳，当前用于启动和监控现有 Rust `conductor-agent`。真实远控、文件、聊天、语音能力仍由 `conductor-agent` 提供；Flutter 客户端负责图形化配置、启动/停止 Agent、展示日志。当前内置默认 Server URL 为 `https://conductor.moyu.ge`，启动 Agent 时会规范化为 `wss://conductor.moyu.ge/ws/agent`。
 
 完整开发环境搭建见 `docs/build.md`。本文聚焦被控客户端自身的行为、构建产物和验收方式。
 
@@ -93,7 +93,7 @@ client/build/linux/x64/release/bundle/conductor_client
 
 在界面中确认：
 
-- `Server URL`：在 Settings 页配置，例如 `ws://127.0.0.1:8080/ws/agent`，也可以填写 `http://127.0.0.1:8080` 或 `127.0.0.1:8080`，客户端会自动规范化。
+- `Server URL`：在 Settings 页配置，公网测试默认是 `https://conductor.moyu.ge`；也可以填写 `ws://127.0.0.1:8080/ws/agent`、`http://127.0.0.1:8080` 或 `127.0.0.1:8080`，客户端会自动规范化。
 - `Agent Token`：必须与 Server 的 `CONDUCTOR_AGENT_TOKEN` 一致
 - `Agent Name`：可选，便于后台识别
 - `File Root`：可选，限制文件管理根目录

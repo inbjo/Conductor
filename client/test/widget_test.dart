@@ -3,6 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('uses public conductor server as bundled default', () {
+    expect(buildDefaultServerUrl, 'https://conductor.moyu.ge');
+    expect(
+      normalizeAgentServerUrl(buildDefaultServerUrl),
+      'wss://conductor.moyu.ge/ws/agent',
+    );
+  });
+
   test('normalizes common server URL inputs', () {
     expect(
       normalizeAgentServerUrl('127.0.0.1:8080'),

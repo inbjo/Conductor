@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 
 const buildDefaultServerUrl = String.fromEnvironment(
   'CONDUCTOR_DEFAULT_SERVER_URL',
-  defaultValue: 'ws://127.0.0.1:8080/ws/agent',
+  defaultValue: 'https://conductor.moyu.ge',
 );
 const buildDefaultAgentToken = String.fromEnvironment(
   'CONDUCTOR_DEFAULT_AGENT_TOKEN',

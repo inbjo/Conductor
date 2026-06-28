@@ -2,6 +2,8 @@
 
 本文档用于从一台新机器搭建 Conductor 开发/构建环境，并说明 Linux、Windows、macOS 三端被控客户端的构建方式。
 
+公网服务端部署和 GitHub Actions artifact 发布流程见 `docs/deploy.md`。当前公网测试域名为 `https://conductor.moyu.ge`，客户端内置默认 Server URL 已指向该域名。
+
 ## 1. 组件关系
 
 仓库包含四个主要组件：
@@ -483,6 +485,14 @@ release/conductor-<target>.tar.gz.sha256
 | `client_agent_root` | `File Root` |
 | `client_audio_input` | `Audio Input` |
 | `client_interactive_approval` | `Require local approval`，取值 `1/0`、`true/false`、`yes/no` 或 `on/off` |
+
+公网测试构建建议填写：
+
+```text
+client_server_url=https://conductor.moyu.ge
+```
+
+未填写时，当前源码内置默认 Server URL 也是 `https://conductor.moyu.ge`，客户端会在保存 Settings 或启动 Agent 时规范化为 `wss://conductor.moyu.ge/ws/agent`。
 
 CI 会构建并上传以下 artifact：
 
