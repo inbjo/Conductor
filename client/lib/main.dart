@@ -137,7 +137,15 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
           'agentRoot',
           _agentRoot.text,
         );
-        _agentBin.text = settingsStringValue(value, 'agentBin', _agentBin.text);
+        final savedAgentBin = settingsStringValue(
+          value,
+          'agentBin',
+          _agentBin.text,
+        );
+        _agentBin.text =
+            savedAgentBin.trim().isNotEmpty && !File(savedAgentBin).existsSync()
+            ? defaultAgentBinary()
+            : savedAgentBin;
         _audioInput.text = settingsStringValue(
           value,
           'audioInput',
@@ -533,8 +541,9 @@ class AgentOverview extends StatelessWidget {
                     children: [
                       Text(
                         'An administrator is controlling this computer.',
-                        style: Theme.of(context).textTheme.bodyMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       OutlinedButton.icon(

@@ -31,10 +31,12 @@ mkdir -p \
   "$artifacts/windows-client-smoke-evidence/logs/client-e2e" \
   "$artifacts/macos-client-smoke-evidence/logs/client-e2e"
 
-printf 'synthetic windows archive\n' > "$tmp_dir/windows.zip"
-write_sha256 "$tmp_dir/windows.zip"
-windows_archive_sha256="$(awk '{print $1; exit}' "$tmp_dir/windows.zip.sha256")"
-cp "$tmp_dir/windows.zip.sha256" "$artifacts/windows-client-smoke-evidence/windows.zip.sha256"
+windows_archive_name="conductor-client-windows-x64.zip"
+windows_archive_path='D:\a\Conductor\Conductor\release\conductor-client-windows-x64.zip'
+printf 'synthetic windows archive\n' > "$tmp_dir/$windows_archive_name"
+write_sha256 "$tmp_dir/$windows_archive_name"
+windows_archive_sha256="$(awk '{print $1; exit}' "$tmp_dir/$windows_archive_name.sha256")"
+cp "$tmp_dir/$windows_archive_name.sha256" "$artifacts/windows-client-smoke-evidence/$windows_archive_name.sha256"
 cat > "$artifacts/linux-client-smoke-evidence/missing-linux.tar.gz.sha256" <<'EOF'
 1111111111111111111111111111111111111111111111111111111111111111  missing-linux.tar.gz
 EOF
@@ -80,7 +82,7 @@ EOF
 cat > "$artifacts/windows-client-smoke-evidence/validation-summary.txt" <<EOF
 timestamp=2026-06-27T00:00:00Z
 repository=/tmp
-archive=$tmp_dir/windows.zip
+archive=$windows_archive_path
 commit=$commit
 powershell=PowerShell 7
 rustc=rustc 1
@@ -178,8 +180,8 @@ grep -q '^macos_result=passed$' "$verified/aggregate-summary.txt"
 grep -q "^windows_archive_sha256=$windows_archive_sha256$" "$verified/aggregate-summary.txt"
 
 mv \
-  "$artifacts/windows-client-smoke-evidence/windows.zip.sha256" \
-  "$artifacts/windows-client-smoke-evidence/windows.zip.sha256.bak"
+  "$artifacts/windows-client-smoke-evidence/$windows_archive_name.sha256" \
+  "$artifacts/windows-client-smoke-evidence/$windows_archive_name.sha256.bak"
 if "$root_dir/scripts/validate-client-evidence.sh" \
   --evidence-root "$artifacts" \
   --platform windows \
@@ -189,8 +191,8 @@ if "$root_dir/scripts/validate-client-evidence.sh" \
 fi
 grep -q "Windows smoke evidence archive checksum sidecar" "$tmp_dir/evidence-missing-sidecar.log"
 mv \
-  "$artifacts/windows-client-smoke-evidence/windows.zip.sha256.bak" \
-  "$artifacts/windows-client-smoke-evidence/windows.zip.sha256"
+  "$artifacts/windows-client-smoke-evidence/$windows_archive_name.sha256.bak" \
+  "$artifacts/windows-client-smoke-evidence/$windows_archive_name.sha256"
 
 sed -i 's/^commit=.*/commit=other-test-client-evidence-commit/' \
   "$artifacts/windows-client-smoke-evidence/validation-summary.txt"

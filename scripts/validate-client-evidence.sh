@@ -80,6 +80,13 @@ summary_value() {
   sed -n "s/^$key=//p" "$summary_path" | tail -n 1 | tr -d '\r'
 }
 
+path_basename() {
+  local path="$1"
+  path="${path##*/}"
+  path="${path##*\\}"
+  printf '%s\n' "$path"
+}
+
 require_summary_field() {
   local label="$1"
   local summary_path="$2"
@@ -208,7 +215,7 @@ verify_text_evidence() {
   local archive_path
   archive_path="$(summary_value "$summary_path" archive)"
   local archive_sidecar_name
-  archive_sidecar_name="$(basename "$archive_path").sha256"
+  archive_sidecar_name="$(path_basename "$archive_path").sha256"
   require_file "$label smoke evidence archive checksum sidecar" "$evidence_dir/$archive_sidecar_name"
   local evidence_sidecar_sha256
   evidence_sidecar_sha256="$(awk '{print $1; exit}' "$evidence_dir/$archive_sidecar_name")"
