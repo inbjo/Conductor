@@ -89,7 +89,7 @@ fi
 
 summary_value() {
   local key="$1"
-  sed -n "s/^$key=//p" "$summary_path" | tail -n 1
+  sed -n "s/^$key=//p" "$summary_path" | tail -n 1 | tr -d '\r'
 }
 
 require_field() {

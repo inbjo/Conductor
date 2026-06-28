@@ -89,6 +89,7 @@ flutter=Flutter 3
 archive_sha256=$windows_archive_sha256
 result=passed
 EOF
+sed -i 's/$/\r/' "$artifacts/windows-client-smoke-evidence/validation-summary.txt"
 cat > "$artifacts/windows-client-smoke-evidence/smoke-windows-client-flow.log" <<'EOF'
 Windows client flow smoke passed
 Client server URL input: http://127.0.0.1:18081
