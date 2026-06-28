@@ -13,6 +13,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "windows-process-logging.ps1")
+
 if (!(Test-Path $ArchivePath)) {
     Write-Error "Archive not found: $ArchivePath"
 }
@@ -40,63 +42,6 @@ if (![string]::IsNullOrWhiteSpace($EvidenceDir)) {
         $EvidenceFullPath = $EvidenceDir
     } else {
         $EvidenceFullPath = Join-Path (Resolve-Path ".") $EvidenceDir
-    }
-}
-
-function Start-ConductorProcess($FileName, $WorkingDirectory, $Environment, $LogPath) {
-    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
-    $startInfo.FileName = $FileName
-    $startInfo.WorkingDirectory = $WorkingDirectory
-    $startInfo.UseShellExecute = $false
-    $startInfo.RedirectStandardOutput = $true
-    $startInfo.RedirectStandardError = $true
-    foreach ($key in $Environment.Keys) {
-        $startInfo.Environment[$key] = [string] $Environment[$key]
-    }
-
-    $process = [System.Diagnostics.Process]::new()
-    $process.StartInfo = $startInfo
-    [void] $process.Start()
-    $stdout = [System.IO.FileStream]::new(
-        $LogPath,
-        [System.IO.FileMode]::Create,
-        [System.IO.FileAccess]::Write,
-        [System.IO.FileShare]::ReadWrite
-    )
-    $stderr = [System.IO.FileStream]::new(
-        $LogPath + ".err",
-        [System.IO.FileMode]::Create,
-        [System.IO.FileAccess]::Write,
-        [System.IO.FileShare]::ReadWrite
-    )
-    $stdoutTask = $process.StandardOutput.BaseStream.CopyToAsync($stdout)
-    $stderrTask = $process.StandardError.BaseStream.CopyToAsync($stderr)
-    return @{
-        Process = $process
-        Stdout = $stdout
-        Stderr = $stderr
-        StdoutTask = $stdoutTask
-        StderrTask = $stderrTask
-    }
-}
-
-function Stop-ConductorProcess($handle) {
-    if ($null -eq $handle) {
-        return
-    }
-    $process = $handle["Process"]
-    if ($null -ne $process -and !$process.HasExited) {
-        Stop-Process -Id $process.Id -Force
-        Wait-Process -Id $process.Id -ErrorAction SilentlyContinue
-    }
-    $process.WaitForExit()
-    try {
-        [void] ($handle["StdoutTask"]).GetAwaiter().GetResult()
-        [void] ($handle["StderrTask"]).GetAwaiter().GetResult()
-    } finally {
-        $handle["Stdout"].Close()
-        $handle["Stderr"].Close()
-        $process.Dispose()
     }
 }
 

@@ -79,19 +79,42 @@ client_server_url=https://conductor.moyu.ge
 - 域名 `conductor.moyu.ge` 的 A/AAAA 记录指向服务器
 - 安装 Nginx 或 Caddy 做 TLS 和 WebSocket 反向代理
 
+从 GitHub Actions 下载 `conductor-server-linux-x64` artifact，得到：
+
+```text
+conductor-x86_64-unknown-linux-gnu.tar.gz
+conductor-x86_64-unknown-linux-gnu.tar.gz.sha256
+```
+
+推荐解包后直接运行一键安装器：
+
+```sh
+sha256sum -c conductor-x86_64-unknown-linux-gnu.tar.gz.sha256
+tar -xzf conductor-x86_64-unknown-linux-gnu.tar.gz
+cd conductor-x86_64-unknown-linux-gnu
+sudo ./scripts/install-server.sh
+```
+
+安装器会自动完成以下操作：
+
+- 安装到 `/opt/conductor`
+- 创建 `conductor` 系统用户
+- 从 `8080` 开始检测并选择空闲 TCP 端口
+- 自动生成 Agent Token 和 JWT Secret
+- 设置管理员用户名 `admin`、初始密码 `888888`
+- 创建、启动并设置 `conductor.service` 开机自启
+- 输出访问地址、端口、账号、Token、JWT、配置文件和日志命令
+
+重复执行安装器会保留已有数据库、Agent Token 和 JWT Secret。需要指定其他起始端口或二进制时，可使用 `--port <port>` 或 `--binary <path>`。
+
+以下步骤保留为手动安装参考。
+
 创建目录和用户：
 
 ```sh
 sudo useradd --system --create-home --home-dir /opt/conductor --shell /usr/sbin/nologin conductor
 sudo mkdir -p /opt/conductor/bin /opt/conductor/data
 sudo chown -R conductor:conductor /opt/conductor
-```
-
-从 GitHub Actions 下载 `conductor-server-linux-x64` artifact，得到：
-
-```text
-conductor-x86_64-unknown-linux-gnu.tar.gz
-conductor-x86_64-unknown-linux-gnu.tar.gz.sha256
 ```
 
 解包并安装：
@@ -248,7 +271,7 @@ https://conductor.moyu.ge
 启动客户端后进入 Settings：
 
 - `Server URL`：保持 `https://conductor.moyu.ge`，保存或启动时会变成 `wss://conductor.moyu.ge/ws/agent`
-- `Agent Token`：填写服务器 `/etc/conductor.env` 中的 `CONDUCTOR_AGENT_TOKEN`
+- `Agent Token`：填写安装器最终输出的 Token；也可在 `/opt/conductor/conductor.env`（一键安装）或 `/etc/conductor.env`（手动安装）中查看 `CONDUCTOR_AGENT_TOKEN`
 - `Agent Name`：填写便于识别的名称，例如 `win-client-01`
 - `File Root`：填写允许远程文件管理的目录
 - `Audio Input`：按平台填写，或留空使用默认策略

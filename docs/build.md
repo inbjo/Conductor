@@ -25,7 +25,7 @@
 
 - Git
 - Rust stable
-- Node.js 20+
+- Node.js 24.18.0 LTS
 - npm 10+
 - Flutter 3.44+
 

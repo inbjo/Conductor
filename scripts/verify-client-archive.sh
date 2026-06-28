@@ -31,6 +31,12 @@ archive_name="$(basename "$archive")"
 
 list="$(tar -tzf "$archive")"
 verbose_list="$(tar -tvzf "$archive")"
+extract_dir=""
+
+cleanup() {
+  [[ -z "$extract_dir" ]] || rm -rf "$extract_dir"
+}
+trap cleanup EXIT
 
 require_entry() {
   local pattern="$1"
@@ -66,6 +72,31 @@ require_archive_text() {
   fi
 }
 
+extract_archive() {
+  if [[ -n "$extract_dir" ]]; then
+    return
+  fi
+  extract_dir="$(mktemp -d)"
+  tar -xzf "$archive" -C "$extract_dir"
+}
+
+require_extracted_path() {
+  local entry="$1"
+  if [[ ! -e "$extract_dir/$entry" ]]; then
+    echo "Missing or broken extracted archive path: $entry" >&2
+    exit 1
+  fi
+}
+
+require_extracted_executable() {
+  local entry="$1"
+  require_extracted_path "$entry"
+  if [[ ! -x "$extract_dir/$entry" ]]; then
+    echo "Extracted archive path is not executable: $entry" >&2
+    exit 1
+  fi
+}
+
 case "$platform" in
   linux)
     require_entry '(^|^\./)conductor_client$'
@@ -83,23 +114,24 @@ case "$platform" in
   macos)
     require_entry '^conductor_client\.app/Contents/MacOS/conductor_client$'
     require_entry '^conductor_client\.app/Contents/MacOS/conductor-agent$'
-    require_executable_entry '^conductor_client\.app/Contents/MacOS/conductor_client$'
-    require_executable_entry '^conductor_client\.app/Contents/MacOS/conductor-agent$'
     require_entry '^conductor_client\.app/Contents/Info\.plist$'
     require_archive_text \
       'conductor_client.app/Contents/Info.plist' \
       'NSMicrophoneUsageDescription'
     require_entry '^conductor_client\.app/Contents/Frameworks/'
     require_entry '^conductor_client\.app/Contents/Frameworks/App\.framework/App$'
-    require_executable_entry '^conductor_client\.app/Contents/Frameworks/App\.framework/App$'
-    require_entry '^conductor_client\.app/Contents/Frameworks/App\.framework/Resources/flutter_assets/'
-    require_entry '^conductor_client\.app/Contents/Frameworks/App\.framework/Resources/flutter_assets/AssetManifest\.bin$'
-    require_entry '^conductor_client\.app/Contents/Frameworks/App\.framework/Resources/flutter_assets/FontManifest\.json$'
-    require_entry '^conductor_client\.app/Contents/Frameworks/App\.framework/Resources/flutter_assets/NativeAssetsManifest\.json$'
-    require_entry '^conductor_client\.app/Contents/Frameworks/App\.framework/Resources/flutter_assets/version\.json$'
+    require_entry '^conductor_client\.app/Contents/Frameworks/App\.framework/Resources/?$'
     require_entry '^conductor_client\.app/Contents/Frameworks/FlutterMacOS\.framework/FlutterMacOS$'
-    require_executable_entry '^conductor_client\.app/Contents/Frameworks/FlutterMacOS\.framework/FlutterMacOS$'
     require_entry '^conductor_client\.app/Contents/Resources/'
+    extract_archive
+    require_extracted_executable 'conductor_client.app/Contents/MacOS/conductor_client'
+    require_extracted_executable 'conductor_client.app/Contents/MacOS/conductor-agent'
+    require_extracted_executable 'conductor_client.app/Contents/Frameworks/App.framework/App'
+    require_extracted_path 'conductor_client.app/Contents/Frameworks/App.framework/Resources/flutter_assets'
+    require_extracted_path 'conductor_client.app/Contents/Frameworks/App.framework/Resources/flutter_assets/AssetManifest.bin'
+    require_extracted_path 'conductor_client.app/Contents/Frameworks/App.framework/Resources/flutter_assets/FontManifest.json'
+    require_extracted_path 'conductor_client.app/Contents/Frameworks/App.framework/Resources/flutter_assets/NativeAssetsManifest.json'
+    require_extracted_executable 'conductor_client.app/Contents/Frameworks/FlutterMacOS.framework/FlutterMacOS'
     ;;
   *)
     echo "Unsupported platform: $platform" >&2

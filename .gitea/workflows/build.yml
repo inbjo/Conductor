@@ -56,7 +56,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Check mirrored workflows
         run: cmp -s .github/workflows/build.yml .gitea/workflows/build.yml
@@ -67,6 +67,7 @@ jobs:
       - name: Check client helper usage
         run: |
           ./scripts/build-client.sh --help
+          ./scripts/install-server.sh --help
           ./scripts/validate-client-evidence.sh --help
           ./scripts/verify-linux-smoke-evidence.sh --help
           ./scripts/verify-macos-smoke-evidence.sh --help
@@ -91,7 +92,7 @@ jobs:
     runs-on: windows-2022
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Check PowerShell scripts parse
         shell: pwsh
@@ -120,20 +121,24 @@ jobs:
         shell: pwsh
         run: .\scripts\test-windows-build-client-defaults.ps1
 
+      - name: Test Windows live process logging
+        shell: pwsh
+        run: .\scripts\test-windows-process-logging.ps1
+
   server-release:
     name: Server release package
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: "24.18.0"
           cache: npm
           cache-dependency-path: web/package-lock.json
 
@@ -149,7 +154,7 @@ jobs:
         run: ./scripts/build-release.sh x86_64-unknown-linux-gnu
 
       - name: Upload server release package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: conductor-server-linux-x64
           path: |
@@ -162,7 +167,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Linux desktop dependencies
         run: |
@@ -173,9 +178,9 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: "24.18.0"
           cache: npm
           cache-dependency-path: web/package-lock.json
 
@@ -206,14 +211,14 @@ jobs:
 
       - name: Upload Linux smoke evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-client-smoke-evidence
           path: artifacts/linux-client-smoke
           if-no-files-found: ignore
 
       - name: Upload Linux client
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: conductor-client-linux-x64
           path: |
@@ -226,15 +231,15 @@ jobs:
     runs-on: windows-2022
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: "24.18.0"
           cache: npm
           cache-dependency-path: web/package-lock.json
 
@@ -264,14 +269,14 @@ jobs:
 
       - name: Upload Windows smoke evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-client-smoke-evidence
           path: artifacts/windows-client-smoke
           if-no-files-found: ignore
 
       - name: Upload Windows client
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: conductor-client-windows-x64
           path: |
@@ -284,15 +289,15 @@ jobs:
     runs-on: macos-14
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: "24.18.0"
           cache: npm
           cache-dependency-path: web/package-lock.json
 
@@ -318,14 +323,14 @@ jobs:
 
       - name: Upload macOS smoke evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: macos-client-smoke-evidence
           path: artifacts/macos-client-smoke
           if-no-files-found: ignore
 
       - name: Upload macOS client
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: conductor-client-macos
           path: |
@@ -342,22 +347,22 @@ jobs:
       - client-macos
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Download Linux smoke evidence
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: linux-client-smoke-evidence
           path: artifacts/linux-client-smoke-evidence
 
       - name: Download Windows smoke evidence
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: windows-client-smoke-evidence
           path: artifacts/windows-client-smoke-evidence
 
       - name: Download macOS smoke evidence
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: macos-client-smoke-evidence
           path: artifacts/macos-client-smoke-evidence
@@ -366,7 +371,7 @@ jobs:
         run: ./scripts/validate-client-evidence.sh --require-ci-fields --expected-commit "$GITHUB_SHA" --write-summary artifacts/client-smoke-evidence-verified
 
       - name: Upload verified client smoke evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: client-smoke-evidence-verified
           path: |
@@ -388,12 +393,12 @@ jobs:
     if: github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Download release artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true

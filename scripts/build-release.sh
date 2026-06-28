@@ -40,7 +40,9 @@ cp "$BINARY_DIR/conductor-server$SUFFIX" "$STAGE_DIR/bin/"
 cp "$BINARY_DIR/conductor-agent$SUFFIX" "$STAGE_DIR/bin/"
 cp "$ROOT_DIR/README.md" "$STAGE_DIR/"
 cp "$ROOT_DIR/docs/demo.md" "$STAGE_DIR/docs/"
+cp "$ROOT_DIR/docs/deploy.md" "$STAGE_DIR/docs/"
 cp "$ROOT_DIR/docs/plan.md" "$STAGE_DIR/docs/"
+cp "$ROOT_DIR/scripts/install-server.sh" "$STAGE_DIR/scripts/"
 cp "$ROOT_DIR/scripts/smoke-release.sh" "$STAGE_DIR/scripts/"
 cp "$ROOT_DIR/scripts/smoke-web.mjs" "$STAGE_DIR/scripts/"
 git -C "$ROOT_DIR" archive HEAD | tar -x -C "$STAGE_DIR/source"
@@ -56,7 +58,9 @@ Contents:
 - bin/conductor-agent$SUFFIX
 - SHA256SUMS
 - docs/demo.md
+- docs/deploy.md
 - docs/plan.md
+- scripts/install-server.sh
 - scripts/smoke-release.sh
 - scripts/smoke-web.mjs
 - source/
@@ -64,6 +68,9 @@ Contents:
 Smoke test:
   ./scripts/smoke-release.sh .
   CONDUCTOR_SMOKE_BROWSER=1 ./scripts/smoke-release.sh .
+
+One-command Linux server installation:
+  sudo ./scripts/install-server.sh
 EOF
 (
   cd "$STAGE_DIR"
@@ -73,7 +80,9 @@ EOF
     README.md \
     RELEASE.txt \
     docs/demo.md \
+    docs/deploy.md \
     docs/plan.md \
+    scripts/install-server.sh \
     scripts/smoke-release.sh \
     scripts/smoke-web.mjs \
     > SHA256SUMS

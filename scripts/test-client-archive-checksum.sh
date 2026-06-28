@@ -65,25 +65,29 @@ expect_failure \
 macos_dir="$tmp_dir/macos/conductor_client.app"
 mkdir -p \
   "$macos_dir/Contents/MacOS" \
-  "$macos_dir/Contents/Frameworks/App.framework/Resources/flutter_assets" \
-  "$macos_dir/Contents/Frameworks/FlutterMacOS.framework" \
+  "$macos_dir/Contents/Frameworks/App.framework/Versions/A/Resources/flutter_assets" \
+  "$macos_dir/Contents/Frameworks/FlutterMacOS.framework/Versions/A" \
   "$macos_dir/Contents/Resources"
 printf 'client\n' > "$macos_dir/Contents/MacOS/conductor_client"
 printf 'agent\n' > "$macos_dir/Contents/MacOS/conductor-agent"
-printf 'app\n' > "$macos_dir/Contents/Frameworks/App.framework/App"
-printf 'flutter\n' > "$macos_dir/Contents/Frameworks/FlutterMacOS.framework/FlutterMacOS"
+printf 'app\n' > "$macos_dir/Contents/Frameworks/App.framework/Versions/A/App"
+printf 'flutter\n' > "$macos_dir/Contents/Frameworks/FlutterMacOS.framework/Versions/A/FlutterMacOS"
+ln -s A "$macos_dir/Contents/Frameworks/App.framework/Versions/Current"
+ln -s Versions/Current/App "$macos_dir/Contents/Frameworks/App.framework/App"
+ln -s Versions/Current/Resources "$macos_dir/Contents/Frameworks/App.framework/Resources"
+ln -s A "$macos_dir/Contents/Frameworks/FlutterMacOS.framework/Versions/Current"
+ln -s Versions/Current/FlutterMacOS "$macos_dir/Contents/Frameworks/FlutterMacOS.framework/FlutterMacOS"
 chmod +x \
   "$macos_dir/Contents/MacOS/conductor_client" \
   "$macos_dir/Contents/MacOS/conductor-agent" \
-  "$macos_dir/Contents/Frameworks/App.framework/App" \
-  "$macos_dir/Contents/Frameworks/FlutterMacOS.framework/FlutterMacOS"
+  "$macos_dir/Contents/Frameworks/App.framework/Versions/A/App" \
+  "$macos_dir/Contents/Frameworks/FlutterMacOS.framework/Versions/A/FlutterMacOS"
 cat > "$macos_dir/Contents/Info.plist" <<'EOF'
 <plist><dict><key>NSMicrophoneUsageDescription</key><string>Microphone</string></dict></plist>
 EOF
-printf 'asset\n' > "$macos_dir/Contents/Frameworks/App.framework/Resources/flutter_assets/AssetManifest.bin"
-printf 'font\n' > "$macos_dir/Contents/Frameworks/App.framework/Resources/flutter_assets/FontManifest.json"
-printf 'native\n' > "$macos_dir/Contents/Frameworks/App.framework/Resources/flutter_assets/NativeAssetsManifest.json"
-printf 'version\n' > "$macos_dir/Contents/Frameworks/App.framework/Resources/flutter_assets/version.json"
+printf 'asset\n' > "$macos_dir/Contents/Frameworks/App.framework/Versions/A/Resources/flutter_assets/AssetManifest.bin"
+printf 'font\n' > "$macos_dir/Contents/Frameworks/App.framework/Versions/A/Resources/flutter_assets/FontManifest.json"
+printf 'native\n' > "$macos_dir/Contents/Frameworks/App.framework/Versions/A/Resources/flutter_assets/NativeAssetsManifest.json"
 tar -czf "$tmp_dir/macos-client.tar.gz" -C "$tmp_dir/macos" conductor_client.app
 write_sha256 "$tmp_dir/macos-client.tar.gz"
 "$root_dir/scripts/verify-client-archive.sh" macos "$tmp_dir/macos-client.tar.gz"

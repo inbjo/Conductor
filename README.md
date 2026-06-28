@@ -60,7 +60,7 @@
 ## 运行环境
 
 - Rust stable
-- Node.js 20+
+- Node.js 24.18.0 LTS
 - npm 10+
 - Flutter 3.44+（桌面被控客户端，当前 SDK 位于 `/home/flex/Code/flutter`）
 - `ffmpeg`（Agent WebRTC VP8 屏幕视频所需，必须包含 `libvpx` 编码器）和 `ffplay`（Agent 播放远端语音所需）
@@ -164,6 +164,14 @@ tar -xzf release/conductor-<target>.tar.gz -C release/
 cd release/conductor-<target>
 ./scripts/smoke-release.sh .
 ```
+
+Linux 服务器也可以在 release 包根目录一键安装：
+
+```sh
+sudo ./scripts/install-server.sh
+```
+
+安装器会把服务部署到 `/opt/conductor`，从 `8080` 开始自动选择空闲端口，生成 Agent Token 和 JWT Secret，创建并启用 `conductor.service`，最后输出访问地址、管理员账号 `admin`、初始密码 `888888` 和连接密钥。重复执行时会保留已有 Token、JWT 和数据库。
 
 该检查会先校验包内 `SHA256SUMS`，再临时启动 release 包内的 Server 和 Agent，并自动验证健康接口、前端路由、登录、设备上线、远控会话、文件列表、聊天和会话关闭。默认使用 `127.0.0.1:18080`，端口被占用时可指定 `CONDUCTOR_SMOKE_PORT=18081 ./scripts/smoke-release.sh .`。完整比赛演示步骤见 `docs/demo.md`。
 
