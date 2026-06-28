@@ -193,7 +193,11 @@ if [[ -n "$DEFAULT_INTERACTIVE_APPROVAL" ]]; then
 fi
 (
   cd "$ROOT_DIR/client"
-  "$FLUTTER_BIN" build "$PLATFORM" --release "${FLUTTER_DEFINES[@]}"
+  if [[ "${#FLUTTER_DEFINES[@]}" -gt 0 ]]; then
+    "$FLUTTER_BIN" build "$PLATFORM" --release "${FLUTTER_DEFINES[@]}"
+  else
+    "$FLUTTER_BIN" build "$PLATFORM" --release
+  fi
 )
 
 echo "[4/5] Copying agent into client bundle"

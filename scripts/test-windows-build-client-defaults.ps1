@@ -31,7 +31,7 @@ function Require-LogLine($Path, $ExpectedText) {
     }
 }
 
-function Invoke-BuildClient($Arguments) {
+function Invoke-BuildClient([string[]] $Arguments) {
     & (Join-Path $RootDir "scripts\build-client.ps1") @Arguments *> (Join-Path $TempDir "build-client.log")
 }
 
@@ -72,7 +72,7 @@ exit /b 0
     Write-TextFile (Join-Path $BundleDir "data\icudtl.dat") "icu"
     Write-TextFile (Join-Path $BundleDir "data\flutter_assets\AssetManifest.bin") "asset"
 
-    Invoke-BuildClient @(
+    Invoke-BuildClient -Arguments @(
         "-ServerUrl", "ws://example.test:8080/ws/agent",
         "-AgentToken", "token with spaces",
         "-AgentName", "windows build agent",
@@ -97,7 +97,7 @@ exit /b 0
     $env:CONDUCTOR_DEFAULT_AUDIO_INPUT = "env audio input"
     $env:CONDUCTOR_DEFAULT_INTERACTIVE_APPROVAL = "off"
 
-    Invoke-BuildClient @()
+    Invoke-BuildClient -Arguments @()
 
     Require-LogLine $FlutterLog "--dart-define`tCONDUCTOR_DEFAULT_SERVER_URL=wss://env.example.test/ws/agent"
     Require-LogLine $FlutterLog "--dart-define`tCONDUCTOR_DEFAULT_AGENT_TOKEN=env token"
