@@ -43,6 +43,10 @@ permissions:
   contents: write
 
 env:
+  CARGO_HTTP_MULTIPLEXING: "false"
+  CARGO_HTTP_TIMEOUT: "120"
+  CARGO_NET_RETRY: "10"
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: "sparse"
   CONDUCTOR_DEFAULT_SERVER_URL: ${{ github.event.inputs.client_server_url || 'https://conductor.moyu.ge' }}
   CONDUCTOR_DEFAULT_AGENT_TOKEN: ${{ github.event.inputs.client_agent_token || '52b737ba238a4c0034e576abf1d853bb28ceda586f396589f3eb730729cfacc1' }}
   CONDUCTOR_DEFAULT_AGENT_NAME: ${{ github.event.inputs.client_agent_name }}
@@ -255,7 +259,21 @@ jobs:
           npm --prefix web run build
 
       - name: Build Windows smoke server
-        run: cargo build -p conductor-server
+        shell: pwsh
+        run: |
+          $maxAttempts = 4
+          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            cargo build -p conductor-server
+            if ($LASTEXITCODE -eq 0) {
+              break
+            }
+            if ($attempt -eq $maxAttempts) {
+              throw "cargo build failed after $maxAttempts attempts."
+            }
+            $delaySeconds = 15 * $attempt
+            Write-Warning "cargo build attempt $attempt failed; retrying in $delaySeconds seconds."
+            Start-Sleep -Seconds $delaySeconds
+          }
 
       - name: Build Windows client
         shell: pwsh
