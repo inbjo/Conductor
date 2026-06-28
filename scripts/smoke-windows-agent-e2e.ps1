@@ -56,30 +56,27 @@ function Start-ConductorProcess($FileName, $WorkingDirectory, $Environment, $Log
 
     $process = [System.Diagnostics.Process]::new()
     $process.StartInfo = $startInfo
-    $process.EnableRaisingEvents = $true
-    $stdout = [System.IO.StreamWriter]::new($LogPath, $false)
-    $stderr = [System.IO.StreamWriter]::new($LogPath + ".err", $false)
-    $process.add_OutputDataReceived({
-        param($sender, $eventArgs)
-        if ($null -ne $eventArgs.Data) {
-            $stdout.WriteLine($eventArgs.Data)
-            $stdout.Flush()
-        }
-    })
-    $process.add_ErrorDataReceived({
-        param($sender, $eventArgs)
-        if ($null -ne $eventArgs.Data) {
-            $stderr.WriteLine($eventArgs.Data)
-            $stderr.Flush()
-        }
-    })
     [void] $process.Start()
-    $process.BeginOutputReadLine()
-    $process.BeginErrorReadLine()
+    $stdout = [System.IO.FileStream]::new(
+        $LogPath,
+        [System.IO.FileMode]::Create,
+        [System.IO.FileAccess]::Write,
+        [System.IO.FileShare]::ReadWrite
+    )
+    $stderr = [System.IO.FileStream]::new(
+        $LogPath + ".err",
+        [System.IO.FileMode]::Create,
+        [System.IO.FileAccess]::Write,
+        [System.IO.FileShare]::ReadWrite
+    )
+    $stdoutTask = $process.StandardOutput.BaseStream.CopyToAsync($stdout)
+    $stderrTask = $process.StandardError.BaseStream.CopyToAsync($stderr)
     return @{
         Process = $process
         Stdout = $stdout
         Stderr = $stderr
+        StdoutTask = $stdoutTask
+        StderrTask = $stderrTask
     }
 }
 
@@ -92,8 +89,15 @@ function Stop-ConductorProcess($handle) {
         Stop-Process -Id $process.Id -Force
         Wait-Process -Id $process.Id -ErrorAction SilentlyContinue
     }
-    $handle["Stdout"].Close()
-    $handle["Stderr"].Close()
+    $process.WaitForExit()
+    try {
+        [void] ($handle["StdoutTask"]).GetAwaiter().GetResult()
+        [void] ($handle["StderrTask"]).GetAwaiter().GetResult()
+    } finally {
+        $handle["Stdout"].Close()
+        $handle["Stderr"].Close()
+        $process.Dispose()
+    }
 }
 
 function Export-EvidenceLog($Source, $Name) {

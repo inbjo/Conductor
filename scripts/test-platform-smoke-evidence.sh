@@ -13,6 +13,9 @@ write_platform_evidence() {
   local archive_path="$3"
   local archive_sha256="$4"
   local agent_name_prefix="$5"
+  local platform_lower
+
+  platform_lower="$(printf '%s' "$platform" | tr '[:upper:]' '[:lower:]')"
 
   mkdir -p "$evidence_dir/logs/client-e2e"
   cat > "$evidence_dir/$(basename "$archive_path").sha256" <<EOF
@@ -37,7 +40,7 @@ EOF
     printf 'xcodebuild=Xcode 16\n' >> "$evidence_dir/validation-summary.txt"
   fi
 
-  cat > "$evidence_dir/smoke-${platform,,}-client-flow.log" <<EOF
+  cat > "$evidence_dir/smoke-${platform_lower}-client-flow.log" <<EOF
 $platform client flow smoke passed
 Client server URL input: http://127.0.0.1:18082
 Agent config log observed
