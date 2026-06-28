@@ -44,6 +44,9 @@ mkdir -p \
   "$root_dir/client/build/linux/x64/release/bundle/data/flutter_assets"
 printf 'agent\n' > "$root_dir/target/release/conductor-agent"
 printf 'client\n' > "$root_dir/client/build/linux/x64/release/bundle/conductor_client"
+chmod +x \
+  "$root_dir/target/release/conductor-agent" \
+  "$root_dir/client/build/linux/x64/release/bundle/conductor_client"
 printf 'icu\n' > "$root_dir/client/build/linux/x64/release/bundle/data/icudtl.dat"
 printf '{}\n' > "$root_dir/client/build/linux/x64/release/bundle/data/flutter_assets/AssetManifest.bin"
 
@@ -81,7 +84,7 @@ require_log_line $'--dart-define\tCONDUCTOR_DEFAULT_AGENT_ROOT=/tmp/conductor bu
 require_log_line $'--dart-define\tCONDUCTOR_DEFAULT_AUDIO_INPUT=smoke audio input'
 require_log_line $'--dart-define\tCONDUCTOR_DEFAULT_INTERACTIVE_APPROVAL=yes'
 
->"$FAKE_FLUTTER_LOG"
+: >"$FAKE_FLUTTER_LOG"
 env_server_url="wss://env.example.test/ws/agent"
 env_agent_token="env token"
 env_agent_name="env build agent"
