@@ -137,7 +137,7 @@ fi
 case "$(uname -s)" in
   Linux*)
     PLATFORM="linux"
-    AGENT_NAME="conductor-agent"
+    AGENT_BIN_NAME="conductor-agent"
     BUNDLE_DIR="$ROOT_DIR/client/build/linux/x64/release/bundle"
     ARCHIVE_PATH="$RELEASE_DIR/conductor-client-linux-x64.tar.gz"
     ARCHIVE_CWD="$BUNDLE_DIR"
@@ -145,7 +145,7 @@ case "$(uname -s)" in
     ;;
   Darwin*)
     PLATFORM="macos"
-    AGENT_NAME="conductor-agent"
+    AGENT_BIN_NAME="conductor-agent"
     APP_DIR="$ROOT_DIR/client/build/macos/Build/Products/Release/conductor_client.app"
     BUNDLE_DIR="$APP_DIR/Contents/MacOS"
     ARCHIVE_PATH="$RELEASE_DIR/conductor-client-macos.tar.gz"
@@ -162,10 +162,13 @@ case "$(uname -s)" in
     ;;
 esac
 
+AGENT_BIN="$ROOT_DIR/target/release/$AGENT_BIN_NAME"
+
 echo "[1/5] Enabling Flutter $PLATFORM desktop target"
 "$FLUTTER_BIN" config "--enable-$PLATFORM-desktop"
 
 echo "[2/5] Building Rust agent"
+cargo clean --manifest-path "$ROOT_DIR/Cargo.toml" --release -p conductor-agent
 cargo build --manifest-path "$ROOT_DIR/Cargo.toml" --release -p conductor-agent
 
 echo "[3/5] Building Flutter client for $PLATFORM"
@@ -202,7 +205,7 @@ fi
 
 echo "[4/5] Copying agent into client bundle"
 mkdir -p "$BUNDLE_DIR"
-cp "$ROOT_DIR/target/release/$AGENT_NAME" "$BUNDLE_DIR/$AGENT_NAME"
+cp "$AGENT_BIN" "$BUNDLE_DIR/$AGENT_BIN_NAME"
 
 echo "[5/5] Creating distributable archive"
 mkdir -p "$RELEASE_DIR"
@@ -210,6 +213,6 @@ tar -czf "$ARCHIVE_PATH" -C "$ARCHIVE_CWD" "$ARCHIVE_ITEM"
 write_archive_checksum "$ARCHIVE_PATH"
 
 echo "Client bundle ready: $BUNDLE_DIR"
-echo "Agent binary copied to: $BUNDLE_DIR/$AGENT_NAME"
+echo "Agent binary copied to: $BUNDLE_DIR/$AGENT_BIN_NAME"
 echo "Archive ready: $ARCHIVE_PATH"
 echo "Archive checksum: $ARCHIVE_PATH.sha256"

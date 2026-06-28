@@ -25,8 +25,8 @@
 
 - OS：Ubuntu 24.04.2 LTS
 - Flutter：`/home/flex/Code/flutter`，Flutter 3.44.4
-- 最近验证：2026-06-28，commit `bcce8e6712f97002a09c0450bc98155ad4612e31`
-- 最近归档 SHA256：`cc3e05f508f3e40cb59d5eaaf6953e5001f45e6e5216ebcf99f049c5972d36ac`
+- 最近验证：2026-06-28，commit `c0188ab544d135f6a141942df3dcfadbb080d142`
+- 最近归档 SHA256：`615a3c58fa113b086428958547eb22a4c2976a50f2f638b763d32f355db941e0`
 - 目标：先在 Ubuntu 本机跑通 Flutter 客户端壳、bundle、归档、启动和 Agent 注册流程
 
 已跑通命令：
@@ -35,7 +35,7 @@
 /home/flex/Code/flutter/bin/flutter analyze
 /home/flex/Code/flutter/bin/flutter test
 env -u FLUTTER_BIN ./scripts/validate-linux-client.sh
-./scripts/validate-client-evidence.sh --platform linux --expected-commit bcce8e6712f97002a09c0450bc98155ad4612e31 --evidence-root artifacts
+./scripts/validate-client-evidence.sh --platform linux --expected-commit c0188ab544d135f6a141942df3dcfadbb080d142 --evidence-root artifacts
 ./scripts/verify-client-archive.sh linux release/conductor-client-linux-x64.tar.gz
 (cd release && sha256sum -c conductor-client-linux-x64.tar.gz.sha256)
 ```
