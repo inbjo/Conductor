@@ -26,7 +26,7 @@ Settings 页字段对应 Agent 环境变量：
 | Settings 字段 | Agent 环境变量 | 说明 |
 | --- | --- | --- |
 | `Server URL` | `CONDUCTOR_SERVER_URL` | Server 地址，客户端会自动补全为 Agent WebSocket 地址 |
-| `Agent Token` | `CONDUCTOR_AGENT_TOKEN` | 公网演示可留空；私有部署或关闭公开引导时必须与 Server 一致 |
+| `Agent Token` | `CONDUCTOR_AGENT_TOKEN` | CI 产物默认预填 `conductor.moyu.ge` 的共享 Token；私有部署必须覆盖为与自己的 Server 一致 |
 | `Agent Name` | `CONDUCTOR_AGENT_NAME` | 可选，后台展示用 |
 | `File Root` | `CONDUCTOR_AGENT_ROOT` | 可选，限制文件管理根目录 |
 | `Audio Input` | `CONDUCTOR_AUDIO_INPUT` | 可选，覆盖 ffmpeg 音频输入 |
@@ -94,7 +94,7 @@ client/build/linux/x64/release/bundle/conductor_client
 在界面中确认：
 
 - `Server URL`：在 Settings 页配置，公网测试默认是 `https://conductor.moyu.ge`；也可以填写 `ws://127.0.0.1:8080/ws/agent`、`http://127.0.0.1:8080` 或 `127.0.0.1:8080`，客户端会自动规范化。
-- `Agent Token`：公网演示可留空；私有部署或关闭公开引导时必须与 Server 的 `CONDUCTOR_AGENT_TOKEN` 一致
+- `Agent Token`：CI 产物默认预填 `conductor.moyu.ge` 的共享 Token；私有部署必须改为与自己的 Server 的 `CONDUCTOR_AGENT_TOKEN` 一致
 - `Agent Name`：可选，便于后台识别
 - `File Root`：可选，限制文件管理根目录
 

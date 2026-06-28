@@ -62,13 +62,13 @@ client_server_url=https://conductor.moyu.ge
 | 输入 | 建议值 |
 | --- | --- |
 | `client_server_url` | `https://conductor.moyu.ge` |
-| `client_agent_token` | 演示可留空；私有部署可填写与服务端 `CONDUCTOR_AGENT_TOKEN` 相同的强随机值 |
+| `client_agent_token` | 默认使用当前 `conductor.moyu.ge` 服务端的共享 Agent Token；私有部署应覆盖为自己的强随机值 |
 | `client_agent_name` | 可留空，运行时在 Settings 页填写 |
 | `client_agent_root` | 可留空，运行时在 Settings 页填写 |
 | `client_audio_input` | 可留空，运行时在 Settings 页填写 |
 | `client_interactive_approval` | 演示免审批留空或填 `false`/`off`；需要本地同意时填 `true`/`on` |
 
-不填写 `client_server_url` 时，当前源码内置默认值也是 `https://conductor.moyu.ge`。不要在公开仓库或公开 artifact 中烘入真实 `client_agent_token`，除非你确认这个包只给可信测试者使用。
+不填写时，CI 会内置 `https://conductor.moyu.ge` 和该服务端当前的共享 Agent Token。公开分发的客户端会暴露这个 Token；私有部署应在手动触发 workflow 时覆盖 `client_agent_token`。
 
 ## 3. 服务端部署准备
 

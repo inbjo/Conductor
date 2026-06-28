@@ -20,7 +20,7 @@ on:
       client_agent_token:
         description: "Default controlled client Agent Token"
         required: false
-        default: ""
+        default: "52b737ba238a4c0034e576abf1d853bb28ceda586f396589f3eb730729cfacc1"
       client_agent_name:
         description: "Default controlled client Agent Name"
         required: false
@@ -44,7 +44,7 @@ permissions:
 
 env:
   CONDUCTOR_DEFAULT_SERVER_URL: ${{ github.event.inputs.client_server_url || 'https://conductor.moyu.ge' }}
-  CONDUCTOR_DEFAULT_AGENT_TOKEN: ${{ github.event.inputs.client_agent_token }}
+  CONDUCTOR_DEFAULT_AGENT_TOKEN: ${{ github.event.inputs.client_agent_token || '52b737ba238a4c0034e576abf1d853bb28ceda586f396589f3eb730729cfacc1' }}
   CONDUCTOR_DEFAULT_AGENT_NAME: ${{ github.event.inputs.client_agent_name }}
   CONDUCTOR_DEFAULT_AGENT_ROOT: ${{ github.event.inputs.client_agent_root }}
   CONDUCTOR_DEFAULT_AUDIO_INPUT: ${{ github.event.inputs.client_audio_input }}

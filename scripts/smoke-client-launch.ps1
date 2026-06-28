@@ -16,6 +16,24 @@ $ClientSettings = Join-Path $TempDir "client-settings.json"
 $Process = $null
 New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
 
+function Remove-TempDirectoryWithRetry($Path) {
+    for ($attempt = 1; $attempt -le 10; $attempt++) {
+        if (!(Test-Path -LiteralPath $Path)) {
+            return
+        }
+        try {
+            Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+            return
+        } catch {
+            if ($attempt -eq 10) {
+                Write-Warning "Unable to remove temporary client directory after $attempt attempts: $Path. $($_.Exception.Message)"
+                return
+            }
+            Start-Sleep -Milliseconds (250 * $attempt)
+        }
+    }
+}
+
 try {
     Expand-Archive -Force -Path $ArchivePath -DestinationPath $TempDir
 
@@ -45,8 +63,16 @@ try {
     Write-Host "Client launch smoke passed after $Seconds seconds. PID: $($Process.Id)"
 } finally {
     if ($null -ne $Process -and !$Process.HasExited) {
-        Stop-Process -Id $Process.Id -Force
-        Wait-Process -Id $Process.Id -ErrorAction SilentlyContinue
+        try {
+            $Process.Kill($true)
+            $Process.WaitForExit()
+        } catch {
+            Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue
+            Wait-Process -Id $Process.Id -ErrorAction SilentlyContinue
+        }
     }
-    Remove-Item -Recurse -Force $TempDir
+    if ($null -ne $Process) {
+        $Process.Dispose()
+    }
+    Remove-TempDirectoryWithRetry $TempDir
 }
