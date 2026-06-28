@@ -126,6 +126,11 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
+      - name: Build web assets for Rust embed
+        run: |
+          npm --prefix web ci
+          npm --prefix web run build
+
       - name: Run Rust tests
         run: cargo test
 
