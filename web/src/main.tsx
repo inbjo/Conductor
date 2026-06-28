@@ -31,6 +31,7 @@ const MAX_UPLOAD_BYTES = 32 * 1024 * 1024;
 
 type Device = {
   device_id: string;
+  display_code: string | null;
   hostname: string;
   os: string;
   arch: string;
@@ -534,7 +535,7 @@ function DevicesPage() {
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return (devices.data || []).filter((d) => {
-      const match = [d.hostname, d.os, d.username, d.local_ip].join(' ').toLowerCase().includes(needle);
+      const match = [d.display_code, d.hostname, d.os, d.username, d.local_ip].join(' ').toLowerCase().includes(needle);
       return match && (!onlineOnly || d.online === 1);
     });
   }, [devices.data, onlineOnly, query]);
@@ -554,7 +555,7 @@ function DevicesPage() {
       <div className="toolbar">
         <div className="search">
           <Search size={16} />
-          <input placeholder="搜索主机、用户、IP" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input placeholder="搜索代码、主机、用户、IP" value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
         <label className="toggle">
           <input type="checkbox" checked={onlineOnly} onChange={(e) => setOnlineOnly(e.target.checked)} />
@@ -566,6 +567,7 @@ function DevicesPage() {
           <thead>
             <tr>
               <th>状态</th>
+              <th>代码</th>
               <th>主机</th>
               <th>系统</th>
               <th>用户</th>
@@ -578,6 +580,7 @@ function DevicesPage() {
             {filtered.map((device) => (
               <tr className="clickable-row" key={device.device_id} onClick={() => navigate(`/devices/${device.device_id}`)}>
                 <td><Status online={device.online === 1} /></td>
+                <td><code className="inline-code">{device.display_code || '-'}</code></td>
                 <td className="font-medium">{device.hostname || '-'}</td>
                 <td>{device.os} / {device.arch}</td>
                 <td>{device.username || '-'}</td>
@@ -587,7 +590,7 @@ function DevicesPage() {
               </tr>
             ))}
             {!devices.isLoading && filtered.length === 0 && (
-              <tr><td colSpan={7} className="empty">暂无设备</td></tr>
+              <tr><td colSpan={8} className="empty">暂无设备</td></tr>
             )}
           </tbody>
         </table>
@@ -647,6 +650,7 @@ function DeviceDetailPage() {
       </div>
       <div className="info-grid">
         <Info label="设备 ID" value={d.device_id} />
+        <Info label="连接代码" value={d.display_code || '-'} />
         <Info label="系统" value={`${d.os} / ${d.arch}`} />
         <Info label="用户" value={d.username} />
         <Info label="IP" value={d.local_ip} />

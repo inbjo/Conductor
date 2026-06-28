@@ -10,7 +10,6 @@ const buildDefaultServerUrl = String.fromEnvironment(
 );
 const buildDefaultAgentToken = String.fromEnvironment(
   'CONDUCTOR_DEFAULT_AGENT_TOKEN',
-  defaultValue: 'dev-agent-token-change-me',
 );
 const buildDefaultAgentName = String.fromEnvironment(
   'CONDUCTOR_DEFAULT_AGENT_NAME',
@@ -71,6 +70,8 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
 
   Process? _process;
   int? _lastExitCode;
+  String? _activeSessionId;
+  String? _displayCode;
   bool _interactiveApproval = flagValue(buildDefaultInteractiveApprovalText);
   bool _starting = false;
 
@@ -222,11 +223,6 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
       _appendLog('server url is empty');
       return;
     }
-    if (_agentToken.text.isEmpty) {
-      _appendLog('agent token is empty');
-      return;
-    }
-
     final serverUrl = tryNormalizeAgentServerUrl(_serverUrl.text);
     if (serverUrl == null) {
       _appendLog('server url is invalid: ${_serverUrl.text.trim()}');
@@ -243,12 +239,13 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
 
     final env = Map<String, String>.from(Platform.environment)
       ..['CONDUCTOR_SERVER_URL'] = serverUrl
-      ..['CONDUCTOR_AGENT_TOKEN'] = _agentToken.text
       ..['CONDUCTOR_INTERACTIVE_APPROVAL'] = _interactiveApproval ? '1' : '0';
 
+    final token = _agentToken.text.trim();
     final name = _agentName.text.trim();
     final root = _agentRoot.text.trim();
     final audioInput = _audioInput.text.trim();
+    if (token.isNotEmpty) env['CONDUCTOR_AGENT_TOKEN'] = token;
     if (name.isNotEmpty) env['CONDUCTOR_AGENT_NAME'] = name;
     if (root.isNotEmpty) env['CONDUCTOR_AGENT_ROOT'] = root;
     if (audioInput.isNotEmpty) env['CONDUCTOR_AUDIO_INPUT'] = audioInput;
@@ -274,6 +271,7 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
           setState(() {
             _lastExitCode = code;
             _process = null;
+            _activeSessionId = null;
           });
           _appendLog('agent exited with code $code');
         }),
@@ -300,6 +298,12 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
     if (process == null) return;
     _appendLog('stopping agent pid=${process.pid}');
     process.kill();
+  }
+
+  Future<void> _endRemoteControl() async {
+    final sessionId = _activeSessionId;
+    if (sessionId == null || sessionId.isEmpty) return;
+    await _sendAgentCommand('/session close $sessionId');
   }
 
   Future<void> _sendAgentCommand([String? value]) async {
@@ -330,9 +334,17 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
   void _appendLog(String line) {
     final timestamp = DateTime.now().toIso8601String().substring(11, 19);
     final message = '[$timestamp] $line';
+    final activeSession = remoteActiveSessionFromLog(line);
+    final endedSession = remoteEndedSessionFromLog(line);
+    final displayCode = displayCodeFromLog(line);
     stdout.writeln(message);
     if (!mounted) return;
     setState(() {
+      if (activeSession != null) _activeSessionId = activeSession;
+      if (endedSession != null && endedSession == _activeSessionId) {
+        _activeSessionId = null;
+      }
+      if (displayCode != null) _displayCode = displayCode;
       _logs.add(message);
       if (_logs.length > 500) _logs.removeRange(0, _logs.length - 500);
     });
@@ -379,8 +391,11 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
               starting: _starting,
               lastExitCode: _lastExitCode,
               logCount: _logs.length,
+              activeSessionId: _activeSessionId,
+              displayCode: _displayCode,
               onStart: _startAgent,
               onStop: _stopAgent,
+              onEndRemoteControl: _endRemoteControl,
               onOpenSettings: _openSettings,
             );
             final logs = LogPanel(
@@ -453,8 +468,11 @@ class AgentOverview extends StatelessWidget {
     required this.starting,
     required this.lastExitCode,
     required this.logCount,
+    required this.activeSessionId,
+    required this.displayCode,
     required this.onStart,
     required this.onStop,
+    required this.onEndRemoteControl,
     required this.onOpenSettings,
   });
 
@@ -463,8 +481,11 @@ class AgentOverview extends StatelessWidget {
   final bool starting;
   final int? lastExitCode;
   final int logCount;
+  final String? activeSessionId;
+  final String? displayCode;
   final VoidCallback onStart;
   final VoidCallback onStop;
+  final Future<void> Function() onEndRemoteControl;
   final VoidCallback onOpenSettings;
 
   @override
@@ -496,6 +517,36 @@ class AgentOverview extends StatelessWidget {
               label: 'Last exit',
               value: lastExitCode == null ? '-' : '$lastExitCode',
             ),
+            _Metric(label: 'Device code', value: displayCode ?? '-'),
+            if (activeSessionId != null) ...[
+              const SizedBox(height: 10),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: const Color(0xfffff3cd),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xffd39e00)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'An administrator is controlling this computer.',
+                        style: Theme.of(context).textTheme.bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: onEndRemoteControl,
+                        icon: const Icon(Icons.do_not_disturb_on_outlined),
+                        label: const Text('End control'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             FilledButton.icon(
               onPressed: running ? onStop : onStart,
@@ -1069,6 +1120,27 @@ List<String> startupCommandsFromEnv(Map<String, String> environment) {
       .map((command) => command.trim())
       .where((command) => command.isNotEmpty)
       .toList(growable: false);
+}
+
+String? remoteActiveSessionFromLog(String line) {
+  const marker = '[session] remote control active:';
+  final index = line.indexOf(marker);
+  if (index < 0) return null;
+  final sessionId = line.substring(index + marker.length).trim();
+  return sessionId.isEmpty ? null : sessionId;
+}
+
+String? remoteEndedSessionFromLog(String line) {
+  const marker = '[session] remote control ended:';
+  final index = line.indexOf(marker);
+  if (index < 0) return null;
+  final sessionId = line.substring(index + marker.length).trim();
+  return sessionId.isEmpty ? null : sessionId;
+}
+
+String? displayCodeFromLog(String line) {
+  final match = RegExp(r'(?:display_code|code)=([0-9]{6})').firstMatch(line);
+  return match?.group(1);
 }
 
 String pathJoin(String first, String second, [String? third, String? fourth]) {

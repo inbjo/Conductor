@@ -55,6 +55,7 @@ struct Config {
     admin_username: String,
     admin_password: String,
     agent_token: String,
+    public_agent_bootstrap: bool,
 }
 
 impl Config {
@@ -75,6 +76,7 @@ impl Config {
                 .unwrap_or_else(|_| "admin123".to_string()),
             agent_token: std::env::var("CONDUCTOR_AGENT_TOKEN")
                 .unwrap_or_else(|_| "dev-agent-token-change-me".to_string()),
+            public_agent_bootstrap: env_flag("CONDUCTOR_PUBLIC_AGENT_BOOTSTRAP"),
         })
     }
 }
@@ -111,6 +113,9 @@ enum AgentToServer {
     SessionReject {
         session_id: String,
         reason: String,
+    },
+    SessionClose {
+        session_id: String,
     },
     WebrtcOffer {
         session_id: String,
@@ -233,6 +238,7 @@ enum AdminEvent {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct DeviceRegistration {
     device_id: String,
+    display_code: String,
     hostname: String,
     os: String,
     arch: String,
@@ -377,6 +383,7 @@ struct LoginRequest {
 #[derive(Serialize, FromRow)]
 struct DeviceRow {
     device_id: String,
+    display_code: Option<String>,
     hostname: String,
     os: String,
     arch: String,
@@ -454,6 +461,11 @@ struct ChatRequest {
     text: String,
 }
 
+#[derive(Serialize)]
+struct AgentBootstrapResponse {
+    agent_token: String,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
@@ -482,6 +494,7 @@ async fn main() -> anyhow::Result<()> {
 
     let app = Router::new()
         .route("/health", get(|| async { Json(json!({ "ok": true })) }))
+        .route("/api/agent/bootstrap", get(agent_bootstrap))
         .route("/api/auth/login", post(login))
         .route("/api/me", get(me))
         .route("/api/overview", get(overview))
@@ -519,6 +532,18 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(cfg.bind).await?;
     axum::serve(listener, app).await?;
     Ok(())
+}
+
+fn env_flag(name: &str) -> bool {
+    std::env::var(name)
+        .ok()
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(false)
 }
 
 async fn seed_admin(db: &SqlitePool, cfg: &Config) -> anyhow::Result<()> {
@@ -679,6 +704,17 @@ async fn list_devices(
     .await
     .map_err(db_err)?;
     Ok(Json(rows))
+}
+
+async fn agent_bootstrap(
+    State(state): State<AppState>,
+) -> Result<Json<AgentBootstrapResponse>, ApiError> {
+    if !state.cfg.public_agent_bootstrap {
+        return Err(ApiError::Unauthorized);
+    }
+    Ok(Json(AgentBootstrapResponse {
+        agent_token: state.cfg.agent_token.clone(),
+    }))
 }
 
 async fn get_device(
@@ -1382,7 +1418,10 @@ async fn ws_agent(
     State(state): State<AppState>,
     Query(q): Query<HashMap<String, String>>,
 ) -> Result<Response, ApiError> {
-    let token = q.get("token").ok_or(ApiError::Unauthorized)?;
+    let token = q.get("token").map(String::as_str).unwrap_or("");
+    if token.is_empty() && state.cfg.public_agent_bootstrap {
+        return Ok(ws.on_upgrade(move |socket| agent_socket(state, socket)));
+    }
     if !constant_time_eq(token.as_bytes(), state.cfg.agent_token.as_bytes()) {
         return Err(ApiError::Unauthorized);
     }
@@ -1445,7 +1484,10 @@ async fn agent_socket(state: AppState, socket: WebSocket) {
                     "system",
                     "device_online",
                     &reg.device_id,
-                    &format!("{} {} {}", reg.hostname, reg.os, reg.local_ip),
+                    &format!(
+                        "{} {} {} code={}",
+                        reg.hostname, reg.os, reg.local_ip, reg.display_code
+                    ),
                 )
                 .await;
                 let _ = state.admin_events.send(AdminEvent::AgentStatusChanged {
@@ -1551,6 +1593,19 @@ async fn agent_socket(state: AppState, socket: WebSocket) {
                 }
                 update_session_status(&state, &session_id, "rejected").await;
                 warn!("session rejected: {session_id}: {reason}");
+            }
+            Ok(AgentToServer::SessionClose { session_id }) => {
+                let Some(registered_id) = device_id.as_deref() else {
+                    warn!("ignored session close before agent registration");
+                    continue;
+                };
+                if !agent_owns_session(&state.db, registered_id, &session_id, &["pending", "active"]).await {
+                    warn!("ignored session close for foreign session={session_id} device={registered_id}");
+                    continue;
+                }
+                if let Err(err) = mark_session_closed(&state, &session_id, "closed_by_agent").await {
+                    warn!("agent session close failed session={session_id}: {err}");
+                }
             }
             Ok(AgentToServer::WebrtcOffer { session_id, sdp }) => {
                 let Some(registered_id) = device_id.as_deref() else {
@@ -1672,12 +1727,13 @@ fn remove_current_agent_connection(
 async fn upsert_device(state: &AppState, reg: &DeviceRegistration) -> Result<(), sqlx::Error> {
     let now = Utc::now().to_rfc3339();
     sqlx::query(
-        "INSERT INTO devices (device_id, hostname, os, arch, username, agent_version, local_ip, online, last_heartbeat, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
-         ON CONFLICT(device_id) DO UPDATE SET hostname=excluded.hostname, os=excluded.os, arch=excluded.arch, username=excluded.username,
+        "INSERT INTO devices (device_id, display_code, hostname, os, arch, username, agent_version, local_ip, online, last_heartbeat, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+         ON CONFLICT(device_id) DO UPDATE SET display_code=excluded.display_code, hostname=excluded.hostname, os=excluded.os, arch=excluded.arch, username=excluded.username,
          agent_version=excluded.agent_version, local_ip=excluded.local_ip, online=1, last_heartbeat=excluded.last_heartbeat, updated_at=excluded.updated_at",
     )
     .bind(&reg.device_id)
+    .bind(&reg.display_code)
     .bind(&reg.hostname)
     .bind(&reg.os)
     .bind(&reg.arch)
@@ -2001,6 +2057,7 @@ mod tests {
             admin_username: "admin".into(),
             admin_password: "admin123".into(),
             agent_token: "test-agent-token".into(),
+            public_agent_bootstrap: false,
         };
         seed_admin(&db, &cfg).await.unwrap();
         AppState {

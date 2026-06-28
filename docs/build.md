@@ -486,13 +486,14 @@ release/conductor-<target>.tar.gz.sha256
 | `client_audio_input` | `Audio Input` |
 | `client_interactive_approval` | `Require local approval`，取值 `1/0`、`true/false`、`yes/no` 或 `on/off` |
 
-公网测试构建建议填写：
+公网测试构建只需要填写：
 
 ```text
 client_server_url=https://conductor.moyu.ge
 ```
 
 未填写时，当前源码内置默认 Server URL 也是 `https://conductor.moyu.ge`，客户端会在保存 Settings 或启动 Agent 时规范化为 `wss://conductor.moyu.ge/ws/agent`。
+其他输入可以留空。演示免审批时不要把 `client_interactive_approval` 填成 `on`，留空或填 `false`/`off`。
 
 CI 会构建并上传以下 artifact：
 

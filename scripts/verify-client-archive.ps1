@@ -36,8 +36,7 @@ try {
         "data\flutter_assets",
         "data\flutter_assets\AssetManifest.bin",
         "data\flutter_assets\FontManifest.json",
-        "data\flutter_assets\NativeAssetsManifest.json",
-        "data\flutter_assets\version.json"
+        "data\flutter_assets\NativeAssetsManifest.json"
     )
 
     foreach ($Item in $Required) {

@@ -49,18 +49,26 @@ git push github master:main
 - `conductor-client-macos`
 - `client-smoke-evidence-verified`
 
-手动运行 `Build` workflow 时，可填写这些输入作为三端客户端构建默认配置：
+手动运行 `Build` workflow 时，演示场景只需要填写 Server URL：
+
+```text
+client_server_url=https://conductor.moyu.ge
+```
+
+其他字段可以留空。当前客户端默认不要求本地审批；Agent Token 可由开启公开引导的服务端处理。
+
+完整输入如下：
 
 | 输入 | 建议值 |
 | --- | --- |
 | `client_server_url` | `https://conductor.moyu.ge` |
-| `client_agent_token` | 与服务端 `CONDUCTOR_AGENT_TOKEN` 相同的强随机值 |
+| `client_agent_token` | 演示可留空；私有部署可填写与服务端 `CONDUCTOR_AGENT_TOKEN` 相同的强随机值 |
 | `client_agent_name` | 可留空，运行时在 Settings 页填写 |
 | `client_agent_root` | 可留空，运行时在 Settings 页填写 |
 | `client_audio_input` | 可留空，运行时在 Settings 页填写 |
-| `client_interactive_approval` | `false` 或 `true` |
+| `client_interactive_approval` | 演示免审批留空或填 `false`/`off`；需要本地同意时填 `true`/`on` |
 
-不填写 `client_server_url` 时，当前源码内置默认值也是 `https://conductor.moyu.ge`。
+不填写 `client_server_url` 时，当前源码内置默认值也是 `https://conductor.moyu.ge`。不要在公开仓库或公开 artifact 中烘入真实 `client_agent_token`，除非你确认这个包只给可信测试者使用。
 
 ## 3. 服务端部署准备
 
@@ -114,12 +122,13 @@ CONDUCTOR_JWT_SECRET=replace-with-random-jwt-secret
 CONDUCTOR_ADMIN_USERNAME=admin
 CONDUCTOR_ADMIN_PASSWORD=replace-with-strong-admin-password
 CONDUCTOR_AGENT_TOKEN=replace-with-random-agent-token
+CONDUCTOR_PUBLIC_AGENT_BOOTSTRAP=1
 EOF
 sudo chmod 600 /etc/conductor.env
 sudo chown root:root /etc/conductor.env
 ```
 
-`CONDUCTOR_AGENT_TOKEN` 必须和客户端 Settings 页中的 `Agent Token` 一致。公网测试不要使用默认 token。
+`CONDUCTOR_PUBLIC_AGENT_BOOTSTRAP=1` 会允许未携带 token 的 Agent 连接，适合公开演示和“客户端只填 Server URL”的流程；关闭或删除该变量后，Agent 必须携带 `CONDUCTOR_AGENT_TOKEN`。公网测试不要使用默认 token。
 
 ## 5. systemd 服务
 
@@ -245,7 +254,7 @@ https://conductor.moyu.ge
 - `Audio Input`：按平台填写，或留空使用默认策略
 - `Require local approval`：公网测试建议先开启，确认链路后再按需要关闭
 
-也可以在 GitHub Actions 手动构建时把 Agent Token 烘入默认值，但公网测试不建议把真实 token 写入公开仓库或公开 artifact。
+默认演示流程不需要填写 Agent Token。每个 Agent 首次启动会生成一个持久的 6 位数字代码，客户端主界面会显示该代码，后台设备列表和设备详情也会显示/支持搜索该代码，便于用户和管理员沟通。
 
 ## 9. 部署后验证
 
@@ -265,21 +274,21 @@ https://conductor.moyu.ge
 1. 打开 `/health`，确认返回 `{"ok":true}`。
 2. 登录后台，确认页面能加载。
 3. 在一台客户端机器启动 Flutter 被控客户端。
-4. Settings 中填写正确 `Agent Token` 后点击 `Start Agent`。
-5. 后台设备列表应出现该 Agent。
+4. 点击 `Start Agent`，客户端会显示 6 位设备代码。
+5. 后台设备列表应出现该 Agent，可用 6 位代码搜索。
 6. 进入设备详情，验证聊天、文件列表、远控会话。
-7. 如 Agent 未上线，在客户端 `Agent Command` 输入 `/diagnostics` 并查看日志。
+7. 远控开始时客户端会显示“An administrator is controlling this computer.”，用户可以点击 `End control` 主动结束控制。
+8. 如 Agent 未上线，在客户端 `Agent Command` 输入 `/diagnostics` 并查看日志。
 
 如果本机命令行 Agent 要连公网服务：
 
 ```sh
 CONDUCTOR_SERVER_URL=https://conductor.moyu.ge \
-CONDUCTOR_AGENT_TOKEN=<same-agent-token> \
 CONDUCTOR_AGENT_NAME=linux-public-test \
 cargo run -p conductor-agent
 ```
 
-Agent 会把 HTTPS 地址规范化为 `wss://conductor.moyu.ge/ws/agent`。
+Agent 会把 HTTPS 地址规范化为 `wss://conductor.moyu.ge/ws/agent`。如果服务端未开启 `CONDUCTOR_PUBLIC_AGENT_BOOTSTRAP=1`，则还需要设置 `CONDUCTOR_AGENT_TOKEN=<same-agent-token>`。
 
 ## 10. 更新发布
 

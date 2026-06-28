@@ -67,7 +67,7 @@
 
 完整开发环境搭建和三端构建说明见 `docs/build.md`；Flutter 被控客户端专项说明见 `docs/client.md`；平台验证状态见 `docs/client-platform-matrix.md`。
 
-公网测试域名为 `https://conductor.moyu.ge`。Flutter 被控客户端的内置默认 Server URL 已指向该域名；启动 Agent 时会自动规范化为 `wss://conductor.moyu.ge/ws/agent`。公网部署、反向代理和 GitHub Actions artifact 下载流程见 `docs/deploy.md`。
+公网测试域名为 `https://conductor.moyu.ge`。Flutter 被控客户端的内置默认 Server URL 已指向该域名；启动 Agent 时会自动规范化为 `wss://conductor.moyu.ge/ws/agent`。演示部署可开启服务端公开引导，让客户端只填写 Server URL；每台被控端会显示 6 位设备代码，便于用户和管理员沟通。公网部署、反向代理和 GitHub Actions artifact 下载流程见 `docs/deploy.md`。
 
 ## 快速运行
 
@@ -223,11 +223,12 @@ Agent 控制台聊天命令：
 - `CONDUCTOR_ADMIN_USERNAME`：管理员账号，默认 `admin`
 - `CONDUCTOR_ADMIN_PASSWORD`：管理员密码，默认 `admin123`
 - `CONDUCTOR_AGENT_TOKEN`：Agent WebSocket 共享接入令牌，生产环境必须修改默认值
+- `CONDUCTOR_PUBLIC_AGENT_BOOTSTRAP`：设为 `1`/`true` 后允许演示客户端不带 Token 注册；公网生产环境需谨慎开启
 
 ### Agent
 
 - `CONDUCTOR_SERVER_URL`：Agent WebSocket 地址，默认 `ws://127.0.0.1:8080/ws/agent`
-- `CONDUCTOR_AGENT_TOKEN`：必须与 Server 的共享接入令牌一致，默认 `dev-agent-token-change-me`
+- `CONDUCTOR_AGENT_TOKEN`：关闭服务端公开引导时必须与 Server 的共享接入令牌一致
 - `CONDUCTOR_AGENT_NAME`：覆盖 Agent 上报主机名
 - `CONDUCTOR_AGENT_ROOT`：覆盖 Agent 文件管理根目录，默认使用当前用户 Home 目录
 - `CONDUCTOR_INTERACTIVE_APPROVAL`：设为 `1`/`true` 后，Agent 本地 CLI 需要显式接受或拒绝远控/语音请求

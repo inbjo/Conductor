@@ -70,7 +70,7 @@ try {
     }
 
     Write-ArchiveChecksum $ArchivePath
-    Remove-Item -Force (Join-Path $StageDir "data\flutter_assets\version.json")
+    Remove-Item -Force (Join-Path $StageDir "data\flutter_assets\FontManifest.json")
     Remove-Item -Force $ArchivePath
     Remove-Item -Force "$ArchivePath.sha256"
     Compress-Archive -Path (Join-Path $StageDir "*") -DestinationPath $ArchivePath

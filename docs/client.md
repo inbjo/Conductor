@@ -26,7 +26,7 @@ Settings 页字段对应 Agent 环境变量：
 | Settings 字段 | Agent 环境变量 | 说明 |
 | --- | --- | --- |
 | `Server URL` | `CONDUCTOR_SERVER_URL` | Server 地址，客户端会自动补全为 Agent WebSocket 地址 |
-| `Agent Token` | `CONDUCTOR_AGENT_TOKEN` | 必须与 Server 一致 |
+| `Agent Token` | `CONDUCTOR_AGENT_TOKEN` | 公网演示可留空；私有部署或关闭公开引导时必须与 Server 一致 |
 | `Agent Name` | `CONDUCTOR_AGENT_NAME` | 可选，后台展示用 |
 | `File Root` | `CONDUCTOR_AGENT_ROOT` | 可选，限制文件管理根目录 |
 | `Audio Input` | `CONDUCTOR_AUDIO_INPUT` | 可选，覆盖 ffmpeg 音频输入 |
@@ -94,13 +94,13 @@ client/build/linux/x64/release/bundle/conductor_client
 在界面中确认：
 
 - `Server URL`：在 Settings 页配置，公网测试默认是 `https://conductor.moyu.ge`；也可以填写 `ws://127.0.0.1:8080/ws/agent`、`http://127.0.0.1:8080` 或 `127.0.0.1:8080`，客户端会自动规范化。
-- `Agent Token`：必须与 Server 的 `CONDUCTOR_AGENT_TOKEN` 一致
+- `Agent Token`：公网演示可留空；私有部署或关闭公开引导时必须与 Server 的 `CONDUCTOR_AGENT_TOKEN` 一致
 - `Agent Name`：可选，便于后台识别
 - `File Root`：可选，限制文件管理根目录
 
 点击 `Start Agent` 后，后台设备列表应出现该终端。
 
-主界面只显示运行状态、启动/停止入口和日志；Server URL、Agent Token、Agent Name、文件根目录、音频输入和本地审批开关都在 Settings 页配置。构建脚本也可写入这些默认值：
+主界面显示运行状态、6 位设备代码、启动/停止入口、远控中提示和日志；Server URL、Agent Token、Agent Name、文件根目录、音频输入和本地审批开关都在 Settings 页配置。构建脚本也可写入这些默认值：
 
 ```sh
 ./scripts/build-client.sh --server-url ws://server:8080/ws/agent --agent-token token

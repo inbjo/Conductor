@@ -47,6 +47,7 @@ struct Config {
     server_url: String,
     agent_token: String,
     device_id: String,
+    display_code: String,
     root_dir: PathBuf,
     interactive_approval: bool,
 }
@@ -67,6 +68,9 @@ enum AgentToServer {
     SessionReject {
         session_id: String,
         reason: String,
+    },
+    SessionClose {
+        session_id: String,
     },
     WebrtcOffer {
         session_id: String,
@@ -134,6 +138,7 @@ enum ServerToAgent {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct DeviceRegistration {
     device_id: String,
+    display_code: String,
     hostname: String,
     os: String,
     arch: String,
@@ -234,8 +239,9 @@ async fn main() -> anyhow::Result<()> {
     let agent_name = non_empty_env("CONDUCTOR_AGENT_NAME").unwrap_or_else(|| "<hostname>".into());
     let audio_input = non_empty_env("CONDUCTOR_AUDIO_INPUT").unwrap_or_else(|| "default".into());
     info!(
-        "agent config device_id={} server_url={} root={} agent_name={} audio_input={} interactive_approval={} token_present={}",
+        "agent config device_id={} display_code={} server_url={} root={} agent_name={} audio_input={} interactive_approval={} token_present={}",
         cfg.device_id,
+        cfg.display_code,
         cfg.server_url,
         cfg.root_dir.display(),
         agent_name,
@@ -268,14 +274,23 @@ impl Config {
                 id
             }
         };
+        let code_path = dirs.config_dir().join("display_code");
+        let display_code = match tokio::fs::read_to_string(&code_path).await {
+            Ok(code) if valid_display_code(code.trim()) => code.trim().to_string(),
+            Ok(_) | Err(_) => {
+                let code = generate_display_code();
+                tokio::fs::write(&code_path, &code).await?;
+                code
+            }
+        };
         let root_dir = configured_root_dir(std::env::var("CONDUCTOR_AGENT_ROOT").ok().as_deref())
             .or_else(|| BaseDirs::new().map(|d| d.home_dir().to_path_buf()))
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
         Ok(Self {
             server_url,
-            agent_token: std::env::var("CONDUCTOR_AGENT_TOKEN")
-                .unwrap_or_else(|_| "dev-agent-token-change-me".to_string()),
+            agent_token: std::env::var("CONDUCTOR_AGENT_TOKEN").unwrap_or_default(),
             device_id,
+            display_code,
             root_dir,
             interactive_approval: env_flag("CONDUCTOR_INTERACTIVE_APPROVAL"),
         })
@@ -306,6 +321,7 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
     let mut input = InputController::new();
     let mut console = AgentConsole::new(
         cfg.device_id.clone(),
+        cfg.display_code.clone(),
         cfg.root_dir.clone(),
         cfg.interactive_approval,
     );
@@ -364,6 +380,13 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                                     console.mark_session_rejected(&session_id);
                                     send_json(&mut write, &AgentToServer::SessionReject { session_id, reason }).await?;
                                 }
+                                ConsoleAction::CloseSession { session_id } => {
+                                    active_sessions.remove(&session_id);
+                                    session_frames.remove(&session_id);
+                                    console.close_session(&session_id);
+                                    println!("[session] remote control ended: {session_id}");
+                                    send_json(&mut write, &AgentToServer::SessionClose { session_id }).await?;
+                                }
                                 ConsoleAction::AcceptVoice { session_id } => {
                                     console.mark_voice_resolved(&session_id);
                                     voice_sessions.insert(session_id.clone());
@@ -420,6 +443,7 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                             console.queue_session_request(&session_id);
                         } else {
                             active_sessions.insert(session_id.clone());
+                            console.mark_session_accepted(&session_id);
                             send_json(&mut write, &AgentToServer::SessionAccept { session_id: session_id.clone() }).await?;
                             let frame = capture_screen_frame(&cfg, &session_id, frame_no).await;
                             session_frames.insert(session_id.clone(), (frame.width, frame.height));
@@ -522,15 +546,29 @@ fn authenticated_server_url(server_url: &str, agent_token: &str) -> anyhow::Resu
         .filter(|(key, _)| key != "token")
         .map(|(key, value)| (key.into_owned(), value.into_owned()))
         .collect::<Vec<_>>();
+    if existing.is_empty() && agent_token.is_empty() {
+        url.set_query(None);
+        return Ok(url.into());
+    }
     url.set_query(None);
     {
         let mut query = url.query_pairs_mut();
         for (key, value) in existing {
             query.append_pair(&key, &value);
         }
-        query.append_pair("token", agent_token);
+        if !agent_token.is_empty() {
+            query.append_pair("token", agent_token);
+        }
     }
     Ok(url.into())
+}
+
+fn valid_display_code(value: &str) -> bool {
+    value.len() == 6 && value.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+fn generate_display_code() -> String {
+    format!("{:06}", Uuid::new_v4().as_u128() % 1_000_000)
 }
 
 fn normalize_agent_server_url(server_url: &str) -> anyhow::Result<String> {
@@ -1106,6 +1144,7 @@ async fn apply_browser_offer(pc: &RTCPeerConnection, sdp: &str) -> anyhow::Resul
 
 struct AgentConsole {
     device_id: String,
+    display_code: String,
     root_dir: PathBuf,
     current_session: Option<String>,
     known_sessions: Vec<String>,
@@ -1115,9 +1154,15 @@ struct AgentConsole {
 }
 
 impl AgentConsole {
-    fn new(device_id: String, root_dir: PathBuf, interactive_approval: bool) -> Self {
+    fn new(
+        device_id: String,
+        display_code: String,
+        root_dir: PathBuf,
+        interactive_approval: bool,
+    ) -> Self {
         Self {
             device_id,
+            display_code,
             root_dir,
             current_session: None,
             known_sessions: Vec::new(),
@@ -1129,11 +1174,13 @@ impl AgentConsole {
 
     fn print_banner(&self) {
         println!("Agent console ready.");
+        println!("[device] code={}", self.display_code);
         println!("  /help                   查看聊天命令");
         println!("  /sessions               查看可回复的会话");
         println!("  /use <session_id>       切换当前会话");
         println!("  /reply <id> <text>      向指定会话发送回复");
         println!("  /diagnostics            输出本机依赖和权限排障信息");
+        println!("  /session close [id]     主动结束远控会话");
         println!("  直接输入文本            发送到当前会话");
         if self.interactive_approval {
             println!("  /requests               查看待处理的远控/语音请求");
@@ -1202,6 +1249,7 @@ impl AgentConsole {
         self.pending_session_requests.retain(|id| id != session_id);
         self.current_session = Some(session_id.to_string());
         println!("[session] accepted: {session_id}");
+        println!("[session] remote control active: {session_id}");
     }
 
     fn mark_session_rejected(&mut self, session_id: &str) {
@@ -1281,6 +1329,14 @@ impl AgentConsole {
                     None
                 }
             }
+            ConsoleCommand::CloseSession { session_id } => {
+                if self.known_sessions.iter().any(|id| id == &session_id) {
+                    Some(ConsoleAction::CloseSession { session_id })
+                } else {
+                    println!("[session] unknown session: {session_id}");
+                    None
+                }
+            }
             ConsoleCommand::AcceptVoice { session_id } => {
                 if self
                     .pending_voice_requests
@@ -1348,7 +1404,12 @@ impl AgentConsole {
     }
 
     fn print_diagnostics(&self) {
-        for line in diagnostics_lines(&self.device_id, &self.root_dir, self.interactive_approval) {
+        for line in diagnostics_lines(
+            &self.device_id,
+            &self.display_code,
+            &self.root_dir,
+            self.interactive_approval,
+        ) {
             println!("{line}");
         }
     }
@@ -1358,6 +1419,7 @@ enum ConsoleAction {
     SendChat(ChatPayload),
     AcceptSession { session_id: String },
     RejectSession { session_id: String, reason: String },
+    CloseSession { session_id: String },
     AcceptVoice { session_id: String },
     RejectVoice { session_id: String, reason: String },
 }
@@ -1371,6 +1433,7 @@ enum ConsoleCommand {
     Send { session_id: String, text: String },
     AcceptSession { session_id: String },
     RejectSession { session_id: String, reason: String },
+    CloseSession { session_id: String },
     AcceptVoice { session_id: String },
     RejectVoice { session_id: String, reason: String },
     Error(String),
@@ -1414,6 +1477,27 @@ fn parse_console_command(line: &str, current_session: Option<&str>) -> ConsoleCo
         };
     }
     if let Some(rest) = trimmed.strip_prefix("/session ") {
+        let rest = rest.trim();
+        if rest == "close" {
+            return current_session
+                .filter(|session_id| !session_id.trim().is_empty())
+                .map(|session_id| ConsoleCommand::CloseSession {
+                    session_id: session_id.to_string(),
+                })
+                .unwrap_or_else(|| {
+                    ConsoleCommand::Error("usage: /session close <session_id>".into())
+                });
+        }
+        if let Some(session_id) = rest.strip_prefix("close ") {
+            let session_id = session_id.trim();
+            return if session_id.is_empty() {
+                ConsoleCommand::Error("usage: /session close <session_id>".into())
+            } else {
+                ConsoleCommand::CloseSession {
+                    session_id: session_id.to_string(),
+                }
+            };
+        }
         return parse_request_command(rest, "session");
     }
     if let Some(rest) = trimmed.strip_prefix("/voice ") {
@@ -1468,7 +1552,12 @@ fn parse_request_command(rest: &str, kind: &str) -> ConsoleCommand {
     }
 }
 
-fn diagnostics_lines(device_id: &str, root_dir: &Path, interactive_approval: bool) -> Vec<String> {
+fn diagnostics_lines(
+    device_id: &str,
+    display_code: &str,
+    root_dir: &Path,
+    interactive_approval: bool,
+) -> Vec<String> {
     let audio_input = non_empty_env("CONDUCTOR_AUDIO_INPUT").unwrap_or_else(|| "default".into());
     let mut lines = vec![
         "[diagnostics] conductor-agent".to_string(),
@@ -1476,6 +1565,7 @@ fn diagnostics_lines(device_id: &str, root_dir: &Path, interactive_approval: boo
         format!("[diagnostics] os={}", std::env::consts::OS),
         format!("[diagnostics] arch={}", std::env::consts::ARCH),
         format!("[diagnostics] device_id={device_id}"),
+        format!("[diagnostics] display_code={display_code}"),
         format!("[diagnostics] root={}", root_dir.display()),
         format!("[diagnostics] audio_input={audio_input}"),
         format!("[diagnostics] interactive_approval={interactive_approval}"),
@@ -1863,6 +1953,7 @@ fn registration(cfg: &Config) -> DeviceRegistration {
     sys.refresh_all();
     DeviceRegistration {
         device_id: cfg.device_id.clone(),
+        display_code: cfg.display_code.clone(),
         hostname: std::env::var("CONDUCTOR_AGENT_NAME")
             .ok()
             .or_else(|| hostname::get().ok().and_then(|v| v.into_string().ok()))
@@ -2193,6 +2284,18 @@ mod tests {
     }
 
     #[test]
+    fn console_command_parses_session_close() {
+        match parse_console_command("/session close session-3", None) {
+            ConsoleCommand::CloseSession { session_id } => assert_eq!(session_id, "session-3"),
+            _ => panic!("expected session close command"),
+        }
+        match parse_console_command("/session close", Some("session-4")) {
+            ConsoleCommand::CloseSession { session_id } => assert_eq!(session_id, "session-4"),
+            _ => panic!("expected current session close command"),
+        }
+    }
+
+    #[test]
     fn console_command_defaults_session_reject_reason() {
         match parse_console_command("/session reject session-4", None) {
             ConsoleCommand::RejectSession { session_id, reason } => {
@@ -2228,8 +2331,9 @@ mod tests {
 
     #[test]
     fn diagnostics_include_platform_and_dependency_sections() {
-        let lines = diagnostics_lines("device-1", Path::new("/tmp/root"), true);
+        let lines = diagnostics_lines("device-1", "123456", Path::new("/tmp/root"), true);
         assert!(lines.iter().any(|line| line.contains("device_id=device-1")));
+        assert!(lines.iter().any(|line| line.contains("display_code=123456")));
         assert!(lines.iter().any(|line| line.contains("root=/tmp/root")));
         assert!(lines.iter().any(|line| line.contains("os=")));
         assert!(lines
@@ -2352,6 +2456,21 @@ mod tests {
             query.get("token").map(|value| value.as_ref()),
             Some("agent token")
         );
+    }
+
+    #[test]
+    fn authenticated_url_omits_empty_token_for_public_bootstrap() {
+        let url = authenticated_server_url("https://example.test", "").unwrap();
+        let parsed = url::Url::parse(&url).unwrap();
+        assert_eq!(parsed.query(), None);
+    }
+
+    #[test]
+    fn display_codes_are_six_digits() {
+        assert!(valid_display_code("123456"));
+        assert!(!valid_display_code("12345"));
+        assert!(!valid_display_code("abcdef"));
+        assert!(valid_display_code(&generate_display_code()));
     }
 
     #[test]

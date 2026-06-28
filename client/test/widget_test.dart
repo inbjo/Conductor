@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('uses public conductor server as bundled default', () {
     expect(buildDefaultServerUrl, 'https://conductor.moyu.ge');
+    expect(buildDefaultAgentToken, '');
     expect(
       normalizeAgentServerUrl(buildDefaultServerUrl),
       'wss://conductor.moyu.ge/ws/agent',
@@ -92,6 +93,28 @@ void main() {
         'CONDUCTOR_CLIENT_AUTOCOMMANDS': ' /diagnostics ; /requests\n/help ',
       }),
       ['/diagnostics', '/requests', '/help'],
+    );
+  });
+
+  test('parses remote control status and display code from agent logs', () {
+    expect(
+      remoteActiveSessionFromLog(
+        'out: [session] remote control active: session-123',
+      ),
+      'session-123',
+    );
+    expect(
+      remoteEndedSessionFromLog(
+        'out: [session] remote control ended: session-123',
+      ),
+      'session-123',
+    );
+    expect(displayCodeFromLog('out: [device] code=123456'), '123456');
+    expect(
+      displayCodeFromLog(
+        'err: agent config device_id=x display_code=654321 server_url=wss://x',
+      ),
+      '654321',
     );
   });
 
