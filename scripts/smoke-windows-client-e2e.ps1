@@ -186,7 +186,7 @@ try {
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     do {
         $AgentDiagnosticsLog = Get-Content $ClientLog -ErrorAction SilentlyContinue |
-            Where-Object { $_ -like "*[diagnostics] conductor-agent*" } |
+            Where-Object { $_ -match "\[diagnostics\] conductor-agent" } |
             Select-Object -Last 1
         if (![string]::IsNullOrWhiteSpace($AgentDiagnosticsLog)) {
             break
