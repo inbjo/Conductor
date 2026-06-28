@@ -807,9 +807,19 @@ function RemotePage() {
   const wsStatus = useLive((s) => s.wsStatus);
   const send = useLive((s) => s.send);
   const sessionStatus = session.data?.status || 'connecting';
+  const deviceOnline = device.data?.online === 1;
   const interactiveEnabled = sessionStatus === 'active' && !closeReason;
   const awaitingApproval = sessionStatus === 'pending' && !closeReason;
   const rejected = sessionStatus === 'rejected';
+  const unavailableReason = session.error
+    ? session.error.message
+    : device.error
+      ? device.error.message
+      : closeReason
+        ? `会话已关闭：${closeReason}`
+        : session.data && device.data && !deviceOnline
+          ? '被控端已离线，请先在客户端重新启动 Agent。'
+          : null;
   const [localVoiceStream, setLocalVoiceStream] = useState<MediaStream | null>(null);
   const smokeMode = new URLSearchParams(location.search).get('smoke') === '1';
   const rtcVoiceStream = voice
@@ -898,6 +908,12 @@ function RemotePage() {
           <button className="icon-text" onClick={() => session.data?.device_id && navigate(`/devices/${session.data.device_id}`)}>返回设备</button>
         </div>
       )}
+      {unavailableReason && !closeReason && (
+        <div className="session-banner">
+          <span>{unavailableReason}</span>
+          <button className="icon-text" onClick={() => session.refetch()}>刷新状态</button>
+        </div>
+      )}
       <div className="remote-grid">
         <div
           className="screen"
@@ -970,8 +986,8 @@ function RemotePage() {
           ) : (
             <div className="screen-inner">
               <MonitorDot size={48} />
-              <strong>等待 Agent 画面</strong>
-              <span>{awaitingApproval ? '被控端确认后才会进入可控状态。' : '点击画面区域后可发送鼠标与键盘事件。'}</span>
+              <strong>{unavailableReason ? '当前没有可用画面' : '等待 Agent 画面'}</strong>
+              <span>{unavailableReason || (awaitingApproval ? '被控端确认后才会进入可控状态。' : '点击画面区域后可发送鼠标与键盘事件。')}</span>
             </div>
           )}
           {!interactiveEnabled && (

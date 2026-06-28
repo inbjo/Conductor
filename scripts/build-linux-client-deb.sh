@@ -84,7 +84,7 @@ Priority: optional
 Architecture: amd64
 Maintainer: Conductor
 Installed-Size: $INSTALLED_SIZE
-Depends: libc6, libgcc-s1, libstdc++6, libgtk-3-0 | libgtk-3-0t64
+Depends: libc6, libgcc-s1, libstdc++6, libgtk-3-0 | libgtk-3-0t64, gnome-screenshot, ffmpeg
 Description: Conductor controlled desktop client
  Graphical Linux client and bundled agent for connecting a computer to a
  Conductor server.
