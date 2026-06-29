@@ -191,7 +191,7 @@ jobs:
       - name: Install Linux desktop dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev xvfb
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev xvfb ffmpeg
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -292,6 +292,22 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Install FFmpeg tools
+        shell: pwsh
+        run: |
+          choco install ffmpeg --yes --no-progress
+          $ffmpeg = Get-ChildItem "$env:ChocolateyInstall\lib\ffmpeg*\tools" -Recurse -Filter ffmpeg.exe |
+            Where-Object { $_.FullName -match '[\\/]bin[\\/]ffmpeg\.exe$' } |
+            Select-Object -First 1
+          $ffplay = Get-ChildItem "$env:ChocolateyInstall\lib\ffmpeg*\tools" -Recurse -Filter ffplay.exe |
+            Where-Object { $_.FullName -match '[\\/]bin[\\/]ffplay\.exe$' } |
+            Select-Object -First 1
+          if ($null -eq $ffmpeg -or $null -eq $ffplay) {
+            throw "Chocolatey FFmpeg package did not contain ffmpeg.exe and ffplay.exe."
+          }
+          "FFMPEG_BIN=$($ffmpeg.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "FFPLAY_BIN=$($ffplay.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Build web assets for server smoke
         run: |
           npm --prefix web ci
@@ -374,6 +390,9 @@ jobs:
         with:
           channel: stable
           cache: true
+
+      - name: Install FFmpeg tools
+        run: brew install ffmpeg
 
       - name: Build macOS client
         run: |
