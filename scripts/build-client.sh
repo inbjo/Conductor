@@ -16,6 +16,8 @@ DEFAULT_AGENT_NAME="${CONDUCTOR_DEFAULT_AGENT_NAME:-}"
 DEFAULT_AGENT_ROOT="${CONDUCTOR_DEFAULT_AGENT_ROOT:-}"
 DEFAULT_AUDIO_INPUT="${CONDUCTOR_DEFAULT_AUDIO_INPUT:-}"
 DEFAULT_INTERACTIVE_APPROVAL="${CONDUCTOR_DEFAULT_INTERACTIVE_APPROVAL:-}"
+FFMPEG_BIN="${FFMPEG_BIN:-}"
+FFPLAY_BIN="${FFPLAY_BIN:-}"
 
 usage() {
   cat >&2 <<'EOF'
@@ -136,6 +138,28 @@ if [[ ! -x "$FLUTTER_BIN" ]]; then
   exit 1
 fi
 
+resolve_media_tool() {
+  local variable_name="$1"
+  local configured_path="$2"
+  local command_name="$3"
+  if [[ -n "$configured_path" ]]; then
+    if [[ ! -x "$configured_path" ]]; then
+      echo "$variable_name is not executable: $configured_path" >&2
+      exit 1
+    fi
+    printf '%s\n' "$configured_path"
+    return
+  fi
+  if ! command -v "$command_name" >/dev/null 2>&1; then
+    echo "$command_name not found. Install it or set $variable_name to a distributable binary." >&2
+    exit 1
+  fi
+  command -v "$command_name"
+}
+
+FFMPEG_BIN="$(resolve_media_tool FFMPEG_BIN "$FFMPEG_BIN" ffmpeg)"
+FFPLAY_BIN="$(resolve_media_tool FFPLAY_BIN "$FFPLAY_BIN" ffplay)"
+
 case "$(uname -s)" in
   Linux*)
     PLATFORM="linux"
@@ -209,6 +233,9 @@ fi
 echo "[4/5] Copying agent into client bundle"
 mkdir -p "$BUNDLE_DIR"
 cp "$AGENT_BIN" "$BUNDLE_DIR/$AGENT_BIN_NAME"
+cp "$FFMPEG_BIN" "$BUNDLE_DIR/ffmpeg"
+cp "$FFPLAY_BIN" "$BUNDLE_DIR/ffplay"
+chmod +x "$BUNDLE_DIR/ffmpeg" "$BUNDLE_DIR/ffplay"
 if [[ "$PLATFORM" == "macos" ]]; then
   if ! command -v codesign >/dev/null 2>&1; then
     echo "codesign is required to package the macOS client." >&2

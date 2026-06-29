@@ -36,6 +36,10 @@ exit 0
 EOF
 chmod +x "$fake_bin/cargo"
 
+printf '#!/usr/bin/env bash\nexit 0\n' > "$fake_bin/ffmpeg"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$fake_bin/ffplay"
+chmod +x "$fake_bin/ffmpeg" "$fake_bin/ffplay"
+
 export FAKE_FLUTTER_LOG="$tmp_dir/flutter.log"
 export FAKE_CARGO_LOG="$tmp_dir/cargo.log"
 
@@ -117,6 +121,7 @@ if [[ ! -f "$root_dir/release/conductor-client-linux-x64.tar.gz.sha256" ]]; then
   echo "Linux client archive checksum was not created." >&2
   exit 1
 fi
+tar -tzf "$root_dir/release/conductor-client-linux-x64.tar.gz" ./ffmpeg ./ffplay >/dev/null
 (
   cd "$root_dir/release"
   sha256sum -c conductor-client-linux-x64.tar.gz.sha256 >/dev/null

@@ -44,7 +44,10 @@ param(
 
     [string] $AudioInput = $env:CONDUCTOR_DEFAULT_AUDIO_INPUT,
 
-    [string] $InteractiveApproval = $env:CONDUCTOR_DEFAULT_INTERACTIVE_APPROVAL
+    [string] $InteractiveApproval = $env:CONDUCTOR_DEFAULT_INTERACTIVE_APPROVAL,
+    [string] $FfmpegBin = $env:FFMPEG_BIN,
+
+    [string] $FfplayBin = $env:FFPLAY_BIN
 )
 
 $ErrorActionPreference = "Stop"
@@ -67,6 +70,20 @@ function Require-Command($Name, $InstallHint) {
     }
 }
 
+function Resolve-MediaTool($ConfiguredPath, $CommandName, $VariableName) {
+    if (![string]::IsNullOrWhiteSpace($ConfiguredPath)) {
+        if (!(Test-Path -PathType Leaf $ConfiguredPath)) {
+            Write-Error "$VariableName does not point to a file: $ConfiguredPath"
+        }
+        return (Resolve-Path $ConfiguredPath).Path
+    }
+    $Command = Get-Command $CommandName -ErrorAction SilentlyContinue
+    if ($null -eq $Command) {
+        Write-Error "$CommandName not found. Install it or set $VariableName to a distributable executable."
+    }
+    return $Command.Source
+}
+
 function Test-BoolText($Value) {
     if ([string]::IsNullOrWhiteSpace($Value)) {
         return $true
@@ -87,6 +104,8 @@ $BundleDir = Join-Path $RootDir "client\build\windows\x64\runner\Release"
 $BundleAgent = Join-Path $BundleDir "conductor-agent.exe"
 $ArchivePath = Join-Path $ReleaseDir "conductor-client-windows-x64.zip"
 $ArchiveChecksumPath = "$ArchivePath.sha256"
+$ResolvedFfmpeg = Resolve-MediaTool $FfmpegBin "ffmpeg.exe" "FFMPEG_BIN"
+$ResolvedFfplay = Resolve-MediaTool $FfplayBin "ffplay.exe" "FFPLAY_BIN"
 
 Write-Host "[1/5] Checking Windows client build environment"
 Require-Command "cargo" "Install Rust stable MSVC from https://rustup.rs/"
@@ -130,6 +149,8 @@ try {
 Write-Host "[4/5] Copying agent into client bundle"
 New-Item -ItemType Directory -Force -Path $BundleDir | Out-Null
 Copy-Item -Force $AgentBin $BundleAgent
+Copy-Item -Force $ResolvedFfmpeg (Join-Path $BundleDir "ffmpeg.exe")
+Copy-Item -Force $ResolvedFfplay (Join-Path $BundleDir "ffplay.exe")
 
 Write-Host "[5/5] Creating distributable archive"
 New-Item -ItemType Directory -Force -Path $ReleaseDir | Out-Null

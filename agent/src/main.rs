@@ -777,7 +777,7 @@ async fn send_screen_frame_to_rtc(
 }
 
 async fn encode_png_as_vp8(png: &[u8]) -> anyhow::Result<Vec<u8>> {
-    let mut child = Command::new("ffmpeg")
+    let mut child = Command::new(media_tool_path("ffmpeg"))
         .args([
             "-loglevel",
             "error",
@@ -840,7 +840,7 @@ fn parse_single_ivf_frame(ivf: &[u8]) -> anyhow::Result<Vec<u8>> {
 }
 
 async fn play_remote_opus(track: Arc<TrackRemote>, session_id: &str) -> anyhow::Result<()> {
-    let mut child = Command::new("ffplay")
+    let mut child = Command::new(media_tool_path("ffplay"))
         .args([
             "-nodisp",
             "-autoexit",
@@ -968,7 +968,7 @@ async fn capture_microphone_to_rtc(
 
 fn microphone_ffmpeg_command() -> Command {
     let input = std::env::var("CONDUCTOR_AUDIO_INPUT").ok();
-    let mut command = Command::new("ffmpeg");
+    let mut command = Command::new(media_tool_path("ffmpeg"));
     command.args(["-loglevel", "error"]);
     if cfg!(target_os = "linux") {
         command.args(["-f", "pulse", "-i", input.as_deref().unwrap_or("default")]);
@@ -1606,6 +1606,23 @@ fn audio_dependency_commands() -> &'static [&'static str] {
     &["ffmpeg", "ffplay"]
 }
 
+fn media_tool_path(command: &str) -> PathBuf {
+    let file_name = if cfg!(target_os = "windows") {
+        format!("{command}.exe")
+    } else {
+        command.to_string()
+    };
+    if let Ok(executable) = std::env::current_exe() {
+        if let Some(directory) = executable.parent() {
+            let bundled = directory.join(file_name);
+            if bundled.is_file() {
+                return bundled;
+            }
+        }
+    }
+    PathBuf::from(command)
+}
+
 fn command_status(command: &str) -> &'static str {
     if command_available(command) {
         "found"
@@ -1615,6 +1632,9 @@ fn command_status(command: &str) -> &'static str {
 }
 
 fn command_available(command: &str) -> bool {
+    if media_tool_path(command).is_file() {
+        return true;
+    }
     if cfg!(target_os = "windows") {
         StdCommand::new("where")
             .arg(command)
@@ -2334,7 +2354,9 @@ mod tests {
     fn diagnostics_include_platform_and_dependency_sections() {
         let lines = diagnostics_lines("device-1", "123456", Path::new("/tmp/root"), true);
         assert!(lines.iter().any(|line| line.contains("device_id=device-1")));
-        assert!(lines.iter().any(|line| line.contains("display_code=123456")));
+        assert!(lines
+            .iter()
+            .any(|line| line.contains("display_code=123456")));
         assert!(lines.iter().any(|line| line.contains("root=/tmp/root")));
         assert!(lines.iter().any(|line| line.contains("os=")));
         assert!(lines

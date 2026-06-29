@@ -74,6 +74,12 @@ exit /b 0
     $env:FLUTTER_BIN = $FakeFlutter
     $env:FAKE_FLUTTER_LOG = $FlutterLog
     $env:FAKE_CARGO_LOG = $CargoLog
+    $FakeFfmpeg = Join-Path $FakeBin "ffmpeg.exe"
+    $FakeFfplay = Join-Path $FakeBin "ffplay.exe"
+    Write-TextFile $FakeFfmpeg "ffmpeg"
+    Write-TextFile $FakeFfplay "ffplay"
+    $env:FFMPEG_BIN = $FakeFfmpeg
+    $env:FFPLAY_BIN = $FakeFfplay
 
     $AgentPath = Join-Path $RootDir "target\release\conductor-agent.exe"
     $BundleDir = Join-Path $RootDir "client\build\windows\x64\runner\Release"
@@ -118,6 +124,12 @@ exit /b 0
     if (!(Test-Path $ArchiveChecksumPath)) {
         throw "Windows client archive checksum was not created: $ArchiveChecksumPath"
     }
+    if (!(Test-Path (Join-Path $BundleDir "ffmpeg.exe"))) {
+        throw "Bundled ffmpeg.exe was not created."
+    }
+    if (!(Test-Path (Join-Path $BundleDir "ffplay.exe"))) {
+        throw "Bundled ffplay.exe was not created."
+    }
     $ArchiveSha256 = (Get-FileHash -Algorithm SHA256 -Path $ArchivePath).Hash.ToLowerInvariant()
     $SidecarSha256 = ((Get-Content $ArchiveChecksumPath -ErrorAction Stop | Select-Object -First 1) -split "\s+")[0].ToLowerInvariant()
     if ($ArchiveSha256 -ne $SidecarSha256) {
@@ -138,5 +150,7 @@ exit /b 0
     Remove-Item Env:\CONDUCTOR_DEFAULT_AGENT_ROOT -ErrorAction SilentlyContinue
     Remove-Item Env:\CONDUCTOR_DEFAULT_AUDIO_INPUT -ErrorAction SilentlyContinue
     Remove-Item Env:\CONDUCTOR_DEFAULT_INTERACTIVE_APPROVAL -ErrorAction SilentlyContinue
+    Remove-Item Env:\FFMPEG_BIN -ErrorAction SilentlyContinue
+    Remove-Item Env:\FFPLAY_BIN -ErrorAction SilentlyContinue
     Remove-Item -Recurse -Force $TempDir -ErrorAction SilentlyContinue
 }

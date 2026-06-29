@@ -12,7 +12,9 @@ EXTRACT_DIR="$TMP_DIR/extracted"
 mkdir -p "$BUNDLE_DIR/data/flutter_assets" "$BUNDLE_DIR/lib" "$EXTRACT_DIR"
 printf 'client\n' >"$BUNDLE_DIR/conductor_client"
 printf 'agent\n' >"$BUNDLE_DIR/conductor-agent"
-chmod +x "$BUNDLE_DIR/conductor_client" "$BUNDLE_DIR/conductor-agent"
+printf 'ffmpeg\n' >"$BUNDLE_DIR/ffmpeg"
+printf 'ffplay\n' >"$BUNDLE_DIR/ffplay"
+chmod +x "$BUNDLE_DIR/conductor_client" "$BUNDLE_DIR/conductor-agent" "$BUNDLE_DIR/ffmpeg" "$BUNDLE_DIR/ffplay"
 printf 'asset\n' >"$BUNDLE_DIR/data/flutter_assets/AssetManifest.bin"
 printf 'flutter\n' >"$BUNDLE_DIR/lib/libflutter_linux_gtk.so"
 
@@ -22,6 +24,8 @@ dpkg-deb --extract "$DEB_PATH" "$EXTRACT_DIR"
 
 [[ -x "$EXTRACT_DIR/opt/conductor-client/conductor_client" ]]
 [[ -x "$EXTRACT_DIR/opt/conductor-client/conductor-agent" ]]
+[[ -x "$EXTRACT_DIR/opt/conductor-client/ffmpeg" ]]
+[[ -x "$EXTRACT_DIR/opt/conductor-client/ffplay" ]]
 [[ "$(stat -c '%a' "$EXTRACT_DIR/opt/conductor-client/conductor_client")" == "755" ]]
 [[ "$(stat -c '%a' "$EXTRACT_DIR/opt/conductor-client/data/flutter_assets/AssetManifest.bin")" == "644" ]]
 [[ -L "$EXTRACT_DIR/usr/bin/conductor-client" ]]

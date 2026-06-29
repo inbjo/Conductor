@@ -840,6 +840,7 @@ function RemotePage() {
   });
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [rtcVideoReady, setRtcVideoReady] = useState(false);
   const hasRtcVideo = Boolean(rtc.remoteStream?.getVideoTracks().length);
   const hasRtcAudio = Boolean(rtc.remoteStream?.getAudioTracks().length);
   const sendControl = (event: Omit<ControlEventPayload, 'type' | 'session_id' | 'created_at'>) => {
@@ -868,6 +869,7 @@ function RemotePage() {
     return () => window.removeEventListener('pagehide', closeOnPageHide);
   }, [sessionId]);
   useEffect(() => {
+    setRtcVideoReady(false);
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = hasRtcVideo ? rtc.remoteStream : null;
     }
@@ -973,15 +975,19 @@ function RemotePage() {
             if (interactiveEnabled) sendControl({ kind: 'key_down', key: e.key });
           }}
         >
-          {hasRtcVideo ? (
+          {hasRtcVideo && (
             <video
               ref={remoteVideoRef}
               className="screen-frame"
+              style={{ display: rtcVideoReady ? 'block' : 'none' }}
               autoPlay
               playsInline
               muted
+              onLoadedData={() => setRtcVideoReady(true)}
+              onPlaying={() => setRtcVideoReady(true)}
             />
-          ) : frame ? (
+          )}
+          {!rtcVideoReady && (frame ? (
             <img className="screen-frame" src={frame.image_data_url} alt="Agent screen frame" />
           ) : (
             <div className="screen-inner">
@@ -989,7 +995,7 @@ function RemotePage() {
               <strong>{unavailableReason ? '当前没有可用画面' : '等待 Agent 画面'}</strong>
               <span>{unavailableReason || (awaitingApproval ? '被控端确认后才会进入可控状态。' : '点击画面区域后可发送鼠标与键盘事件。')}</span>
             </div>
-          )}
+          ))}
           {!interactiveEnabled && (
             <div className="screen-overlay">
               <span>{awaitingApproval ? '等待确认' : closeReason || rejected ? '会话不可用' : '连接中'}</span>
@@ -1007,7 +1013,7 @@ function RemotePage() {
             wsStatus={wsStatus}
             rtcStatus={rtc.status}
             rtcDetail={rtc.detail}
-            mediaStatus={hasRtcVideo ? 'remote_video' : hasRtcAudio ? 'remote_audio' : frame ? 'fallback_frame' : 'waiting_media'}
+            mediaStatus={rtcVideoReady ? 'remote_video' : hasRtcAudio ? 'remote_audio' : frame ? 'fallback_frame' : 'waiting_media'}
           />
           <SessionTools deviceId={session.data?.device_id || ''} />
           <ChatPanel
