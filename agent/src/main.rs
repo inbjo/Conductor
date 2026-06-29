@@ -347,7 +347,8 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                             warn!("rtc screen frame failed session={session_id}: {err}");
                         }
                     }
-                    send_json(&mut write, &AgentToServer::ScreenFrame(frame)).await?;
+                    let fallback_frame = make_ws_fallback_frame(&frame).await;
+                    send_json(&mut write, &AgentToServer::ScreenFrame(fallback_frame)).await?;
                 }
             }
             Some(rtc_msg) = rtc_rx.recv() => {
@@ -375,7 +376,8 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                                     send_json(&mut write, &AgentToServer::SessionAccept { session_id: session_id.clone() }).await?;
                                     let frame = capture_screen_frame(&cfg, &session_id, frame_no).await;
                                     session_frames.insert(session_id.clone(), (frame.width, frame.height));
-                                    send_json(&mut write, &AgentToServer::ScreenFrame(frame)).await?;
+                                    let fallback_frame = make_ws_fallback_frame(&frame).await;
+                                    send_json(&mut write, &AgentToServer::ScreenFrame(fallback_frame)).await?;
                                 }
                                 ConsoleAction::RejectSession { session_id, reason } => {
                                     console.mark_session_rejected(&session_id);
@@ -448,7 +450,8 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                             send_json(&mut write, &AgentToServer::SessionAccept { session_id: session_id.clone() }).await?;
                             let frame = capture_screen_frame(&cfg, &session_id, frame_no).await;
                             session_frames.insert(session_id.clone(), (frame.width, frame.height));
-                            send_json(&mut write, &AgentToServer::ScreenFrame(frame)).await?;
+                            let fallback_frame = make_ws_fallback_frame(&frame).await;
+                            send_json(&mut write, &AgentToServer::ScreenFrame(fallback_frame)).await?;
                         }
                     }
                     Ok(ServerToAgent::SessionClose { session_id }) => {
@@ -822,6 +825,84 @@ async fn encode_png_as_vp8(png: &[u8]) -> anyhow::Result<Vec<u8>> {
         ));
     }
     parse_single_ivf_frame(&output.stdout)
+}
+
+async fn make_ws_fallback_frame(frame: &ScreenFramePayload) -> ScreenFramePayload {
+    match encode_frame_as_fallback_jpeg(frame).await {
+        Ok(encoded) => encoded,
+        Err(err) => {
+            warn!("fallback frame compression failed: {err}");
+            frame.clone()
+        }
+    }
+}
+
+async fn encode_frame_as_fallback_jpeg(
+    frame: &ScreenFramePayload,
+) -> anyhow::Result<ScreenFramePayload> {
+    let png = frame
+        .image_data_url
+        .strip_prefix("data:image/png;base64,")
+        .ok_or_else(|| anyhow!("screen frame is not PNG"))?;
+    let png = B64.decode(png).context("decode fallback PNG")?;
+    let mut child = Command::new(media_tool_path("ffmpeg"))
+        .args([
+            "-loglevel",
+            "error",
+            "-f",
+            "image2pipe",
+            "-vcodec",
+            "png",
+            "-i",
+            "pipe:0",
+            "-frames:v",
+            "1",
+            "-vf",
+            "scale=w='min(1280,iw)':h=-2",
+            "-q:v",
+            "8",
+            "-f",
+            "image2pipe",
+            "-vcodec",
+            "mjpeg",
+            "pipe:1",
+        ])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .context("start ffmpeg fallback encoder")?;
+    let mut stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| anyhow!("ffmpeg fallback stdin unavailable"))?;
+    stdin
+        .write_all(&png)
+        .await
+        .context("write fallback PNG to ffmpeg")?;
+    drop(stdin);
+    let output = child
+        .wait_with_output()
+        .await
+        .context("wait for ffmpeg fallback encoder")?;
+    if !output.status.success() || output.stdout.is_empty() {
+        return Err(anyhow!(
+            "ffmpeg fallback encoder failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let width = frame.width.min(1280);
+    let scaled_height = ((u64::from(frame.height) * u64::from(width))
+        / u64::from(frame.width.max(1)))
+    .max(1) as u32;
+    let height = scaled_height.saturating_add(1) / 2 * 2;
+    Ok(ScreenFramePayload {
+        session_id: frame.session_id.clone(),
+        width,
+        height,
+        image_data_url: format!("data:image/jpeg;base64,{}", B64.encode(output.stdout)),
+        captured_at: frame.captured_at,
+    })
 }
 
 fn parse_single_ivf_frame(ivf: &[u8]) -> anyhow::Result<Vec<u8>> {

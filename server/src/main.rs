@@ -37,7 +37,7 @@ use serde_json::{json, Value};
 use sqlx::{sqlite::SqlitePoolOptions, FromRow, SqlitePool};
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tower_http::{compression::CompressionLayer, cors::CorsLayer, trace::TraceLayer};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 const MAX_UPLOAD_BYTES: usize = 32 * 1024 * 1024;
@@ -469,7 +469,10 @@ struct AgentBootstrapResponse {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
         .init();
 
     let cfg = Config::from_env()?;
@@ -798,6 +801,10 @@ async fn create_session(
         let _ = close_open_session(&state.db, &session_id, "agent_offline", &now).await;
         return Err(ApiError::DeviceOffline);
     }
+    info!(
+        "remote session requested session={} device={} admin={}",
+        session_id, req.device_id, user.username
+    );
     let _ = state.admin_events.send(AdminEvent::SessionStatus {
         session_id: session_id.clone(),
         status: "pending".into(),
@@ -1465,10 +1472,27 @@ async fn agent_socket(state: AppState, socket: WebSocket) {
             }
             next = ws_rx.next() => next,
         };
-        let Some(Ok(msg)) = next else { break };
+        let msg = match next {
+            Some(Ok(msg)) => msg,
+            Some(Err(err)) => {
+                warn!(
+                    "agent websocket receive failed device={:?}: {err}",
+                    device_id
+                );
+                break;
+            }
+            None => {
+                info!("agent websocket closed device={:?}", device_id);
+                break;
+            }
+        };
         let Message::Text(text) = msg else { continue };
         match serde_json::from_str::<AgentToServer>(&text) {
             Ok(AgentToServer::AgentRegister(reg)) => {
+                info!(
+                    "agent registered device={} host={} os={} arch={}",
+                    reg.device_id, reg.hostname, reg.os, reg.arch
+                );
                 device_id = Some(reg.device_id.clone());
                 let connection = AgentConnection {
                     tx: tx.clone(),
@@ -1569,6 +1593,14 @@ async fn agent_socket(state: AppState, socket: WebSocket) {
                     );
                     continue;
                 }
+                debug!(
+                    "screen fallback frame session={} device={} size={}x{} payload_bytes={}",
+                    frame.session_id,
+                    registered_id,
+                    frame.width,
+                    frame.height,
+                    frame.image_data_url.len()
+                );
                 let _ = state.admin_events.send(AdminEvent::ScreenFrame(frame));
             }
             Ok(AgentToServer::SessionAccept { session_id }) => {
@@ -1581,6 +1613,7 @@ async fn agent_socket(state: AppState, socket: WebSocket) {
                     continue;
                 }
                 update_session_status(&state, &session_id, "active").await;
+                info!("remote session active session={session_id} device={registered_id}");
             }
             Ok(AgentToServer::SessionReject { session_id, reason }) => {
                 let Some(registered_id) = device_id.as_deref() else {
@@ -1599,11 +1632,19 @@ async fn agent_socket(state: AppState, socket: WebSocket) {
                     warn!("ignored session close before agent registration");
                     continue;
                 };
-                if !agent_owns_session(&state.db, registered_id, &session_id, &["pending", "active"]).await {
+                if !agent_owns_session(
+                    &state.db,
+                    registered_id,
+                    &session_id,
+                    &["pending", "active"],
+                )
+                .await
+                {
                     warn!("ignored session close for foreign session={session_id} device={registered_id}");
                     continue;
                 }
-                if let Err(err) = mark_session_closed(&state, &session_id, "closed_by_agent").await {
+                if let Err(err) = mark_session_closed(&state, &session_id, "closed_by_agent").await
+                {
                     warn!("agent session close failed session={session_id}: {err}");
                 }
             }
