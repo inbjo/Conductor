@@ -74,6 +74,7 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
   String? _displayCode;
   bool _interactiveApproval = flagValue(buildDefaultInteractiveApprovalText);
   bool _starting = false;
+  bool _endingRemoteControl = false;
 
   bool get _running => _process != null;
 
@@ -280,6 +281,7 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
             _lastExitCode = code;
             _process = null;
             _activeSessionId = null;
+            _endingRemoteControl = false;
           });
           _appendLog('agent exited with code $code');
         }),
@@ -311,6 +313,7 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
   Future<void> _endRemoteControl() async {
     final sessionId = _activeSessionId;
     if (sessionId == null || sessionId.isEmpty) return;
+    setState(() => _endingRemoteControl = true);
     await _sendAgentCommand('/session close $sessionId');
   }
 
@@ -348,9 +351,13 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
     stdout.writeln(message);
     if (!mounted) return;
     setState(() {
-      if (activeSession != null) _activeSessionId = activeSession;
+      if (activeSession != null) {
+        _activeSessionId = activeSession;
+        _endingRemoteControl = false;
+      }
       if (endedSession != null && endedSession == _activeSessionId) {
         _activeSessionId = null;
+        _endingRemoteControl = false;
       }
       if (displayCode != null) _displayCode = displayCode;
       _logs.add(message);
@@ -400,6 +407,7 @@ class _AgentLauncherPageState extends State<AgentLauncherPage> {
               lastExitCode: _lastExitCode,
               logCount: _logs.length,
               activeSessionId: _activeSessionId,
+              endingRemoteControl: _endingRemoteControl,
               displayCode: _displayCode,
               onStart: _startAgent,
               onStop: _stopAgent,
@@ -477,6 +485,7 @@ class AgentOverview extends StatelessWidget {
     required this.lastExitCode,
     required this.logCount,
     required this.activeSessionId,
+    required this.endingRemoteControl,
     required this.displayCode,
     required this.onStart,
     required this.onStop,
@@ -490,6 +499,7 @@ class AgentOverview extends StatelessWidget {
   final int? lastExitCode;
   final int logCount;
   final String? activeSessionId;
+  final bool endingRemoteControl;
   final String? displayCode;
   final VoidCallback onStart;
   final VoidCallback onStop;
@@ -547,9 +557,9 @@ class AgentOverview extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       OutlinedButton.icon(
-                        onPressed: onEndRemoteControl,
+                        onPressed: endingRemoteControl ? null : onEndRemoteControl,
                         icon: const Icon(Icons.do_not_disturb_on_outlined),
-                        label: const Text('End control'),
+                        label: Text(endingRemoteControl ? 'Ending control…' : 'End control'),
                       ),
                     ],
                   ),

@@ -206,6 +206,13 @@ struct ScreenFramePayload {
     captured_at: DateTime<Utc>,
 }
 
+struct CapturedFrame {
+    session_id: String,
+    width: u32,
+    height: u32,
+    fallback: ScreenFramePayload,
+}
+
 struct RtcSession {
     peer_connection: Arc<RTCPeerConnection>,
     video_track: Arc<TrackLocalStaticSample>,
@@ -315,10 +322,12 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
     let rtc_api = build_webrtc_api()?;
     let (rtc_tx, mut rtc_rx) = mpsc::unbounded_channel::<AgentToServer>();
     let (rtc_control_tx, mut rtc_control_rx) = mpsc::unbounded_channel::<ControlEventPayload>();
+    let (frame_tx, mut frame_rx) = mpsc::unbounded_channel::<CapturedFrame>();
     let mut rtc_sessions = HashMap::<String, Arc<RtcSession>>::new();
     let mut voice_sessions = HashSet::<String>::new();
     let mut audio_capture_tasks = HashMap::<String, AudioCaptureTask>::new();
     let mut session_frames = HashMap::<String, (u32, u32)>::new();
+    let mut capturing_sessions = HashSet::<String>::new();
     let mut input = InputController::new();
     let mut console = AgentConsole::new(
         cfg.device_id.clone(),
@@ -339,17 +348,38 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
             }
             _ = frame_tick.tick() => {
                 for session_id in active_sessions.clone() {
-                    frame_no = frame_no.saturating_add(1);
-                    let frame = capture_screen_frame(&cfg, &session_id, frame_no).await;
-                    session_frames.insert(session_id.clone(), (frame.width, frame.height));
-                    if let Some(rtc) = rtc_sessions.get(&session_id) {
-                        if let Err(err) = send_screen_frame_to_rtc(&rtc.video_track, &frame).await {
-                            warn!("rtc screen frame failed session={session_id}: {err}");
-                        }
+                    if !capturing_sessions.insert(session_id.clone()) {
+                        continue;
                     }
-                    let fallback_frame = make_ws_fallback_frame(&frame).await;
-                    send_json(&mut write, &AgentToServer::ScreenFrame(fallback_frame)).await?;
+                    frame_no = frame_no.saturating_add(1);
+                    let task_cfg = cfg.clone();
+                    let task_session = session_id.clone();
+                    let task_tx = frame_tx.clone();
+                    let rtc = rtc_sessions.get(&session_id).cloned();
+                    tokio::spawn(async move {
+                        let frame = capture_screen_frame(&task_cfg, &task_session, frame_no).await;
+                        if let Some(rtc) = rtc {
+                        if let Err(err) = send_screen_frame_to_rtc(&rtc.video_track, &frame).await {
+                                warn!("rtc screen frame failed session={task_session}: {err}");
+                            }
+                        }
+                        let fallback = make_ws_fallback_frame(&frame).await;
+                        let _ = task_tx.send(CapturedFrame {
+                            session_id: task_session,
+                            width: frame.width,
+                            height: frame.height,
+                            fallback,
+                        });
+                    });
                 }
+            }
+            Some(frame) = frame_rx.recv() => {
+                capturing_sessions.remove(&frame.session_id);
+                if !active_sessions.contains(&frame.session_id) {
+                    continue;
+                }
+                session_frames.insert(frame.session_id.clone(), (frame.width, frame.height));
+                send_json(&mut write, &AgentToServer::ScreenFrame(frame.fallback)).await?;
             }
             Some(rtc_msg) = rtc_rx.recv() => {
                 send_json(&mut write, &rtc_msg).await?;
@@ -374,10 +404,6 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                                     active_sessions.insert(session_id.clone());
                                     console.mark_session_accepted(&session_id);
                                     send_json(&mut write, &AgentToServer::SessionAccept { session_id: session_id.clone() }).await?;
-                                    let frame = capture_screen_frame(&cfg, &session_id, frame_no).await;
-                                    session_frames.insert(session_id.clone(), (frame.width, frame.height));
-                                    let fallback_frame = make_ws_fallback_frame(&frame).await;
-                                    send_json(&mut write, &AgentToServer::ScreenFrame(fallback_frame)).await?;
                                 }
                                 ConsoleAction::RejectSession { session_id, reason } => {
                                     console.mark_session_rejected(&session_id);
@@ -385,6 +411,7 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                                 }
                                 ConsoleAction::CloseSession { session_id } => {
                                     active_sessions.remove(&session_id);
+                                    capturing_sessions.remove(&session_id);
                                     session_frames.remove(&session_id);
                                     console.close_session(&session_id);
                                     println!("[session] remote control ended: {session_id}");
@@ -448,15 +475,12 @@ async fn run_agent(cfg: Config) -> anyhow::Result<()> {
                             active_sessions.insert(session_id.clone());
                             console.mark_session_accepted(&session_id);
                             send_json(&mut write, &AgentToServer::SessionAccept { session_id: session_id.clone() }).await?;
-                            let frame = capture_screen_frame(&cfg, &session_id, frame_no).await;
-                            session_frames.insert(session_id.clone(), (frame.width, frame.height));
-                            let fallback_frame = make_ws_fallback_frame(&frame).await;
-                            send_json(&mut write, &AgentToServer::ScreenFrame(fallback_frame)).await?;
                         }
                     }
                     Ok(ServerToAgent::SessionClose { session_id }) => {
                         info!("session closed by server: {session_id}");
                         active_sessions.remove(&session_id);
+                        capturing_sessions.remove(&session_id);
                         session_frames.remove(&session_id);
                         if let Some(rtc) = rtc_sessions.remove(&session_id) {
                             let _ = rtc.peer_connection.close().await;

@@ -12,9 +12,11 @@ import {
   FolderOpen,
   FolderPlus,
   LogOut,
+  Maximize2,
   MessageSquare,
   Mic,
   MicOff,
+  Minimize2,
   MonitorDot,
   PhoneOff,
   RefreshCcw,
@@ -843,11 +845,15 @@ function RemotePage() {
   });
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const screenRef = useRef<HTMLDivElement | null>(null);
   const [rtcVideoReady, setRtcVideoReady] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const [mediaError, setMediaError] = useState('');
   const [mediaWaitExpired, setMediaWaitExpired] = useState(false);
   const hasRtcVideo = Boolean(rtc.remoteStream?.getVideoTracks().length);
   const hasRtcAudio = Boolean(rtc.remoteStream?.getAudioTracks().length);
+  const mediaWidth = remoteVideoRef.current?.videoWidth || frame?.width || 16;
+  const mediaHeight = remoteVideoRef.current?.videoHeight || frame?.height || 9;
   const rtcFailed = rtc.status === 'offer_timeout'
     || rtc.status === 'offer_failed'
     || rtc.status === 'signal_error'
@@ -897,6 +903,20 @@ function RemotePage() {
     const timer = window.setTimeout(() => setMediaWaitExpired(true), 10000);
     return () => window.clearTimeout(timer);
   }, [frame, interactiveEnabled, rtcVideoReady, sessionId]);
+  useEffect(() => {
+    const handleFullscreenChange = () => setFullscreen(document.fullscreenElement === screenRef.current);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+  const toggleFullscreen = async () => {
+    if (!screenRef.current) return;
+    if (document.fullscreenElement === screenRef.current) {
+      await document.exitFullscreen();
+      return;
+    }
+    await screenRef.current.requestFullscreen();
+    screenRef.current.focus();
+  };
 
   return (
     <section className="remote-page">
@@ -905,14 +925,21 @@ function RemotePage() {
           <p className="eyebrow">Remote Session</p>
           <h1>{sessionStatus}</h1>
         </div>
-        <button
-          className="danger"
-          onClick={() => close.mutate()}
-          disabled={close.isPending || !['pending', 'active'].includes(sessionStatus)}
-        >
-          结束会话
-        </button>
+        <div className="remote-actions">
+          <button className="icon-text" onClick={() => void toggleFullscreen()} disabled={!frame && !rtcVideoReady}>
+            {fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            {fullscreen ? '退出全屏' : '全屏操作'}
+          </button>
+          <button
+            className="danger"
+            onClick={() => close.mutate()}
+            disabled={close.isPending || !['pending', 'active'].includes(sessionStatus)}
+          >
+            {close.isPending ? '正在结束…' : '结束会话'}
+          </button>
+        </div>
       </div>
+      {close.error && <div className="session-banner session-banner-error" role="alert">结束会话失败：{close.error.message}</div>}
       {awaitingApproval && (
         <div className="session-banner">
           <span>等待被控端确认远控请求，当前不会发送控制或语音指令。</span>
@@ -946,8 +973,11 @@ function RemotePage() {
       )}
       <div className="remote-grid">
         <div
+          ref={screenRef}
           className={`screen ${frame || rtcVideoReady ? 'screen-media' : 'screen-status'}`}
+          style={frame || rtcVideoReady ? { aspectRatio: `${mediaWidth} / ${mediaHeight}` } : undefined}
           tabIndex={0}
+          onMouseDown={(e) => e.currentTarget.focus()}
           onMouseMove={(e) => {
             if (!interactiveEnabled) return;
             const now = performance.now();
@@ -989,6 +1019,22 @@ function RemotePage() {
               y: position.y,
               button: 'left',
             });
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            if (!interactiveEnabled) return;
+            const video = remoteVideoRef.current;
+            const [sourceWidth, sourceHeight] = video?.videoWidth && video.videoHeight
+              ? [video.videoWidth, video.videoHeight]
+              : [frame?.width || 16, frame?.height || 9];
+            const position = normalizedMediaPosition(
+              e.clientX,
+              e.clientY,
+              e.currentTarget.getBoundingClientRect(),
+              sourceWidth,
+              sourceHeight,
+            );
+            sendControl({ kind: 'mouse_click', x: position.x, y: position.y, button: 'right' });
           }}
           onWheel={(e) => {
             if (!interactiveEnabled) return;

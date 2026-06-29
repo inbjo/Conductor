@@ -229,6 +229,10 @@
     @apply mb-4 flex items-center justify-between;
   }
 
+  .remote-actions {
+    @apply flex flex-wrap items-center justify-end gap-2;
+  }
+
   .remote-grid {
     @apply grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px];
   }
@@ -246,7 +250,8 @@
   }
 
   .screen-media {
-    @apply border-ink bg-[#141817] text-white;
+    @apply min-h-0 w-full border-ink bg-[#141817] text-white;
+    max-height: calc(100vh - 9rem);
     background-image: linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px);
     background-size: 28px 28px;
   }
@@ -258,8 +263,18 @@
   }
 
   .screen-frame {
-    @apply h-full max-h-[72vh] w-full object-contain;
-    aspect-ratio: 16 / 9;
+    @apply block h-full w-full object-contain;
+    max-height: calc(100vh - 9rem);
+  }
+
+  .screen:fullscreen {
+    @apply h-screen w-screen border-0 bg-black;
+    max-height: none;
+  }
+
+  .screen:fullscreen .screen-frame {
+    @apply h-screen w-screen;
+    max-height: none;
   }
 
   .screen-inner {
