@@ -392,7 +392,10 @@ jobs:
           cache: true
 
       - name: Install FFmpeg tools
-        run: brew install ffmpeg
+        run: |
+          brew untap aws/tap >/dev/null 2>&1 || true
+          brew untap azure/bicep >/dev/null 2>&1 || true
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install ffmpeg
 
       - name: Build macOS client
         run: |
@@ -499,7 +502,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mapfile -t files < <(find dist -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.deb' -o -name '*.sha256' \) | sort)
+          asset_dir="$(mktemp -d)"
+          while IFS= read -r file; do
+            name="$(basename "$file")"
+            target="$asset_dir/$name"
+            if [[ -f "$target" ]]; then
+              if ! cmp -s "$file" "$target"; then
+                echo "Conflicting release assets share the same name: $name" >&2
+                exit 1
+              fi
+              continue
+            fi
+            cp "$file" "$target"
+          done < <(find dist -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.deb' -o -name '*.sha256' \) | sort)
+          mapfile -t files < <(find "$asset_dir" -maxdepth 1 -type f | sort)
           if [[ "${#files[@]}" -eq 0 ]]; then
             echo "No release assets found in downloaded artifacts." >&2
             exit 1
