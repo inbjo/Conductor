@@ -154,6 +154,9 @@ type LiveStore = {
   addLog: (sessionId: string, line: string) => void;
 };
 
+const EMPTY_LIVE_LOGS: string[] = [];
+const EMPTY_LIVE_SIGNALS: LiveStore['signals'][string] = [];
+
 const useLive = create<LiveStore>((set) => ({
   frames: {},
   logs: {},
@@ -800,8 +803,8 @@ function RemotePage() {
   const [events, setEvents] = useState<string[]>([]);
   const lastMove = useRef(0);
   const frame = useLive((s) => s.frames[sessionId]);
-  const liveLogs = useLive((s) => s.logs[sessionId] || []);
-  const signals = useLive((s) => s.signals[sessionId] || []);
+  const liveLogs = useLive((s) => s.logs[sessionId] || EMPTY_LIVE_LOGS);
+  const signals = useLive((s) => s.signals[sessionId] || EMPTY_LIVE_SIGNALS);
   const voice = useLive((s) => s.voice[sessionId]);
   const closeReason = useLive((s) => s.closedSessions[sessionId]);
   const wsStatus = useLive((s) => s.wsStatus);
