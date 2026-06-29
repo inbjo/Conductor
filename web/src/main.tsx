@@ -841,8 +841,19 @@ function RemotePage() {
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const [rtcVideoReady, setRtcVideoReady] = useState(false);
+  const [mediaError, setMediaError] = useState('');
+  const [mediaWaitExpired, setMediaWaitExpired] = useState(false);
   const hasRtcVideo = Boolean(rtc.remoteStream?.getVideoTracks().length);
   const hasRtcAudio = Boolean(rtc.remoteStream?.getAudioTracks().length);
+  const rtcFailed = rtc.status === 'offer_timeout'
+    || rtc.status === 'offer_failed'
+    || rtc.status === 'signal_error'
+    || ((rtc.status === 'peer' || rtc.status === 'ice') && ['failed', 'disconnected', 'closed'].includes(rtc.detail));
+  const transportError = unavailableReason
+    || (wsStatus === 'disconnected' ? '后台实时连接已断开，无法接收远程画面、语音和文字消息。' : null)
+    || mediaError
+    || (rtcFailed ? `WebRTC 连接失败：${rtc.detail || rtc.status}` : null)
+    || (mediaWaitExpired ? '被控端已进入会话，但 10 秒内没有收到任何画面。请检查 Agent 日志中的截屏与 FFmpeg 错误。' : null);
   const sendControl = (event: Omit<ControlEventPayload, 'type' | 'session_id' | 'created_at'>) => {
     if (!interactiveEnabled) return;
     const payload: ControlEventPayload = {
@@ -877,6 +888,12 @@ function RemotePage() {
       remoteAudioRef.current.srcObject = hasRtcAudio ? rtc.remoteStream : null;
     }
   }, [hasRtcAudio, hasRtcVideo, rtc.remoteStream]);
+  useEffect(() => {
+    setMediaWaitExpired(false);
+    if (!interactiveEnabled || frame || rtcVideoReady) return;
+    const timer = window.setTimeout(() => setMediaWaitExpired(true), 10000);
+    return () => window.clearTimeout(timer);
+  }, [frame, interactiveEnabled, rtcVideoReady, sessionId]);
 
   return (
     <section className="remote-page">
@@ -916,9 +933,17 @@ function RemotePage() {
           <button className="icon-text" onClick={() => session.refetch()}>刷新状态</button>
         </div>
       )}
+      {transportError && transportError !== unavailableReason && (
+        <div className="session-banner session-banner-error" role="alert">
+          <span>{transportError}</span>
+          <button className="icon-text" onClick={() => window.location.reload()}>
+            <RefreshCcw size={14} />重新连接
+          </button>
+        </div>
+      )}
       <div className="remote-grid">
         <div
-          className="screen"
+          className={`screen ${frame || rtcVideoReady ? 'screen-media' : 'screen-status'}`}
           tabIndex={0}
           onMouseMove={(e) => {
             if (!interactiveEnabled) return;
@@ -985,15 +1010,33 @@ function RemotePage() {
               muted
               onLoadedData={() => setRtcVideoReady(true)}
               onPlaying={() => setRtcVideoReady(true)}
+              onError={() => setMediaError('浏览器无法播放远程视频轨道，已保留截图回退画面。')}
             />
           )}
           {!rtcVideoReady && (frame ? (
-            <img className="screen-frame" src={frame.image_data_url} alt="Agent screen frame" />
+            <img
+              className="screen-frame"
+              src={frame.image_data_url}
+              alt="Agent screen frame"
+              onLoad={() => setMediaError('')}
+              onError={() => setMediaError('远程截图数据无效或加载失败。')}
+            />
           ) : (
             <div className="screen-inner">
               <MonitorDot size={48} />
-              <strong>{unavailableReason ? '当前没有可用画面' : '等待 Agent 画面'}</strong>
-              <span>{unavailableReason || (awaitingApproval ? '被控端确认后才会进入可控状态。' : '点击画面区域后可发送鼠标与键盘事件。')}</span>
+              <p className="screen-kicker">REMOTE DISPLAY</p>
+              <strong>{transportError ? '远程连接不可用' : awaitingApproval ? '等待被控端确认' : '正在建立远程画面'}</strong>
+              <span>{transportError || (awaitingApproval ? '被控端确认后才会启动画面、语音和文字通道。' : '连接成功后将在此处显示被控端桌面。')}</span>
+              <div className="screen-diagnostics">
+                <code>session {sessionStatus}</code>
+                <code>websocket {wsStatus}</code>
+                <code>rtc {rtc.status}{rtc.detail ? ` / ${rtc.detail}` : ''}</code>
+              </div>
+              {transportError && (
+                <button className="icon-text" onClick={() => window.location.reload()}>
+                  <RefreshCcw size={14} />重新连接
+                </button>
+              )}
             </div>
           ))}
           {!interactiveEnabled && (
@@ -1408,7 +1451,11 @@ function VoicePanel({
     <div className="voice-panel">
       <div>
         <h3><Volume2 size={16} /> 语音沟通</h3>
-        <p>{disabled ? '等待远控会话进入 active 后再发起语音。' : localError || `${status}${voice?.reason ? ` / ${voice.reason}` : ''}`}</p>
+        <p>{disabled
+          ? '等待远控会话进入 active 后再发起语音。'
+          : !send
+            ? '后台实时连接已断开，暂时无法发送语音请求。'
+            : localError || `${status}${voice?.reason ? ` / ${voice.reason}` : ''}`}</p>
       </div>
       <div className="voice-actions">
         <button
@@ -1687,16 +1734,47 @@ function formatSize(size: number) {
 function Root() {
   return (
     <React.StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/*" element={<AppShell />} />
-          </Routes>
-        </BrowserRouter>
-      </QueryClientProvider>
+      <PageErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/*" element={<AppShell />} />
+            </Routes>
+          </BrowserRouter>
+        </QueryClientProvider>
+      </PageErrorBoundary>
     </React.StrictMode>
   );
+}
+
+class PageErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error: Error | null }
+> {
+  state = { error: null as Error | null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('Conductor page render failed', error, info);
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <main className="fatal-error" role="alert">
+        <p className="eyebrow">PAGE ERROR</p>
+        <h1>页面加载失败</h1>
+        <p>{this.state.error.message || '发生未知前端错误。'}</p>
+        <button className="primary" onClick={() => window.location.reload()}>
+          <RefreshCcw size={16} />重新加载
+        </button>
+      </main>
+    );
+  }
 }
 
 createRoot(document.getElementById('root')!).render(<Root />);

@@ -237,9 +237,23 @@
     @apply mb-4 flex flex-wrap items-center justify-between gap-3 border border-alert/30 bg-alert/10 px-4 py-3 text-sm text-alert;
   }
 
+  .session-banner-error {
+    @apply border-alert/50 bg-alert/15 font-medium;
+  }
+
   .screen {
-    @apply relative grid min-h-[62vh] place-items-center overflow-hidden border border-ink bg-[#141817] text-white outline-none shadow-crisp;
+    @apply relative grid min-h-[62vh] place-items-center overflow-hidden border outline-none shadow-crisp;
+  }
+
+  .screen-media {
+    @apply border-ink bg-[#141817] text-white;
     background-image: linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+
+  .screen-status {
+    @apply border-line bg-[#edf2eb] text-ink;
+    background-image: linear-gradient(rgba(20,24,23,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(20,24,23,.045) 1px, transparent 1px);
     background-size: 28px 28px;
   }
 
@@ -249,11 +263,23 @@
   }
 
   .screen-inner {
-    @apply flex max-w-md flex-col items-center gap-3 text-center text-white/70;
+    @apply m-6 flex max-w-xl flex-col items-center gap-3 border border-line bg-white p-8 text-center text-ink/65 shadow-crisp;
   }
 
   .screen-inner strong {
-    @apply text-xl text-white;
+    @apply text-xl text-ink;
+  }
+
+  .screen-kicker {
+    @apply font-mono text-xs tracking-[.2em] text-signal;
+  }
+
+  .screen-diagnostics {
+    @apply mt-2 grid w-full gap-2 text-left;
+  }
+
+  .screen-diagnostics code {
+    @apply border border-line bg-panel px-3 py-2 font-mono text-xs text-ink/60;
   }
 
   .screen-overlay {
@@ -377,5 +403,17 @@
 
   .error-line {
     @apply mt-4 border border-alert/30 bg-alert/10 px-3 py-2 text-sm text-alert;
+  }
+
+  .fatal-error {
+    @apply mx-auto mt-16 flex max-w-2xl flex-col items-start gap-4 border border-alert/40 bg-white p-8 text-ink shadow-crisp;
+  }
+
+  .fatal-error h1 {
+    @apply text-3xl font-semibold;
+  }
+
+  .fatal-error p:not(.eyebrow) {
+    @apply break-words border-l-4 border-alert bg-alert/10 px-4 py-3 text-alert;
   }
 }
