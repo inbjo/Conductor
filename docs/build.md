@@ -2,6 +2,8 @@
 
 本文档用于从一台新机器搭建 Conductor 开发/构建环境，并说明 Linux、Windows、macOS 三端被控客户端的构建方式。
 
+GitHub Actions 在正式版本 Tag 构建时发布对应 Release；`main`/`master` 的普通推送、每日定时任务和手动触发则发布或覆盖固定的 `nightly` 预发布版，因此无需创建 Tag 也能下载完整的 Server 与三端客户端包。
+
 公网服务端部署和 GitHub Actions artifact 发布流程见 `docs/deploy.md`。当前公网测试域名为 `https://conductor.moyu.ge`，客户端内置默认 Server URL 已指向该域名。
 
 ## 1. 组件关系
